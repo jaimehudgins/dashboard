@@ -9,7 +9,7 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
-import { Task, Project, InboxItem, FocusSession } from "@/types";
+import { Task, Project, InboxItem, FocusSession, Tag } from "@/types";
 import * as db from "@/lib/database";
 
 interface AppState {
@@ -19,6 +19,7 @@ interface AppState {
   focusSessions: FocusSession[];
   activeFocusSession: FocusSession | null;
   completedToday: Task[];
+  tags: Tag[];
   isLoading: boolean;
   error: string | null;
 }
@@ -29,6 +30,11 @@ type Action =
   | { type: "ADD_TASK"; payload: Task }
   | { type: "UPDATE_TASK"; payload: Task }
   | { type: "DELETE_TASK"; payload: string }
+  | {
+      type: "REORDER_TASKS";
+      payload: { projectId?: string; taskIds: string[] };
+    }
+  | { type: "REORDER_PROJECTS"; payload: string[] }
   | { type: "ADD_INBOX_ITEM"; payload: InboxItem }
   | { type: "REMOVE_INBOX_ITEM"; payload: string }
   | { type: "START_FOCUS"; payload: FocusSession }
@@ -36,6 +42,13 @@ type Action =
   | {
       type: "UPDATE_SCRATCHPAD";
       payload: { projectId: string; content: string };
+    }
+  | { type: "ADD_TAG"; payload: Tag }
+  | { type: "UPDATE_TAG"; payload: Tag }
+  | { type: "DELETE_TAG"; payload: string }
+  | {
+      type: "MARK_REMINDER_NOTIFIED";
+      payload: { taskId: string; reminderId: string };
     }
   | { type: "LOAD_STATE"; payload: Partial<AppState> }
   | { type: "SET_LOADING"; payload: boolean }
@@ -48,6 +61,7 @@ const emptyState: AppState = {
   focusSessions: [],
   activeFocusSession: null,
   completedToday: [],
+  tags: [],
   isLoading: true,
   error: null,
 };
@@ -102,6 +116,30 @@ function appReducer(state: AppState, action: Action): AppState {
         ...state,
         tasks: state.tasks.filter((t) => t.id !== action.payload),
       };
+
+    case "REORDER_TASKS": {
+      const { taskIds } = action.payload;
+      const updatedTasks = state.tasks.map((task) => {
+        const newOrder = taskIds.indexOf(task.id);
+        if (newOrder !== -1) {
+          return { ...task, displayOrder: newOrder };
+        }
+        return task;
+      });
+      return { ...state, tasks: updatedTasks };
+    }
+
+    case "REORDER_PROJECTS": {
+      const projectIds = action.payload;
+      const updatedProjects = state.projects.map((project) => {
+        const newOrder = projectIds.indexOf(project.id);
+        if (newOrder !== -1) {
+          return { ...project, displayOrder: newOrder };
+        }
+        return project;
+      });
+      return { ...state, projects: updatedProjects };
+    }
 
     case "ADD_INBOX_ITEM":
       return { ...state, inbox: [...state.inbox, action.payload] };
@@ -162,6 +200,42 @@ function appReducer(state: AppState, action: Action): AppState {
         ),
       };
 
+    case "ADD_TAG":
+      return { ...state, tags: [...state.tags, action.payload] };
+
+    case "UPDATE_TAG":
+      return {
+        ...state,
+        tags: state.tags.map((t) =>
+          t.id === action.payload.id ? action.payload : t,
+        ),
+      };
+
+    case "DELETE_TAG":
+      return {
+        ...state,
+        tags: state.tags.filter((t) => t.id !== action.payload),
+        // Also remove tag from all tasks
+        tasks: state.tasks.map((task) => ({
+          ...task,
+          tagIds: task.tagIds?.filter((id) => id !== action.payload),
+        })),
+      };
+
+    case "MARK_REMINDER_NOTIFIED":
+      return {
+        ...state,
+        tasks: state.tasks.map((task) => {
+          if (task.id !== action.payload.taskId) return task;
+          return {
+            ...task,
+            reminders: task.reminders?.map((r) =>
+              r.id === action.payload.reminderId ? { ...r, notified: true } : r,
+            ),
+          };
+        }),
+      };
+
     case "LOAD_STATE":
       return {
         ...state,
@@ -189,6 +263,7 @@ interface AppContextType {
   getFocus3Tasks: () => Task[];
   getTodayFocusMinutes: () => number;
   getMomentumScore: () => number;
+  getActiveProjects: () => Project[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -210,6 +285,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             tasks: data.tasks,
             inbox: data.inbox,
             focusSessions: data.focusSessions,
+            tags: data.tags,
           },
         });
       } catch (error) {
@@ -247,6 +323,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           case "DELETE_TASK":
             await db.deleteTask(action.payload);
             break;
+          case "REORDER_TASKS": {
+            const updates = action.payload.taskIds.map((id, index) => ({
+              id,
+              displayOrder: index,
+            }));
+            await db.updateTaskOrders(updates);
+            break;
+          }
+          case "REORDER_PROJECTS": {
+            const updates = action.payload.map((id, index) => ({
+              id,
+              displayOrder: index,
+            }));
+            await db.updateProjectOrders(updates);
+            break;
+          }
           case "ADD_INBOX_ITEM":
             await db.createInboxItem(action.payload);
             break;
@@ -285,7 +377,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               }
             }
             break;
-          case "UPDATE_SCRATCHPAD":
+          case "UPDATE_SCRATCHPAD": {
             const project = state.projects.find(
               (p) => p.id === action.payload.projectId,
             );
@@ -296,6 +388,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               });
             }
             break;
+          }
+          case "ADD_TAG":
+            await db.createTag(action.payload);
+            break;
+          case "UPDATE_TAG":
+            await db.updateTag(action.payload);
+            break;
+          case "DELETE_TAG":
+            await db.deleteTag(action.payload);
+            break;
+          case "MARK_REMINDER_NOTIFIED": {
+            const task = state.tasks.find(
+              (t) => t.id === action.payload.taskId,
+            );
+            if (task) {
+              await db.updateTask({
+                ...task,
+                reminders: task.reminders?.map((r) =>
+                  r.id === action.payload.reminderId
+                    ? { ...r, notified: true }
+                    : r,
+                ),
+              });
+            }
+            break;
+          }
         }
       } catch (error) {
         console.error("Failed to sync action to Supabase:", error);
@@ -385,6 +503,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return Math.min(Math.round(baseScore + focusBonus + priorityBonus), 100);
   }, [state.completedToday, state.focusSessions]);
 
+  const getActiveProjects = useCallback((): Project[] => {
+    return state.projects.filter((p) => !p.archived);
+  }, [state.projects]);
+
   const contextValue = useMemo(
     () => ({
       state,
@@ -392,6 +514,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       getFocus3Tasks,
       getTodayFocusMinutes,
       getMomentumScore,
+      getActiveProjects,
     }),
     [
       state,
@@ -399,6 +522,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       getFocus3Tasks,
       getTodayFocusMinutes,
       getMomentumScore,
+      getActiveProjects,
     ],
   );
 

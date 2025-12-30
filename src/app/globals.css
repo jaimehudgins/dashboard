@@ -103,3 +103,19 @@ body {
     border-color: #e2e8f0;
     margin: 2em 0;
 }
+
+/* Reminder toast animation */
+@keyframes slide-in {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.animate-slide-in {
+    animation: slide-in 0.3s ease-out;
+}

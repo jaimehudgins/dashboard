@@ -4,6 +4,23 @@ import React, { useState } from "react";
 import { format } from "date-fns";
 import ReactMarkdown from "react-markdown";
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   FileText,
   Edit3,
   Eye,
@@ -15,10 +32,12 @@ import {
   AlertCircle,
   Trash2,
   Pencil,
+  GripVertical,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Task, Priority } from "@/types";
 import TaskEditModal from "./TaskEditModal";
+import TagBadge from "./TagBadge";
 
 const priorityConfig: Record<
   Priority,
@@ -29,6 +48,118 @@ const priorityConfig: Record<
   medium: { color: "text-yellow-600", bg: "bg-yellow-50", label: "Medium" },
   low: { color: "text-slate-500", bg: "bg-slate-100", label: "Low" },
 };
+
+interface SortableTaskItemProps {
+  task: Task;
+  onComplete: (task: Task) => void;
+  onEdit: (task: Task) => void;
+  onStartFocus: (task: Task) => void;
+  onDelete: (taskId: string) => void;
+}
+
+function SortableTaskItem({
+  task,
+  onComplete,
+  onEdit,
+  onStartFocus,
+  onDelete,
+}: SortableTaskItemProps) {
+  const { state } = useApp();
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  const priority = priorityConfig[task.priority];
+  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`bg-white border border-slate-200 rounded-xl p-4 group hover:border-slate-300 hover:shadow-sm transition-all ${
+        isDragging ? "opacity-50 shadow-lg" : ""
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <button
+          {...attributes}
+          {...listeners}
+          className="mt-1 text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing"
+          aria-label="Drag to reorder"
+        >
+          <GripVertical size={16} />
+        </button>
+        <button
+          onClick={() => onComplete(task)}
+          className="mt-0.5 w-5 h-5 rounded-full border-2 border-slate-300 hover:border-green-500 hover:bg-green-50 transition-colors flex-shrink-0"
+        />
+        <div className="flex-1 min-w-0">
+          <p className="text-slate-900 font-medium">{task.title}</p>
+          <div className="flex items-center flex-wrap gap-2 mt-2 text-xs">
+            <span
+              className={`px-2 py-0.5 rounded-full ${priority.bg} ${priority.color}`}
+            >
+              {priority.label}
+            </span>
+            {task.dueDate && (
+              <span
+                className={`flex items-center gap-1 ${isOverdue ? "text-red-500" : "text-slate-500"}`}
+              >
+                {isOverdue ? <AlertCircle size={12} /> : <Clock size={12} />}
+                {format(new Date(task.dueDate), "MMM d")}
+              </span>
+            )}
+            {task.focusMinutes > 0 && (
+              <span className="flex items-center gap-1 text-slate-500">
+                <Flame size={12} className="text-orange-500" />
+                {task.focusMinutes}m
+              </span>
+            )}
+            {task.tagIds &&
+              task.tagIds.map((tagId) => {
+                const tag = state.tags.find((t) => t.id === tagId);
+                if (!tag) return null;
+                return <TagBadge key={tag.id} tag={tag} />;
+              })}
+          </div>
+        </div>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={() => onEdit(task)}
+            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            aria-label="Edit task"
+          >
+            <Pencil size={16} />
+          </button>
+          <button
+            onClick={() => onStartFocus(task)}
+            className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
+            aria-label="Start focus session"
+          >
+            <Play size={16} />
+          </button>
+          <button
+            onClick={() => onDelete(task.id)}
+            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+            aria-label="Delete task"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface ProjectViewProps {
   projectId: string;
@@ -46,9 +177,18 @@ export default function ProjectView({
   const [newTaskPriority, setNewTaskPriority] = useState<Priority>("medium");
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
   const project = state.projects.find((p) => p.id === projectId);
   const tasks = state.tasks.filter((t) => t.projectId === projectId);
-  const activeTasks = tasks.filter((t) => t.status !== "completed");
+  const activeTasks = tasks
+    .filter((t) => t.status !== "completed")
+    .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
   const completedTasks = tasks.filter((t) => t.status === "completed");
 
   if (!project) {
@@ -66,6 +206,11 @@ export default function ProjectView({
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
 
+    const maxOrder = Math.max(
+      ...activeTasks.map((t) => t.displayOrder ?? 0),
+      0,
+    );
+
     dispatch({
       type: "ADD_TASK",
       payload: {
@@ -76,6 +221,7 @@ export default function ProjectView({
         projectId,
         createdAt: new Date(),
         focusMinutes: 0,
+        displayOrder: maxOrder + 1,
       },
     });
 
@@ -92,6 +238,23 @@ export default function ProjectView({
 
   const handleDeleteTask = (taskId: string) => {
     dispatch({ type: "DELETE_TASK", payload: taskId });
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = activeTasks.findIndex((t) => t.id === active.id);
+      const newIndex = activeTasks.findIndex((t) => t.id === over.id);
+
+      const reorderedTasks = arrayMove(activeTasks, oldIndex, newIndex);
+      const taskIds = reorderedTasks.map((t) => t.id);
+
+      dispatch({
+        type: "REORDER_TASKS",
+        payload: { projectId, taskIds },
+      });
+    }
   };
 
   return (
@@ -184,80 +347,29 @@ export default function ProjectView({
               <p className="text-sm text-slate-500">No active tasks</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {activeTasks.map((task) => {
-                const priority = priorityConfig[task.priority];
-                const isOverdue =
-                  task.dueDate && new Date(task.dueDate) < new Date();
-
-                return (
-                  <div
-                    key={task.id}
-                    className="bg-white border border-slate-200 rounded-xl p-4 group hover:border-slate-300 hover:shadow-sm transition-all"
-                  >
-                    <div className="flex items-start gap-3">
-                      <button
-                        onClick={() => handleCompleteTask(task)}
-                        className="mt-0.5 w-5 h-5 rounded-full border-2 border-slate-300 hover:border-green-500 hover:bg-green-50 transition-colors"
-                      />
-                      <div className="flex-1">
-                        <p className="text-slate-900 font-medium">
-                          {task.title}
-                        </p>
-                        <div className="flex items-center gap-3 mt-2 text-xs">
-                          <span
-                            className={`px-2 py-0.5 rounded-full ${priority.bg} ${priority.color}`}
-                          >
-                            {priority.label}
-                          </span>
-                          {task.dueDate && (
-                            <span
-                              className={`flex items-center gap-1 ${isOverdue ? "text-red-500" : "text-slate-500"}`}
-                            >
-                              {isOverdue ? (
-                                <AlertCircle size={12} />
-                              ) : (
-                                <Clock size={12} />
-                              )}
-                              {format(new Date(task.dueDate), "MMM d")}
-                            </span>
-                          )}
-                          {task.focusMinutes > 0 && (
-                            <span className="flex items-center gap-1 text-slate-500">
-                              <Flame size={12} className="text-orange-500" />
-                              {task.focusMinutes}m
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => setEditingTask(task)}
-                          className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                          aria-label="Edit task"
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        <button
-                          onClick={() => onStartFocus(task)}
-                          className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
-                          aria-label="Start focus session"
-                        >
-                          <Play size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteTask(task.id)}
-                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                          aria-label="Delete task"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={activeTasks.map((t) => t.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-2">
+                  {activeTasks.map((task) => (
+                    <SortableTaskItem
+                      key={task.id}
+                      task={task}
+                      onComplete={handleCompleteTask}
+                      onEdit={setEditingTask}
+                      onStartFocus={onStartFocus}
+                      onDelete={handleDeleteTask}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           )}
 
           {completedTasks.length > 0 && (

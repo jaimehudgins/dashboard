@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { Task, Project, InboxItem, FocusSession } from "@/types";
+import { Task, Project, InboxItem, FocusSession, Tag } from "@/types";
 
 // Helper to convert snake_case DB rows to camelCase
 function toTask(row: Record<string, unknown>): Task {
@@ -16,6 +16,9 @@ function toTask(row: Record<string, unknown>): Task {
       ? new Date(row.completed_at as string)
       : undefined,
     focusMinutes: row.focus_minutes as number,
+    displayOrder: row.display_order as number | undefined,
+    tagIds: (row.tag_ids as string[]) || [],
+    reminders: (row.reminders as Task["reminders"]) || [],
   };
 }
 
@@ -28,6 +31,8 @@ function toProject(row: Record<string, unknown>): Project {
     scratchpad: row.scratchpad as string,
     totalFocusMinutes: row.total_focus_minutes as number,
     createdAt: new Date(row.created_at as string),
+    displayOrder: row.display_order as number | undefined,
+    archived: row.archived as boolean | undefined,
   };
 }
 
@@ -51,11 +56,21 @@ function toFocusSession(row: Record<string, unknown>): FocusSession {
   };
 }
 
+function toTag(row: Record<string, unknown>): Tag {
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    color: row.color as string,
+    createdAt: new Date(row.created_at as string),
+  };
+}
+
 // Projects
 export async function fetchProjects(): Promise<Project[]> {
   const { data, error } = await supabase
     .from("projects")
     .select("*")
+    .order("display_order", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: true });
 
   if (error) throw error;
@@ -71,6 +86,8 @@ export async function createProject(project: Project): Promise<void> {
     scratchpad: project.scratchpad,
     total_focus_minutes: project.totalFocusMinutes,
     created_at: project.createdAt.toISOString(),
+    display_order: project.displayOrder,
+    archived: project.archived || false,
   });
 
   if (error) throw error;
@@ -85,6 +102,8 @@ export async function updateProject(project: Project): Promise<void> {
       color: project.color,
       scratchpad: project.scratchpad,
       total_focus_minutes: project.totalFocusMinutes,
+      display_order: project.displayOrder,
+      archived: project.archived,
     })
     .eq("id", project.id);
 
@@ -96,6 +115,7 @@ export async function fetchTasks(): Promise<Task[]> {
   const { data, error } = await supabase
     .from("tasks")
     .select("*")
+    .order("display_order", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: true });
 
   if (error) throw error;
@@ -114,6 +134,9 @@ export async function createTask(task: Task): Promise<void> {
     created_at: task.createdAt.toISOString(),
     completed_at: task.completedAt?.toISOString(),
     focus_minutes: task.focusMinutes,
+    display_order: task.displayOrder,
+    tag_ids: task.tagIds || [],
+    reminders: task.reminders || [],
   });
 
   if (error) throw error;
@@ -131,6 +154,9 @@ export async function updateTask(task: Task): Promise<void> {
       due_date: task.dueDate?.toISOString(),
       completed_at: task.completedAt?.toISOString(),
       focus_minutes: task.focusMinutes,
+      display_order: task.displayOrder,
+      tag_ids: task.tagIds || [],
+      reminders: task.reminders || [],
     })
     .eq("id", task.id);
 
@@ -141,6 +167,35 @@ export async function deleteTask(taskId: string): Promise<void> {
   const { error } = await supabase.from("tasks").delete().eq("id", taskId);
 
   if (error) throw error;
+}
+
+// Batch update task orders
+export async function updateTaskOrders(
+  updates: { id: string; displayOrder: number }[],
+): Promise<void> {
+  // Supabase doesn't support batch updates easily, so we do them in parallel
+  await Promise.all(
+    updates.map(({ id, displayOrder }) =>
+      supabase
+        .from("tasks")
+        .update({ display_order: displayOrder })
+        .eq("id", id),
+    ),
+  );
+}
+
+// Batch update project orders
+export async function updateProjectOrders(
+  updates: { id: string; displayOrder: number }[],
+): Promise<void> {
+  await Promise.all(
+    updates.map(({ id, displayOrder }) =>
+      supabase
+        .from("projects")
+        .update({ display_order: displayOrder })
+        .eq("id", id),
+    ),
+  );
 }
 
 // Inbox Items
@@ -211,19 +266,61 @@ export async function updateFocusSession(session: FocusSession): Promise<void> {
   if (error) throw error;
 }
 
+// Tags
+export async function fetchTags(): Promise<Tag[]> {
+  const { data, error } = await supabase
+    .from("tags")
+    .select("*")
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return (data || []).map(toTag);
+}
+
+export async function createTag(tag: Tag): Promise<void> {
+  const { error } = await supabase.from("tags").insert({
+    id: tag.id,
+    name: tag.name,
+    color: tag.color,
+    created_at: tag.createdAt.toISOString(),
+  });
+
+  if (error) throw error;
+}
+
+export async function updateTag(tag: Tag): Promise<void> {
+  const { error } = await supabase
+    .from("tags")
+    .update({
+      name: tag.name,
+      color: tag.color,
+    })
+    .eq("id", tag.id);
+
+  if (error) throw error;
+}
+
+export async function deleteTag(tagId: string): Promise<void> {
+  const { error } = await supabase.from("tags").delete().eq("id", tagId);
+
+  if (error) throw error;
+}
+
 // Load all data
 export async function loadAllData(): Promise<{
   projects: Project[];
   tasks: Task[];
   inbox: InboxItem[];
   focusSessions: FocusSession[];
+  tags: Tag[];
 }> {
-  const [projects, tasks, inbox, focusSessions] = await Promise.all([
+  const [projects, tasks, inbox, focusSessions, tags] = await Promise.all([
     fetchProjects(),
     fetchTasks(),
     fetchInboxItems(),
     fetchFocusSessions(),
+    fetchTags(),
   ]);
 
-  return { projects, tasks, inbox, focusSessions };
+  return { projects, tasks, inbox, focusSessions, tags };
 }

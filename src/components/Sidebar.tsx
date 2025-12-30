@@ -4,16 +4,37 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   Command,
-  FolderKanban,
   Inbox,
   Calendar,
-  ChevronRight,
   Plus,
+  Pencil,
+  Tags,
+  GripVertical,
 } from "lucide-react";
 import { useApp } from "@/store/store";
+import { Project } from "@/types";
 import QuickCapture from "./QuickCapture";
 import ProjectCreateModal from "./ProjectCreateModal";
+import ProjectEditModal from "./ProjectEditModal";
+import TagManager from "./TagManager";
 
 interface SidebarProps {
   children: React.ReactNode;
@@ -25,10 +46,108 @@ const navItems = [
   { href: "/archive", label: "Daily Archive", icon: Calendar },
 ];
 
+interface SortableProjectItemProps {
+  project: Project;
+  isActive: boolean;
+  onEdit: (project: Project) => void;
+}
+
+function SortableProjectItem({
+  project,
+  isActive,
+  onEdit,
+}: SortableProjectItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: project.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`group flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+        isActive
+          ? "bg-indigo-50 text-indigo-600"
+          : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+      } ${isDragging ? "opacity-50" : ""}`}
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
+        aria-label="Drag to reorder"
+      >
+        <GripVertical size={14} />
+      </button>
+      <Link
+        href={`/projects/${project.id}`}
+        className="flex items-center gap-3 flex-1 min-w-0"
+      >
+        <div
+          className="w-2 h-2 rounded-full flex-shrink-0"
+          style={{ backgroundColor: project.color }}
+        />
+        <span className="truncate">{project.name}</span>
+      </Link>
+      <button
+        onClick={(e) => {
+          e.preventDefault();
+          onEdit(project);
+        }}
+        className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-500 transition-all flex-shrink-0"
+        aria-label={`Edit ${project.name}`}
+      >
+        <Pencil size={14} />
+      </button>
+    </div>
+  );
+}
+
 export default function Sidebar({ children }: SidebarProps) {
   const pathname = usePathname();
-  const { state } = useApp();
+  const { state, dispatch } = useApp();
   const [showCreateProject, setShowCreateProject] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [showTagManager, setShowTagManager] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  // Filter out archived projects and sort by displayOrder
+  const activeProjects = state.projects
+    .filter((p) => !p.archived)
+    .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = activeProjects.findIndex((p) => p.id === active.id);
+      const newIndex = activeProjects.findIndex((p) => p.id === over.id);
+
+      const reorderedProjects = arrayMove(activeProjects, oldIndex, newIndex);
+      const projectIds = reorderedProjects.map((p) => p.id);
+
+      dispatch({
+        type: "REORDER_PROJECTS",
+        payload: projectIds,
+      });
+    }
+  };
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -43,7 +162,7 @@ export default function Sidebar({ children }: SidebarProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
@@ -68,6 +187,15 @@ export default function Sidebar({ children }: SidebarProps) {
             );
           })}
 
+          {/* Manage Tags */}
+          <button
+            onClick={() => setShowTagManager(true)}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors w-full"
+          >
+            <Tags size={18} />
+            Manage Tags
+          </button>
+
           {/* Projects Section */}
           <div className="pt-6">
             <div className="flex items-center justify-between px-3 mb-2">
@@ -82,28 +210,27 @@ export default function Sidebar({ children }: SidebarProps) {
                 <Plus size={16} />
               </button>
             </div>
-            <div className="space-y-1">
-              {state.projects.map((project) => {
-                const isActive = pathname === `/projects/${project.id}`;
-                return (
-                  <Link
-                    key={project.id}
-                    href={`/projects/${project.id}`}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                      isActive
-                        ? "bg-indigo-50 text-indigo-600"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                    }`}
-                  >
-                    <div
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: project.color }}
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={activeProjects.map((p) => p.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-1">
+                  {activeProjects.map((project) => (
+                    <SortableProjectItem
+                      key={project.id}
+                      project={project}
+                      isActive={pathname === `/projects/${project.id}`}
+                      onEdit={setEditingProject}
                     />
-                    <span className="truncate">{project.name}</span>
-                  </Link>
-                );
-              })}
-            </div>
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           </div>
         </nav>
 
@@ -137,6 +264,17 @@ export default function Sidebar({ children }: SidebarProps) {
 
       {showCreateProject && (
         <ProjectCreateModal onClose={() => setShowCreateProject(false)} />
+      )}
+
+      {editingProject && (
+        <ProjectEditModal
+          project={editingProject}
+          onClose={() => setEditingProject(null)}
+        />
+      )}
+
+      {showTagManager && (
+        <TagManager onClose={() => setShowTagManager(false)} />
       )}
     </div>
   );

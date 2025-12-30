@@ -14,6 +14,7 @@ import {
 import { useApp } from "@/store/store";
 import { Task, Priority } from "@/types";
 import TaskEditModal from "./TaskEditModal";
+import TagBadge from "./TagBadge";
 
 const priorityConfig: Record<
   Priority,
@@ -75,6 +76,17 @@ function Focus3Card({
           {priority.label}
         </span>
       </div>
+
+      {/* Tags */}
+      {task.tagIds && task.tagIds.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-3">
+          {task.tagIds.map((tagId) => {
+            const tag = state.tags.find((t) => t.id === tagId);
+            if (!tag) return null;
+            return <TagBadge key={tag.id} tag={tag} />;
+          })}
+        </div>
+      )}
 
       {/* Meta */}
       <div className="flex items-center gap-4 text-xs text-slate-500 mb-4">
