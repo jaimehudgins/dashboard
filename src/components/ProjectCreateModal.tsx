@@ -55,13 +55,13 @@ export default function ProjectCreateModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-md p-6">
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-md p-6 shadow-xl">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-white">New Project</h2>
+          <h2 className="text-lg font-semibold text-slate-900">New Project</h2>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white transition-colors"
+            className="text-slate-400 hover:text-slate-600 transition-colors"
             aria-label="Close modal"
           >
             <X size={20} />
@@ -70,7 +70,7 @@ export default function ProjectCreateModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm text-slate-400 mb-1">
+            <label className="block text-sm text-slate-600 mb-1">
               Project Name
             </label>
             <input
@@ -78,13 +78,13 @@ export default function ProjectCreateModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g., Website Redesign"
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               autoFocus
             />
           </div>
 
           <div>
-            <label className="block text-sm text-slate-400 mb-1">
+            <label className="block text-sm text-slate-600 mb-1">
               Description (optional)
             </label>
             <textarea
@@ -92,12 +92,12 @@ export default function ProjectCreateModal({
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
               placeholder="Brief description of the project..."
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
             />
           </div>
 
           <div>
-            <label className="block text-sm text-slate-400 mb-2">Color</label>
+            <label className="block text-sm text-slate-600 mb-2">Color</label>
             <div className="flex flex-wrap gap-2">
               {colorOptions.map((option) => (
                 <button
@@ -106,7 +106,7 @@ export default function ProjectCreateModal({
                   onClick={() => setColor(option.value)}
                   className={`w-8 h-8 rounded-full transition-all ${
                     color === option.value
-                      ? "ring-2 ring-white ring-offset-2 ring-offset-slate-800"
+                      ? "ring-2 ring-indigo-500 ring-offset-2 ring-offset-white"
                       : "hover:scale-110"
                   }`}
                   style={{ backgroundColor: option.value }}
@@ -120,7 +120,7 @@ export default function ProjectCreateModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded-lg font-medium transition-colors"
+              className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-lg font-medium transition-colors"
             >
               Cancel
             </button>

@@ -19,10 +19,10 @@ const priorityConfig: Record<
   Priority,
   { color: string; bg: string; label: string }
 > = {
-  critical: { color: "text-red-400", bg: "bg-red-500/10", label: "Critical" },
-  high: { color: "text-orange-400", bg: "bg-orange-500/10", label: "High" },
-  medium: { color: "text-yellow-400", bg: "bg-yellow-500/10", label: "Medium" },
-  low: { color: "text-slate-400", bg: "bg-slate-500/10", label: "Low" },
+  critical: { color: "text-red-600", bg: "bg-red-50", label: "Critical" },
+  high: { color: "text-orange-600", bg: "bg-orange-50", label: "High" },
+  medium: { color: "text-yellow-600", bg: "bg-yellow-50", label: "Medium" },
+  low: { color: "text-slate-500", bg: "bg-slate-100", label: "Low" },
 };
 
 interface Focus3CardProps {
@@ -49,7 +49,7 @@ function Focus3Card({
     new Date(task.dueDate).toDateString() !== new Date().toDateString();
 
   return (
-    <div className="group relative bg-slate-800/50 border border-slate-700 rounded-xl p-5 hover:border-indigo-500/50 transition-all">
+    <div className="group relative bg-white border border-slate-200 rounded-xl p-5 hover:border-indigo-300 hover:shadow-md transition-all">
       {/* Rank Badge */}
       <div className="absolute -top-3 -left-3 w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg">
         {rank}
@@ -58,13 +58,15 @@ function Focus3Card({
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1 pr-4">
-          <h3 className="text-white font-medium leading-snug">{task.title}</h3>
+          <h3 className="text-slate-900 font-medium leading-snug">
+            {task.title}
+          </h3>
           <div className="flex items-center gap-2 mt-2">
             <div
               className="w-2 h-2 rounded-full"
               style={{ backgroundColor: project?.color }}
             />
-            <span className="text-xs text-slate-400">{project?.name}</span>
+            <span className="text-xs text-slate-500">{project?.name}</span>
           </div>
         </div>
         <span
@@ -78,7 +80,7 @@ function Focus3Card({
       <div className="flex items-center gap-4 text-xs text-slate-500 mb-4">
         {task.dueDate && (
           <div
-            className={`flex items-center gap-1 ${isOverdue ? "text-red-400" : ""}`}
+            className={`flex items-center gap-1 ${isOverdue ? "text-red-500" : ""}`}
           >
             {isOverdue ? <AlertCircle size={12} /> : <Clock size={12} />}
             <span>
@@ -89,12 +91,12 @@ function Focus3Card({
         )}
         {task.focusMinutes > 0 && (
           <div className="flex items-center gap-1">
-            <Flame size={12} className="text-orange-400" />
+            <Flame size={12} className="text-orange-500" />
             <span>{task.focusMinutes}m focused</span>
           </div>
         )}
         {task.status === "in_progress" && (
-          <span className="text-indigo-400 font-medium">In Progress</span>
+          <span className="text-indigo-600 font-medium">In Progress</span>
         )}
       </div>
 
@@ -110,14 +112,14 @@ function Focus3Card({
         </button>
         <button
           onClick={() => onEdit(task)}
-          className="flex items-center justify-center bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
+          className="flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
           aria-label="Edit task"
         >
           <Pencil size={14} />
         </button>
         <button
           onClick={() => onComplete(task)}
-          className="flex items-center justify-center gap-2 bg-slate-700 hover:bg-green-600 text-slate-300 hover:text-white px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
+          className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-green-500 text-slate-600 hover:text-white px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
           aria-label="Complete task"
         >
           <CheckCircle2 size={14} />
@@ -158,27 +160,29 @@ export default function Focus3Dashboard({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Command Center</h1>
-          <p className="text-slate-400 mt-1">
+          <h1 className="text-2xl font-bold text-slate-900">Command Center</h1>
+          <p className="text-slate-500 mt-1">
             {format(new Date(), "EEEE, MMMM d, yyyy")}
           </p>
         </div>
 
         {/* Stats Cards */}
         <div className="flex items-center gap-4">
-          <div className="bg-slate-800/50 border border-slate-700 rounded-xl px-5 py-3">
+          <div className="bg-white border border-slate-200 rounded-xl px-5 py-3 shadow-sm">
             <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
               <Clock size={12} />
               Focus Time
             </div>
-            <div className="text-xl font-bold text-white">{focusMinutes}m</div>
+            <div className="text-xl font-bold text-slate-900">
+              {focusMinutes}m
+            </div>
           </div>
-          <div className="bg-slate-800/50 border border-slate-700 rounded-xl px-5 py-3">
+          <div className="bg-white border border-slate-200 rounded-xl px-5 py-3 shadow-sm">
             <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
               <Target size={12} />
               Momentum
             </div>
-            <div className="text-xl font-bold text-indigo-400">{momentum}%</div>
+            <div className="text-xl font-bold text-indigo-600">{momentum}%</div>
           </div>
         </div>
       </div>
@@ -186,22 +190,22 @@ export default function Focus3Dashboard({
       {/* Focus 3 Section */}
       <div>
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center">
-            <Target className="text-indigo-400" size={20} />
+          <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
+            <Target className="text-indigo-500" size={20} />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-white">Focus 3</h2>
-            <p className="text-sm text-slate-400">
+            <h2 className="text-lg font-semibold text-slate-900">Focus 3</h2>
+            <p className="text-sm text-slate-500">
               Your highest-priority tasks right now
             </p>
           </div>
         </div>
 
         {focus3.length === 0 ? (
-          <div className="bg-slate-800/30 border border-slate-700 border-dashed rounded-xl p-8 text-center">
-            <CheckCircle2 className="mx-auto text-green-400 mb-3" size={32} />
-            <h3 className="text-white font-medium mb-1">All caught up!</h3>
-            <p className="text-sm text-slate-400">
+          <div className="bg-white border border-slate-200 border-dashed rounded-xl p-8 text-center">
+            <CheckCircle2 className="mx-auto text-green-500 mb-3" size={32} />
+            <h3 className="text-slate-900 font-medium mb-1">All caught up!</h3>
+            <p className="text-sm text-slate-500">
               No priority tasks pending. Great work!
             </p>
           </div>
@@ -230,14 +234,14 @@ export default function Focus3Dashboard({
           return (
             <div
               key={project.id}
-              className="bg-slate-800/30 border border-slate-700 rounded-xl p-4 hover:border-slate-600 transition-colors"
+              className="bg-white border border-slate-200 rounded-xl p-4 hover:border-slate-300 hover:shadow-sm transition-all"
             >
               <div className="flex items-center gap-2 mb-3">
                 <div
                   className="w-3 h-3 rounded-full"
                   style={{ backgroundColor: project.color }}
                 />
-                <span className="text-sm font-medium text-white truncate">
+                <span className="text-sm font-medium text-slate-900 truncate">
                   {project.name}
                 </span>
               </div>

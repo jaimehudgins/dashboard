@@ -51,31 +51,31 @@ function ProcessModal({ item, onClose }: ProcessModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-md p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-md p-6 shadow-xl">
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">
           Process Inbox Item
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm text-slate-400 mb-1">
+            <label className="block text-sm text-slate-600 mb-1">
               Task Title
             </label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
           <div>
-            <label className="block text-sm text-slate-400 mb-1">Project</label>
+            <label className="block text-sm text-slate-600 mb-1">Project</label>
             <select
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               {state.projects.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -87,13 +87,13 @@ function ProcessModal({ item, onClose }: ProcessModalProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-slate-400 mb-1">
+              <label className="block text-sm text-slate-600 mb-1">
                 Priority
               </label>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as Priority)}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="critical">Critical</option>
                 <option value="high">High</option>
@@ -103,14 +103,14 @@ function ProcessModal({ item, onClose }: ProcessModalProps) {
             </div>
 
             <div>
-              <label className="block text-sm text-slate-400 mb-1">
+              <label className="block text-sm text-slate-600 mb-1">
                 Due Date
               </label>
               <input
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
@@ -119,7 +119,7 @@ function ProcessModal({ item, onClose }: ProcessModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded-lg font-medium transition-colors"
+              className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-lg font-medium transition-colors"
             >
               Cancel
             </button>
@@ -147,17 +147,17 @@ export default function InboxView() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Inbox</h1>
-        <p className="text-slate-400 mt-1">
+        <h1 className="text-2xl font-bold text-slate-900">Inbox</h1>
+        <p className="text-slate-500 mt-1">
           Process your brain dumps into actionable tasks
         </p>
       </div>
 
       {state.inbox.length === 0 ? (
-        <div className="bg-slate-800/30 border border-slate-700 border-dashed rounded-xl p-12 text-center">
-          <InboxIcon className="mx-auto text-slate-600 mb-4" size={48} />
-          <h3 className="text-white font-medium mb-2">Inbox Zero!</h3>
-          <p className="text-sm text-slate-400">
+        <div className="bg-white border border-slate-200 border-dashed rounded-xl p-12 text-center">
+          <InboxIcon className="mx-auto text-slate-300 mb-4" size={48} />
+          <h3 className="text-slate-900 font-medium mb-2">Inbox Zero!</h3>
+          <p className="text-sm text-slate-500">
             Use Quick Capture above to add new items
           </p>
         </div>
@@ -166,11 +166,11 @@ export default function InboxView() {
           {state.inbox.map((item) => (
             <div
               key={item.id}
-              className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 flex items-center gap-4 group hover:border-slate-600 transition-colors"
+              className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-4 group hover:border-slate-300 hover:shadow-sm transition-all"
             >
               <div className="flex-1">
-                <p className="text-white">{item.content}</p>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-slate-900">{item.content}</p>
+                <p className="text-xs text-slate-400 mt-1">
                   Captured {format(new Date(item.createdAt), "MMM d, h:mm a")}
                 </p>
               </div>
@@ -184,7 +184,7 @@ export default function InboxView() {
                 </button>
                 <button
                   onClick={() => handleDelete(item.id)}
-                  className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                  className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                   aria-label="Delete inbox item"
                 >
                   <Trash2 size={16} />
