@@ -1,18 +1,21 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useParams } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
-import Focus3Dashboard from '@/components/Focus3Dashboard';
+import ProjectView from '@/components/ProjectView';
 import ZenMode from '@/components/ZenMode';
 import { Task } from '@/types';
 
-export default function Home() {
+export default function ProjectPage() {
+  const params = useParams();
+  const projectId = params.id as string;
   const [focusTask, setFocusTask] = useState<Task | null>(null);
 
   return (
     <>
       <Sidebar>
-        <Focus3Dashboard onStartFocus={setFocusTask} />
+        <ProjectView projectId={projectId} onStartFocus={setFocusTask} />
       </Sidebar>
       
       {focusTask && (
