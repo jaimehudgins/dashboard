@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Strategic Execution Engine",
+  title: "Jaime's Dashboard",
   description: "Your personal command center for focused productivity",
 };
 

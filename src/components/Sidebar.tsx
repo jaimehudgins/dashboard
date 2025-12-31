@@ -156,9 +156,8 @@ export default function Sidebar({ children }: SidebarProps) {
         {/* Logo */}
         <div className="p-6 border-b border-slate-200">
           <h1 className="text-xl font-semibold text-slate-900 tracking-tight">
-            Strategic Engine
+            Jaime's Dashboard
           </h1>
-          <p className="text-xs text-slate-500 mt-1">Execution Dashboard</p>
         </div>
 
         {/* Navigation */}
