@@ -12,6 +12,7 @@ import {
   ActivityLog,
   Attachment,
   ProjectNote,
+  MiscCategory,
 } from "@/types";
 
 // Helper to convert snake_case DB rows to camelCase
@@ -39,6 +40,18 @@ function toTask(row: Record<string, unknown>): Task {
       : undefined,
     recurringParentId: row.recurring_parent_id as string | undefined,
     milestoneId: row.milestone_id as string | undefined,
+    categoryId: row.category_id as string | undefined,
+  };
+}
+
+function toMiscCategory(row: Record<string, unknown>): MiscCategory {
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    color: row.color as string,
+    displayOrder: row.display_order as number | undefined,
+    isCollapsed: row.is_collapsed as boolean | undefined,
+    createdAt: new Date(row.created_at as string),
   };
 }
 
@@ -598,6 +611,58 @@ export async function deleteProjectNote(noteId: string): Promise<void> {
   if (error) throw error;
 }
 
+// Misc Categories
+export async function fetchMiscCategories(): Promise<MiscCategory[]> {
+  const { data, error } = await supabase
+    .from("misc_categories")
+    .select("*")
+    .order("display_order", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return (data || []).map(toMiscCategory);
+}
+
+export async function createMiscCategory(
+  category: MiscCategory,
+): Promise<void> {
+  const { error } = await supabase.from("misc_categories").insert({
+    id: category.id,
+    name: category.name,
+    color: category.color,
+    display_order: category.displayOrder,
+    is_collapsed: category.isCollapsed,
+    created_at: category.createdAt.toISOString(),
+  });
+
+  if (error) throw error;
+}
+
+export async function updateMiscCategory(
+  category: MiscCategory,
+): Promise<void> {
+  const { error } = await supabase
+    .from("misc_categories")
+    .update({
+      name: category.name,
+      color: category.color,
+      display_order: category.displayOrder,
+      is_collapsed: category.isCollapsed,
+    })
+    .eq("id", category.id);
+
+  if (error) throw error;
+}
+
+export async function deleteMiscCategory(categoryId: string): Promise<void> {
+  const { error } = await supabase
+    .from("misc_categories")
+    .delete()
+    .eq("id", categoryId);
+
+  if (error) throw error;
+}
+
 // Inbox Items
 export async function fetchInboxItems(): Promise<InboxItem[]> {
   const { data, error } = await supabase
@@ -720,6 +785,7 @@ export async function loadAllData(): Promise<{
   activityLogs: ActivityLog[];
   attachments: Attachment[];
   projectNotes: ProjectNote[];
+  miscCategories: MiscCategory[];
 }> {
   const [
     projects,
@@ -734,6 +800,7 @@ export async function loadAllData(): Promise<{
     activityLogs,
     attachments,
     projectNotes,
+    miscCategories,
   ] = await Promise.all([
     fetchProjects(),
     fetchTasks(),
@@ -747,6 +814,7 @@ export async function loadAllData(): Promise<{
     fetchActivityLogs(),
     fetchAttachments(),
     fetchProjectNotes(),
+    fetchMiscCategories(),
   ]);
 
   return {
@@ -762,5 +830,6 @@ export async function loadAllData(): Promise<{
     activityLogs,
     attachments,
     projectNotes,
+    miscCategories,
   };
 }

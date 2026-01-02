@@ -38,6 +38,8 @@ export interface Task {
   recurringParentId?: string;
   // Milestones
   milestoneId?: string;
+  // Misc category (for tasks with projectId = "misc")
+  categoryId?: string;
 }
 
 export interface TaskDependency {
@@ -139,4 +141,13 @@ export interface DailySummary {
   totalFocusMinutes: number;
   projectBreakdown: { projectId: string; minutes: number }[];
   momentumScore: number;
+}
+
+export interface MiscCategory {
+  id: string;
+  name: string;
+  color: string;
+  displayOrder?: number;
+  isCollapsed?: boolean;
+  createdAt: Date;
 }

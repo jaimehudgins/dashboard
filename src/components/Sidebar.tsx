@@ -28,6 +28,10 @@ import {
   Pencil,
   Tags,
   GripVertical,
+  CheckCircle2,
+  Circle,
+  Trash2,
+  MoreHorizontal,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Project } from "@/types";
@@ -35,6 +39,7 @@ import QuickCapture from "./QuickCapture";
 import ProjectCreateModal from "./ProjectCreateModal";
 import ProjectEditModal from "./ProjectEditModal";
 import TagManager from "./TagManager";
+import MiscTasks from "./MiscTasks";
 
 interface SidebarProps {
   children: React.ReactNode;
@@ -231,6 +236,9 @@ export default function Sidebar({ children }: SidebarProps) {
               </SortableContext>
             </DndContext>
           </div>
+
+          {/* Misc Tasks Section */}
+          <MiscTasks />
         </nav>
 
         {/* Footer Stats */}

@@ -23,6 +23,7 @@ import {
   ActivityLog,
   Attachment,
   ProjectNote,
+  MiscCategory,
 } from "@/types";
 import * as db from "@/lib/database";
 
@@ -41,6 +42,7 @@ interface AppState {
   activityLogs: ActivityLog[];
   attachments: Attachment[];
   projectNotes: ProjectNote[];
+  miscCategories: MiscCategory[];
   isLoading: boolean;
   error: string | null;
 }
@@ -96,6 +98,10 @@ type Action =
   | { type: "UPDATE_NOTE"; payload: ProjectNote }
   | { type: "DELETE_NOTE"; payload: string }
   | { type: "REORDER_NOTES"; payload: string[] }
+  // Misc Categories
+  | { type: "ADD_CATEGORY"; payload: MiscCategory }
+  | { type: "UPDATE_CATEGORY"; payload: MiscCategory }
+  | { type: "DELETE_CATEGORY"; payload: string }
   // System
   | { type: "LOAD_STATE"; payload: Partial<AppState> }
   | { type: "SET_LOADING"; payload: boolean }
@@ -116,6 +122,7 @@ const emptyState: AppState = {
   activityLogs: [],
   attachments: [],
   projectNotes: [],
+  miscCategories: [],
   isLoading: true,
   error: null,
 };
@@ -534,6 +541,33 @@ function appReducer(state: AppState, action: Action): AppState {
       return { ...state, projectNotes: updatedNotes };
     }
 
+    // Misc Categories
+    case "ADD_CATEGORY":
+      return {
+        ...state,
+        miscCategories: [...state.miscCategories, action.payload],
+      };
+
+    case "UPDATE_CATEGORY":
+      return {
+        ...state,
+        miscCategories: state.miscCategories.map((c) =>
+          c.id === action.payload.id ? action.payload : c,
+        ),
+      };
+
+    case "DELETE_CATEGORY":
+      return {
+        ...state,
+        miscCategories: state.miscCategories.filter(
+          (c) => c.id !== action.payload,
+        ),
+        // Also clear categoryId from tasks in this category
+        tasks: state.tasks.map((t) =>
+          t.categoryId === action.payload ? { ...t, categoryId: undefined } : t,
+        ),
+      };
+
     case "LOAD_STATE":
       return {
         ...state,
@@ -783,6 +817,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             break;
           case "DELETE_NOTE":
             await db.deleteProjectNote(action.payload);
+            break;
+          // Misc Categories
+          case "ADD_CATEGORY":
+            await db.createMiscCategory(action.payload);
+            break;
+          case "UPDATE_CATEGORY":
+            await db.updateMiscCategory(action.payload);
+            break;
+          case "DELETE_CATEGORY":
+            await db.deleteMiscCategory(action.payload);
             break;
         }
       } catch (error) {
