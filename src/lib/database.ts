@@ -1,5 +1,18 @@
 import { supabase } from "./supabase";
-import { Task, Project, InboxItem, FocusSession, Tag } from "@/types";
+import {
+  Task,
+  Project,
+  InboxItem,
+  FocusSession,
+  Tag,
+  TaskDependency,
+  TaskTemplate,
+  Milestone,
+  Comment,
+  ActivityLog,
+  Attachment,
+  ProjectNote,
+} from "@/types";
 
 // Helper to convert snake_case DB rows to camelCase
 function toTask(row: Record<string, unknown>): Task {
@@ -19,6 +32,13 @@ function toTask(row: Record<string, unknown>): Task {
     displayOrder: row.display_order as number | undefined,
     tagIds: (row.tag_ids as string[]) || [],
     reminders: (row.reminders as Task["reminders"]) || [],
+    parentTaskId: row.parent_task_id as string | undefined,
+    recurrenceRule: row.recurrence_rule as Task["recurrenceRule"],
+    recurrenceEndDate: row.recurrence_end_date
+      ? new Date(row.recurrence_end_date as string)
+      : undefined,
+    recurringParentId: row.recurring_parent_id as string | undefined,
+    milestoneId: row.milestone_id as string | undefined,
   };
 }
 
@@ -62,6 +82,85 @@ function toTag(row: Record<string, unknown>): Tag {
     name: row.name as string,
     color: row.color as string,
     createdAt: new Date(row.created_at as string),
+  };
+}
+
+function toTaskDependency(row: Record<string, unknown>): TaskDependency {
+  return {
+    id: row.id as string,
+    taskId: row.task_id as string,
+    dependsOnTaskId: row.depends_on_task_id as string,
+    createdAt: new Date(row.created_at as string),
+  };
+}
+
+function toTaskTemplate(row: Record<string, unknown>): TaskTemplate {
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    description: row.description as string | undefined,
+    defaultPriority: row.default_priority as TaskTemplate["defaultPriority"],
+    subtasks: (row.subtasks as TaskTemplate["subtasks"]) || [],
+    createdAt: new Date(row.created_at as string),
+  };
+}
+
+function toMilestone(row: Record<string, unknown>): Milestone {
+  return {
+    id: row.id as string,
+    projectId: row.project_id as string,
+    name: row.name as string,
+    description: row.description as string | undefined,
+    dueDate: row.due_date ? new Date(row.due_date as string) : undefined,
+    status: row.status as Milestone["status"],
+    displayOrder: row.display_order as number | undefined,
+    createdAt: new Date(row.created_at as string),
+  };
+}
+
+function toComment(row: Record<string, unknown>): Comment {
+  return {
+    id: row.id as string,
+    taskId: row.task_id as string,
+    content: row.content as string,
+    createdAt: new Date(row.created_at as string),
+    updatedAt: new Date(row.updated_at as string),
+  };
+}
+
+function toActivityLog(row: Record<string, unknown>): ActivityLog {
+  return {
+    id: row.id as string,
+    projectId: row.project_id as string | undefined,
+    taskId: row.task_id as string | undefined,
+    action: row.action as string,
+    details: row.details as Record<string, unknown> | undefined,
+    createdAt: new Date(row.created_at as string),
+  };
+}
+
+function toAttachment(row: Record<string, unknown>): Attachment {
+  return {
+    id: row.id as string,
+    taskId: row.task_id as string,
+    fileName: row.file_name as string,
+    fileUrl: row.file_url as string,
+    fileSize: row.file_size as number | undefined,
+    fileType: row.file_type as string | undefined,
+    createdAt: new Date(row.created_at as string),
+  };
+}
+
+function toProjectNote(row: Record<string, unknown>): ProjectNote {
+  return {
+    id: row.id as string,
+    projectId: row.project_id as string,
+    title: row.title as string,
+    content: row.content as string,
+    displayOrder: row.display_order as number | undefined,
+    isPinned: row.is_pinned as boolean,
+    createdAt: new Date(row.created_at as string),
+    updatedAt: new Date(row.updated_at as string),
   };
 }
 
@@ -137,6 +236,11 @@ export async function createTask(task: Task): Promise<void> {
     display_order: task.displayOrder,
     tag_ids: task.tagIds || [],
     reminders: task.reminders || [],
+    parent_task_id: task.parentTaskId,
+    recurrence_rule: task.recurrenceRule,
+    recurrence_end_date: task.recurrenceEndDate?.toISOString(),
+    recurring_parent_id: task.recurringParentId,
+    milestone_id: task.milestoneId,
   });
 
   if (error) throw error;
@@ -157,6 +261,11 @@ export async function updateTask(task: Task): Promise<void> {
       display_order: task.displayOrder,
       tag_ids: task.tagIds || [],
       reminders: task.reminders || [],
+      parent_task_id: task.parentTaskId,
+      recurrence_rule: task.recurrenceRule,
+      recurrence_end_date: task.recurrenceEndDate?.toISOString(),
+      recurring_parent_id: task.recurringParentId,
+      milestone_id: task.milestoneId,
     })
     .eq("id", task.id);
 
@@ -173,7 +282,6 @@ export async function deleteTask(taskId: string): Promise<void> {
 export async function updateTaskOrders(
   updates: { id: string; displayOrder: number }[],
 ): Promise<void> {
-  // Supabase doesn't support batch updates easily, so we do them in parallel
   await Promise.all(
     updates.map(({ id, displayOrder }) =>
       supabase
@@ -196,6 +304,298 @@ export async function updateProjectOrders(
         .eq("id", id),
     ),
   );
+}
+
+// Task Dependencies
+export async function fetchTaskDependencies(): Promise<TaskDependency[]> {
+  const { data, error } = await supabase
+    .from("task_dependencies")
+    .select("*")
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return (data || []).map(toTaskDependency);
+}
+
+export async function createTaskDependency(
+  dependency: TaskDependency,
+): Promise<void> {
+  const { error } = await supabase.from("task_dependencies").insert({
+    id: dependency.id,
+    task_id: dependency.taskId,
+    depends_on_task_id: dependency.dependsOnTaskId,
+    created_at: dependency.createdAt.toISOString(),
+  });
+
+  if (error) throw error;
+}
+
+export async function deleteTaskDependency(
+  dependencyId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("task_dependencies")
+    .delete()
+    .eq("id", dependencyId);
+
+  if (error) throw error;
+}
+
+// Task Templates
+export async function fetchTaskTemplates(): Promise<TaskTemplate[]> {
+  const { data, error } = await supabase
+    .from("task_templates")
+    .select("*")
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return (data || []).map(toTaskTemplate);
+}
+
+export async function createTaskTemplate(
+  template: TaskTemplate,
+): Promise<void> {
+  const { error } = await supabase.from("task_templates").insert({
+    id: template.id,
+    name: template.name,
+    description: template.description,
+    default_priority: template.defaultPriority,
+    subtasks: template.subtasks,
+    created_at: template.createdAt.toISOString(),
+  });
+
+  if (error) throw error;
+}
+
+export async function updateTaskTemplate(
+  template: TaskTemplate,
+): Promise<void> {
+  const { error } = await supabase
+    .from("task_templates")
+    .update({
+      name: template.name,
+      description: template.description,
+      default_priority: template.defaultPriority,
+      subtasks: template.subtasks,
+    })
+    .eq("id", template.id);
+
+  if (error) throw error;
+}
+
+export async function deleteTaskTemplate(templateId: string): Promise<void> {
+  const { error } = await supabase
+    .from("task_templates")
+    .delete()
+    .eq("id", templateId);
+
+  if (error) throw error;
+}
+
+// Milestones
+export async function fetchMilestones(): Promise<Milestone[]> {
+  const { data, error } = await supabase
+    .from("milestones")
+    .select("*")
+    .order("display_order", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return (data || []).map(toMilestone);
+}
+
+export async function createMilestone(milestone: Milestone): Promise<void> {
+  const { error } = await supabase.from("milestones").insert({
+    id: milestone.id,
+    project_id: milestone.projectId,
+    name: milestone.name,
+    description: milestone.description,
+    due_date: milestone.dueDate?.toISOString(),
+    status: milestone.status,
+    display_order: milestone.displayOrder,
+    created_at: milestone.createdAt.toISOString(),
+  });
+
+  if (error) throw error;
+}
+
+export async function updateMilestone(milestone: Milestone): Promise<void> {
+  const { error } = await supabase
+    .from("milestones")
+    .update({
+      name: milestone.name,
+      description: milestone.description,
+      due_date: milestone.dueDate?.toISOString(),
+      status: milestone.status,
+      display_order: milestone.displayOrder,
+    })
+    .eq("id", milestone.id);
+
+  if (error) throw error;
+}
+
+export async function deleteMilestone(milestoneId: string): Promise<void> {
+  const { error } = await supabase
+    .from("milestones")
+    .delete()
+    .eq("id", milestoneId);
+
+  if (error) throw error;
+}
+
+// Comments
+export async function fetchComments(): Promise<Comment[]> {
+  const { data, error } = await supabase
+    .from("comments")
+    .select("*")
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return (data || []).map(toComment);
+}
+
+export async function createComment(comment: Comment): Promise<void> {
+  const { error } = await supabase.from("comments").insert({
+    id: comment.id,
+    task_id: comment.taskId,
+    content: comment.content,
+    created_at: comment.createdAt.toISOString(),
+    updated_at: comment.updatedAt.toISOString(),
+  });
+
+  if (error) throw error;
+}
+
+export async function updateComment(comment: Comment): Promise<void> {
+  const { error } = await supabase
+    .from("comments")
+    .update({
+      content: comment.content,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", comment.id);
+
+  if (error) throw error;
+}
+
+export async function deleteComment(commentId: string): Promise<void> {
+  const { error } = await supabase
+    .from("comments")
+    .delete()
+    .eq("id", commentId);
+
+  if (error) throw error;
+}
+
+// Activity Logs
+export async function fetchActivityLogs(): Promise<ActivityLog[]> {
+  const { data, error } = await supabase
+    .from("activity_logs")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (error) throw error;
+  return (data || []).map(toActivityLog);
+}
+
+export async function createActivityLog(log: ActivityLog): Promise<void> {
+  const { error } = await supabase.from("activity_logs").insert({
+    id: log.id,
+    project_id: log.projectId,
+    task_id: log.taskId,
+    action: log.action,
+    details: log.details,
+    created_at: log.createdAt.toISOString(),
+  });
+
+  if (error) throw error;
+}
+
+// Attachments
+export async function fetchAttachments(): Promise<Attachment[]> {
+  const { data, error } = await supabase
+    .from("attachments")
+    .select("*")
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return (data || []).map(toAttachment);
+}
+
+export async function createAttachment(attachment: Attachment): Promise<void> {
+  const { error } = await supabase.from("attachments").insert({
+    id: attachment.id,
+    task_id: attachment.taskId,
+    file_name: attachment.fileName,
+    file_url: attachment.fileUrl,
+    file_size: attachment.fileSize,
+    file_type: attachment.fileType,
+    created_at: attachment.createdAt.toISOString(),
+  });
+
+  if (error) throw error;
+}
+
+export async function deleteAttachment(attachmentId: string): Promise<void> {
+  const { error } = await supabase
+    .from("attachments")
+    .delete()
+    .eq("id", attachmentId);
+
+  if (error) throw error;
+}
+
+// Project Notes
+export async function fetchProjectNotes(): Promise<ProjectNote[]> {
+  const { data, error } = await supabase
+    .from("project_notes")
+    .select("*")
+    .order("is_pinned", { ascending: false })
+    .order("display_order", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return (data || []).map(toProjectNote);
+}
+
+export async function createProjectNote(note: ProjectNote): Promise<void> {
+  const { error } = await supabase.from("project_notes").insert({
+    id: note.id,
+    project_id: note.projectId,
+    title: note.title,
+    content: note.content,
+    display_order: note.displayOrder,
+    is_pinned: note.isPinned,
+    created_at: note.createdAt.toISOString(),
+    updated_at: note.updatedAt.toISOString(),
+  });
+
+  if (error) throw error;
+}
+
+export async function updateProjectNote(note: ProjectNote): Promise<void> {
+  const { error } = await supabase
+    .from("project_notes")
+    .update({
+      title: note.title,
+      content: note.content,
+      display_order: note.displayOrder,
+      is_pinned: note.isPinned,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", note.id);
+
+  if (error) throw error;
+}
+
+export async function deleteProjectNote(noteId: string): Promise<void> {
+  const { error } = await supabase
+    .from("project_notes")
+    .delete()
+    .eq("id", noteId);
+
+  if (error) throw error;
 }
 
 // Inbox Items
@@ -313,14 +713,54 @@ export async function loadAllData(): Promise<{
   inbox: InboxItem[];
   focusSessions: FocusSession[];
   tags: Tag[];
+  taskDependencies: TaskDependency[];
+  taskTemplates: TaskTemplate[];
+  milestones: Milestone[];
+  comments: Comment[];
+  activityLogs: ActivityLog[];
+  attachments: Attachment[];
+  projectNotes: ProjectNote[];
 }> {
-  const [projects, tasks, inbox, focusSessions, tags] = await Promise.all([
+  const [
+    projects,
+    tasks,
+    inbox,
+    focusSessions,
+    tags,
+    taskDependencies,
+    taskTemplates,
+    milestones,
+    comments,
+    activityLogs,
+    attachments,
+    projectNotes,
+  ] = await Promise.all([
     fetchProjects(),
     fetchTasks(),
     fetchInboxItems(),
     fetchFocusSessions(),
     fetchTags(),
+    fetchTaskDependencies(),
+    fetchTaskTemplates(),
+    fetchMilestones(),
+    fetchComments(),
+    fetchActivityLogs(),
+    fetchAttachments(),
+    fetchProjectNotes(),
   ]);
 
-  return { projects, tasks, inbox, focusSessions, tags };
+  return {
+    projects,
+    tasks,
+    inbox,
+    focusSessions,
+    tags,
+    taskDependencies,
+    taskTemplates,
+    milestones,
+    comments,
+    activityLogs,
+    attachments,
+    projectNotes,
+  };
 }

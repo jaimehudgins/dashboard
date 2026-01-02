@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { format } from "date-fns";
-import ReactMarkdown from "react-markdown";
 import {
   DndContext,
   closestCenter,
@@ -21,9 +20,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  FileText,
-  Edit3,
-  Eye,
   Plus,
   Play,
   CheckCircle2,
@@ -33,11 +29,31 @@ import {
   Trash2,
   Pencil,
   GripVertical,
+  ListChecks,
+  Link2,
+  Repeat,
+  LayoutTemplate,
+  List,
+  LayoutGrid,
+  Calendar,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Task, Priority } from "@/types";
 import TaskEditModal from "./TaskEditModal";
 import TagBadge from "./TagBadge";
+import TemplateManager from "./TemplateManager";
+import KanbanBoard from "./KanbanBoard";
+import CalendarView from "./CalendarView";
+import FilterBar, {
+  TaskFilters,
+  SortOption,
+  SortDirection,
+  applyFiltersAndSort,
+} from "./FilterBar";
+import ProgressBar from "./ProgressBar";
+import MilestoneManager from "./MilestoneManager";
+import ActivityLogPanel from "./ActivityLogPanel";
+import ProjectNotes from "./ProjectNotes";
 
 const priorityConfig: Record<
   Priority,
@@ -64,7 +80,7 @@ function SortableTaskItem({
   onStartFocus,
   onDelete,
 }: SortableTaskItemProps) {
-  const { state } = useApp();
+  const { state, getSubtasks, isTaskBlocked } = useApp();
   const {
     attributes,
     listeners,
@@ -81,6 +97,14 @@ function SortableTaskItem({
 
   const priority = priorityConfig[task.priority];
   const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
+
+  // Get subtasks for this task
+  const subtasks = getSubtasks(task.id);
+  const completedSubtasks = subtasks.filter((s) => s.status === "completed");
+  const hasSubtasks = subtasks.length > 0;
+
+  // Check if task is blocked by dependencies
+  const isBlocked = isTaskBlocked(task.id);
 
   return (
     <div
@@ -111,6 +135,12 @@ function SortableTaskItem({
             >
               {priority.label}
             </span>
+            {isBlocked && (
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">
+                <Link2 size={12} />
+                Blocked
+              </span>
+            )}
             {task.dueDate && (
               <span
                 className={`flex items-center gap-1 ${isOverdue ? "text-red-500" : "text-slate-500"}`}
@@ -123,6 +153,18 @@ function SortableTaskItem({
               <span className="flex items-center gap-1 text-slate-500">
                 <Flame size={12} className="text-orange-500" />
                 {task.focusMinutes}m
+              </span>
+            )}
+            {hasSubtasks && (
+              <span className="flex items-center gap-1 text-slate-500">
+                <ListChecks size={12} className="text-indigo-500" />
+                {completedSubtasks.length}/{subtasks.length}
+              </span>
+            )}
+            {task.recurrenceRule && (
+              <span className="flex items-center gap-1 text-slate-500">
+                <Repeat size={12} className="text-purple-500" />
+                {task.recurrenceRule}
               </span>
             )}
             {task.tagIds &&
@@ -171,11 +213,24 @@ export default function ProjectView({
   onStartFocus,
 }: ProjectViewProps) {
   const { state, dispatch } = useApp();
-  const [isEditing, setIsEditing] = useState(false);
+
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskPriority, setNewTaskPriority] = useState<Priority>("medium");
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "kanban" | "calendar">(
+    "list",
+  );
+  const [filters, setFilters] = useState<TaskFilters>({
+    priority: "all",
+    status: "all",
+    tagId: "all",
+    hasDueDate: "all",
+  });
+  const [sortBy, setSortBy] = useState<SortOption>("priority");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -185,22 +240,29 @@ export default function ProjectView({
   );
 
   const project = state.projects.find((p) => p.id === projectId);
-  const tasks = state.tasks.filter((t) => t.projectId === projectId);
-  const activeTasks = tasks
-    .filter((t) => t.status !== "completed")
-    .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
-  const completedTasks = tasks.filter((t) => t.status === "completed");
+  // Filter out subtasks - they should only appear under their parent task
+  const tasks = state.tasks.filter(
+    (t) => t.projectId === projectId && !t.parentTaskId,
+  );
+
+  // Apply filters, sorting, and search
+  const filteredAndSortedTasks = applyFiltersAndSort(
+    tasks,
+    filters,
+    sortBy,
+    sortDirection,
+    searchQuery,
+  );
+  const activeTasks = filteredAndSortedTasks.filter(
+    (t) => t.status !== "completed",
+  );
+  const completedTasks = filteredAndSortedTasks.filter(
+    (t) => t.status === "completed",
+  );
 
   if (!project) {
     return <div className="text-slate-900">Project not found</div>;
   }
-
-  const handleScratchpadChange = (content: string) => {
-    dispatch({
-      type: "UPDATE_SCRATCHPAD",
-      payload: { projectId, content },
-    });
-  };
 
   const handleAddTask = (e: React.FormEvent) => {
     e.preventDefault();
@@ -284,19 +346,92 @@ export default function ProjectView({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-8">
+      {/* Project Progress Bar */}
+      <div className="mb-6">
+        <ProgressBar
+          completed={completedTasks.length}
+          total={tasks.length}
+          size="md"
+        />
+      </div>
+
+      <div className={viewMode === "list" ? "grid grid-cols-2 gap-8" : ""}>
         {/* Tasks Section */}
-        <div className="space-y-4">
+        <div className={viewMode === "list" ? "space-y-4" : ""}>
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900">Tasks</h2>
-            <button
-              onClick={() => setShowAddTask(true)}
-              className="flex items-center gap-2 text-indigo-500 hover:text-indigo-600 text-sm font-medium transition-colors"
-            >
-              <Plus size={16} />
-              Add Task
-            </button>
+            <div className="flex items-center gap-4">
+              <h2 className="text-lg font-semibold text-slate-900">Tasks</h2>
+              {/* View Toggle */}
+              <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
+                <button
+                  onClick={() => setViewMode("list")}
+                  className={`p-1.5 rounded-md transition-colors ${
+                    viewMode === "list"
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                  title="List view"
+                >
+                  <List size={16} />
+                </button>
+                <button
+                  onClick={() => setViewMode("kanban")}
+                  className={`p-1.5 rounded-md transition-colors ${
+                    viewMode === "kanban"
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                  title="Kanban view"
+                >
+                  <LayoutGrid size={16} />
+                </button>
+                <button
+                  onClick={() => setViewMode("calendar")}
+                  className={`p-1.5 rounded-md transition-colors ${
+                    viewMode === "calendar"
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                  title="Calendar view"
+                >
+                  <Calendar size={16} />
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowTemplateManager(true)}
+                className="flex items-center gap-2 text-slate-500 hover:text-slate-700 text-sm font-medium transition-colors"
+                title="Task Templates"
+              >
+                <LayoutTemplate size={16} />
+                Templates
+              </button>
+              <button
+                onClick={() => setShowAddTask(true)}
+                className="flex items-center gap-2 text-indigo-500 hover:text-indigo-600 text-sm font-medium transition-colors"
+              >
+                <Plus size={16} />
+                Add Task
+              </button>
+            </div>
           </div>
+
+          {/* Filter Bar - only show in list view */}
+          {viewMode === "list" && (
+            <FilterBar
+              filters={filters}
+              onFiltersChange={setFilters}
+              sortBy={sortBy}
+              sortDirection={sortDirection}
+              onSortChange={(newSortBy, newDirection) => {
+                setSortBy(newSortBy);
+                setSortDirection(newDirection);
+              }}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+            />
+          )}
 
           {showAddTask && (
             <form
@@ -341,100 +476,102 @@ export default function ProjectView({
             </form>
           )}
 
-          {activeTasks.length === 0 && !showAddTask ? (
-            <div className="bg-white border border-slate-200 border-dashed rounded-xl p-8 text-center">
-              <CheckCircle2 className="mx-auto text-green-500 mb-3" size={32} />
-              <p className="text-sm text-slate-500">No active tasks</p>
-            </div>
-          ) : (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={activeTasks.map((t) => t.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="space-y-2">
-                  {activeTasks.map((task) => (
-                    <SortableTaskItem
-                      key={task.id}
-                      task={task}
-                      onComplete={handleCompleteTask}
-                      onEdit={setEditingTask}
-                      onStartFocus={onStartFocus}
-                      onDelete={handleDeleteTask}
-                    />
-                  ))}
+          {viewMode === "list" ? (
+            <>
+              {activeTasks.length === 0 && !showAddTask ? (
+                <div className="bg-white border border-slate-200 border-dashed rounded-xl p-8 text-center">
+                  <CheckCircle2
+                    className="mx-auto text-green-500 mb-3"
+                    size={32}
+                  />
+                  <p className="text-sm text-slate-500">No active tasks</p>
                 </div>
-              </SortableContext>
-            </DndContext>
-          )}
-
-          {completedTasks.length > 0 && (
-            <div className="pt-4">
-              <h3 className="text-sm font-medium text-slate-400 mb-2">
-                Completed ({completedTasks.length})
-              </h3>
-              <div className="space-y-2">
-                {completedTasks.slice(0, 5).map((task) => (
-                  <div
-                    key={task.id}
-                    className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center gap-3"
+              ) : (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={activeTasks.map((t) => t.id)}
+                    strategy={verticalListSortingStrategy}
                   >
-                    <CheckCircle2 size={16} className="text-green-500" />
-                    <span className="text-slate-400 line-through">
-                      {task.title}
-                    </span>
+                    <div className="space-y-2">
+                      {activeTasks.map((task) => (
+                        <SortableTaskItem
+                          key={task.id}
+                          task={task}
+                          onComplete={handleCompleteTask}
+                          onEdit={setEditingTask}
+                          onStartFocus={onStartFocus}
+                          onDelete={handleDeleteTask}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              )}
+
+              {completedTasks.length > 0 && (
+                <div className="pt-4">
+                  <h3 className="text-sm font-medium text-slate-400 mb-2">
+                    Completed ({completedTasks.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {completedTasks.slice(0, 5).map((task) => (
+                      <div
+                        key={task.id}
+                        className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center gap-3"
+                      >
+                        <CheckCircle2 size={16} className="text-green-500" />
+                        <span className="text-slate-400 line-through">
+                          {task.title}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
+              )}
+            </>
+          ) : viewMode === "kanban" ? (
+            <KanbanBoard
+              projectId={projectId}
+              onEditTask={setEditingTask}
+              onStartFocus={onStartFocus}
+            />
+          ) : (
+            <CalendarView projectId={projectId} onEditTask={setEditingTask} />
           )}
         </div>
 
-        {/* Scratchpad Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-              <FileText size={18} />
-              Scratchpad
-            </h2>
-            <button
-              onClick={() => setIsEditing(!isEditing)}
-              className={`flex items-center gap-2 text-sm font-medium transition-colors ${
-                isEditing
-                  ? "text-indigo-500"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              {isEditing ? <Eye size={16} /> : <Edit3 size={16} />}
-              {isEditing ? "Preview" : "Edit"}
-            </button>
-          </div>
+        {/* Scratchpad & Milestones Section - only show in list view */}
+        {viewMode === "list" && (
+          <div className="space-y-6">
+            {/* Milestones */}
+            <MilestoneManager projectId={projectId} />
 
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden h-[500px]">
-            {isEditing ? (
-              <textarea
-                value={project.scratchpad}
-                onChange={(e) => handleScratchpadChange(e.target.value)}
-                className="w-full h-full bg-transparent p-4 text-slate-900 placeholder-slate-400 resize-none focus:outline-none font-mono text-sm leading-relaxed"
-                placeholder="Write your notes in Markdown..."
-              />
-            ) : (
-              <div className="p-4 prose prose-sm max-w-none overflow-auto h-full">
-                <ReactMarkdown>{project.scratchpad}</ReactMarkdown>
-              </div>
-            )}
+            {/* Project Notes */}
+            <ProjectNotes projectId={projectId} />
+
+            {/* Activity Log */}
+            <div className="bg-white border border-slate-200 rounded-xl p-4">
+              <ActivityLogPanel projectId={projectId} limit={10} />
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {editingTask && (
         <TaskEditModal
           task={editingTask}
           onClose={() => setEditingTask(null)}
+        />
+      )}
+
+      {showTemplateManager && (
+        <TemplateManager
+          projectId={projectId}
+          onClose={() => setShowTemplateManager(false)}
         />
       )}
     </div>

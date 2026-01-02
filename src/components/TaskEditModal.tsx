@@ -3,8 +3,20 @@
 import React, { useState } from "react";
 import { X, Plus, Bell, Clock } from "lucide-react";
 import { useApp } from "@/store/store";
-import { Task, Priority, TaskStatus, Reminder, Tag } from "@/types";
+import {
+  Task,
+  Priority,
+  TaskStatus,
+  Reminder,
+  Tag,
+  RecurrenceRule,
+} from "@/types";
 import TagBadge from "./TagBadge";
+import SubtaskList from "./SubtaskList";
+import DependencyPicker from "./DependencyPicker";
+import RecurrenceSelector from "./RecurrenceSelector";
+import CommentSection from "./CommentSection";
+import { Flag } from "lucide-react";
 
 interface TaskEditModalProps {
   task: Task;
@@ -31,11 +43,25 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
   );
   const [tagIds, setTagIds] = useState<string[]>(task.tagIds || []);
   const [reminders, setReminders] = useState<Reminder[]>(task.reminders || []);
+  const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule>(
+    task.recurrenceRule || null,
+  );
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date | undefined>(
+    task.recurrenceEndDate ? new Date(task.recurrenceEndDate) : undefined,
+  );
   const [showTagDropdown, setShowTagDropdown] = useState(false);
   const [newTagName, setNewTagName] = useState("");
+  const [milestoneId, setMilestoneId] = useState<string | undefined>(
+    task.milestoneId,
+  );
 
   // Filter to only show active (non-archived) projects
   const activeProjects = state.projects.filter((p) => !p.archived);
+
+  // Get milestones for the current project
+  const projectMilestones = state.milestones.filter(
+    (m) => m.projectId === projectId,
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,6 +79,9 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
         dueDate: dueDate ? new Date(dueDate) : undefined,
         tagIds,
         reminders,
+        recurrenceRule,
+        recurrenceEndDate,
+        milestoneId,
       },
     });
 
@@ -150,6 +179,16 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
             />
           </div>
 
+          {/* Subtasks Section - only show for non-subtasks */}
+          {!task.parentTaskId && (
+            <SubtaskList parentTaskId={task.id} projectId={task.projectId} />
+          )}
+
+          {/* Dependencies Section - only show for non-subtasks */}
+          {!task.parentTaskId && (
+            <DependencyPicker taskId={task.id} projectId={task.projectId} />
+          )}
+
           <div>
             <label className="block text-sm text-slate-600 mb-1">Project</label>
             <select
@@ -164,6 +203,28 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
               ))}
             </select>
           </div>
+
+          {/* Milestone Selector - only show for non-subtasks and if milestones exist */}
+          {!task.parentTaskId && projectMilestones.length > 0 && (
+            <div>
+              <label className="block text-sm text-slate-600 mb-1 flex items-center gap-2">
+                <Flag size={14} className="text-indigo-500" />
+                Milestone
+              </label>
+              <select
+                value={milestoneId || ""}
+                onChange={(e) => setMilestoneId(e.target.value || undefined)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">No milestone</option>
+                {projectMilestones.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="grid grid-cols-3 gap-4">
             <div>
@@ -347,6 +408,19 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
               </div>
             </div>
           )}
+
+          {/* Recurrence Section - only show for non-subtasks */}
+          {!task.parentTaskId && (
+            <RecurrenceSelector
+              value={recurrenceRule}
+              onChange={setRecurrenceRule}
+              endDate={recurrenceEndDate}
+              onEndDateChange={setRecurrenceEndDate}
+            />
+          )}
+
+          {/* Comments Section */}
+          <CommentSection taskId={task.id} />
 
           <div className="flex items-center justify-between pt-4 border-t border-slate-200">
             <button

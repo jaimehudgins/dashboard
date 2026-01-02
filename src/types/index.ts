@@ -1,9 +1,11 @@
 export type Priority = "critical" | "high" | "medium" | "low";
 export type TaskStatus = "pending" | "in_progress" | "completed" | "blocked";
+export type RecurrenceRule = "daily" | "weekly" | "monthly" | null;
+export type MilestoneStatus = "active" | "completed";
 
 export interface Reminder {
   id: string;
-  minutesBefore: number; // e.g., 60 = 1 hour before, 1440 = 1 day before
+  minutesBefore: number;
   notified: boolean;
 }
 
@@ -28,6 +30,79 @@ export interface Task {
   displayOrder?: number;
   tagIds?: string[];
   reminders?: Reminder[];
+  // Subtasks
+  parentTaskId?: string;
+  // Recurring
+  recurrenceRule?: RecurrenceRule;
+  recurrenceEndDate?: Date;
+  recurringParentId?: string;
+  // Milestones
+  milestoneId?: string;
+}
+
+export interface TaskDependency {
+  id: string;
+  taskId: string;
+  dependsOnTaskId: string;
+  createdAt: Date;
+}
+
+export interface TaskTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  defaultPriority: Priority;
+  subtasks: { title: string; priority: Priority }[];
+  createdAt: Date;
+}
+
+export interface Milestone {
+  id: string;
+  projectId: string;
+  name: string;
+  description?: string;
+  dueDate?: Date;
+  status: MilestoneStatus;
+  displayOrder?: number;
+  createdAt: Date;
+}
+
+export interface Comment {
+  id: string;
+  taskId: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ActivityLog {
+  id: string;
+  projectId?: string;
+  taskId?: string;
+  action: string;
+  details?: Record<string, unknown>;
+  createdAt: Date;
+}
+
+export interface Attachment {
+  id: string;
+  taskId: string;
+  fileName: string;
+  fileUrl: string;
+  fileSize?: number;
+  fileType?: string;
+  createdAt: Date;
+}
+
+export interface ProjectNote {
+  id: string;
+  projectId: string;
+  title: string;
+  content: string;
+  displayOrder?: number;
+  isPinned: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface Project {
