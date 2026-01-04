@@ -282,6 +282,13 @@ export default function ProjectNotes({ projectId }: ProjectNotesProps) {
             Create Note
           </button>
         </div>
+
+        {showTemplateSelector && (
+          <NoteTemplateSelector
+            onSelect={handleSelectTemplate}
+            onClose={() => setShowTemplateSelector(false)}
+          />
+        )}
       </div>
     );
   }
