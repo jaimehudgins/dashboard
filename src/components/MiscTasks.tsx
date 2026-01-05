@@ -36,32 +36,38 @@ export default function MiscTasks() {
   const [editingCategoryName, setEditingCategoryName] = useState("");
   const [addingTaskTo, setAddingTaskTo] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
-  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(
+    new Set(),
+  );
 
   // Get misc categories and tasks
   const categories = [...state.miscCategories].sort(
-    (a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0)
+    (a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0),
   );
 
   const miscTasks = state.tasks.filter(
-    (t) => t.projectId === "misc" && !t.parentTaskId
+    (t) => t.projectId === "misc" && !t.parentTaskId,
   );
 
   const getTasksForCategory = (categoryId: string) =>
-    miscTasks.filter((t) => t.categoryId === categoryId && t.status !== "completed");
+    miscTasks.filter(
+      (t) => t.categoryId === categoryId && t.status !== "completed",
+    );
 
   const getCompletedTasksForCategory = (categoryId: string) =>
-    miscTasks.filter((t) => t.categoryId === categoryId && t.status === "completed");
+    miscTasks.filter(
+      (t) => t.categoryId === categoryId && t.status === "completed",
+    );
 
   const uncategorizedTasks = miscTasks.filter(
-    (t) => !t.categoryId && t.status !== "completed"
+    (t) => !t.categoryId && t.status !== "completed",
   );
 
   const handleAddCategory = () => {
     if (!newCategoryName.trim()) return;
 
     const newCategory: MiscCategory = {
-      id: `cat-${Date.now()}`,
+      id: crypto.randomUUID(),
       name: newCategoryName.trim(),
       color: categoryColors[categories.length % categoryColors.length],
       displayOrder: categories.length,
@@ -143,10 +149,7 @@ export default function MiscTasks() {
       key={task.id}
       className="group flex items-center gap-2 py-1.5 px-2 rounded hover:bg-slate-100 transition-colors"
     >
-      <button
-        onClick={() => handleToggleTask(task)}
-        className="flex-shrink-0"
-      >
+      <button onClick={() => handleToggleTask(task)} className="flex-shrink-0">
         {task.status === "completed" ? (
           <CheckCircle2 size={14} className="text-green-500" />
         ) : (
@@ -214,9 +217,7 @@ export default function MiscTasks() {
               {category.name}
             </span>
           )}
-          <span className="text-xs text-slate-400">
-            {tasks.length}
-          </span>
+          <span className="text-xs text-slate-400">{tasks.length}</span>
           <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
             <button
               onClick={() => setAddingTaskTo(category.id)}
@@ -344,17 +345,17 @@ export default function MiscTasks() {
             <div className="px-2 py-1 text-xs text-slate-400 font-medium">
               Uncategorized
             </div>
-            <div className="ml-2">
-              {uncategorizedTasks.map(renderTask)}
-            </div>
+            <div className="ml-2">{uncategorizedTasks.map(renderTask)}</div>
           </div>
         )}
 
-        {categories.length === 0 && uncategorizedTasks.length === 0 && !showAddCategory && (
-          <p className="text-xs text-slate-400 px-3 py-2 italic">
-            No categories yet. Click + to add one.
-          </p>
-        )}
+        {categories.length === 0 &&
+          uncategorizedTasks.length === 0 &&
+          !showAddCategory && (
+            <p className="text-xs text-slate-400 px-3 py-2 italic">
+              No categories yet. Click + to add one.
+            </p>
+          )}
       </div>
     </div>
   );

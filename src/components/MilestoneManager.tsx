@@ -30,7 +30,7 @@ export default function MilestoneManager({ projectId }: MilestoneManagerProps) {
 
   const getCompletedTaskCount = (milestoneId: string) => {
     return state.tasks.filter(
-      (t) => t.milestoneId === milestoneId && t.status === "completed"
+      (t) => t.milestoneId === milestoneId && t.status === "completed",
     ).length;
   };
 
@@ -39,7 +39,7 @@ export default function MilestoneManager({ projectId }: MilestoneManagerProps) {
     if (!newName.trim()) return;
 
     const milestone: Milestone = {
-      id: `milestone-${Date.now()}`,
+      id: crypto.randomUUID(),
       projectId,
       name: newName.trim(),
       description: newDescription.trim() || undefined,
@@ -63,7 +63,7 @@ export default function MilestoneManager({ projectId }: MilestoneManagerProps) {
     setEditDueDate(
       milestone.dueDate
         ? new Date(milestone.dueDate).toISOString().split("T")[0]
-        : ""
+        : "",
     );
   };
 
@@ -126,7 +126,8 @@ export default function MilestoneManager({ projectId }: MilestoneManagerProps) {
           {milestones.map((milestone) => {
             const taskCount = getTaskCount(milestone.id);
             const completedCount = getCompletedTaskCount(milestone.id);
-            const progress = taskCount > 0 ? (completedCount / taskCount) * 100 : 0;
+            const progress =
+              taskCount > 0 ? (completedCount / taskCount) * 100 : 0;
             const isOverdue =
               milestone.dueDate && new Date(milestone.dueDate) < new Date();
 
@@ -264,7 +265,10 @@ export default function MilestoneManager({ projectId }: MilestoneManagerProps) {
 
       {/* Add Form */}
       {showAddForm && (
-        <form onSubmit={handleAddMilestone} className="space-y-2 bg-white border border-slate-200 rounded-lg p-3">
+        <form
+          onSubmit={handleAddMilestone}
+          className="space-y-2 bg-white border border-slate-200 rounded-lg p-3"
+        >
           <input
             type="text"
             value={newName}
