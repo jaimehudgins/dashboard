@@ -633,6 +633,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             activityLogs: data.activityLogs,
             attachments: data.attachments,
             projectNotes: data.projectNotes,
+            miscCategories: data.miscCategories,
           },
         });
       } catch (error) {
