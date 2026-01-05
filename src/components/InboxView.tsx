@@ -18,29 +18,59 @@ interface ProcessModalProps {
   onClose: () => void;
 }
 
+type TaskTarget =
+  | { type: "project"; projectId: string }
+  | { type: "misc"; categoryId: string };
+
 function ProcessModal({ item, onClose }: ProcessModalProps) {
   const { state, dispatch } = useApp();
   const [title, setTitle] = useState(item.content);
-  const [projectId, setProjectId] = useState(state.projects[0]?.id || "");
+  const [target, setTarget] = useState<TaskTarget>(
+    state.projects[0]?.id
+      ? { type: "project", projectId: state.projects[0].id }
+      : state.miscCategories[0]?.id
+        ? { type: "misc", categoryId: state.miscCategories[0].id }
+        : { type: "project", projectId: "" },
+  );
   const [priority, setPriority] = useState<Priority>("medium");
   const [dueDate, setDueDate] = useState("");
+
+  const activeProjects = state.projects.filter((p) => !p.archived);
+  const categories = state.miscCategories;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    dispatch({
-      type: "ADD_TASK",
-      payload: {
-        id: `task-${Date.now()}`,
-        title,
-        priority,
-        status: "pending",
-        projectId,
-        dueDate: dueDate ? new Date(dueDate) : undefined,
-        createdAt: new Date(),
-        focusMinutes: 0,
-      },
-    });
+    if (target.type === "project") {
+      dispatch({
+        type: "ADD_TASK",
+        payload: {
+          id: `task-${Date.now()}`,
+          title,
+          priority,
+          status: "pending",
+          projectId: target.projectId,
+          dueDate: dueDate ? new Date(dueDate) : undefined,
+          createdAt: new Date(),
+          focusMinutes: 0,
+        },
+      });
+    } else {
+      dispatch({
+        type: "ADD_TASK",
+        payload: {
+          id: `task-${Date.now()}`,
+          title,
+          priority,
+          status: "pending",
+          projectId: "misc",
+          categoryId: target.categoryId,
+          dueDate: dueDate ? new Date(dueDate) : undefined,
+          createdAt: new Date(),
+          focusMinutes: 0,
+        },
+      });
+    }
 
     dispatch({
       type: "REMOVE_INBOX_ITEM",
@@ -71,17 +101,49 @@ function ProcessModal({ item, onClose }: ProcessModalProps) {
           </div>
 
           <div>
-            <label className="block text-sm text-slate-600 mb-1">Project</label>
+            <label className="block text-sm text-slate-600 mb-1">
+              Destination
+            </label>
             <select
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
+              value={
+                target.type === "project"
+                  ? `project:${target.projectId}`
+                  : `misc:${target.categoryId}`
+              }
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value.startsWith("project:")) {
+                  setTarget({
+                    type: "project",
+                    projectId: value.replace("project:", ""),
+                  });
+                } else if (value.startsWith("misc:")) {
+                  setTarget({
+                    type: "misc",
+                    categoryId: value.replace("misc:", ""),
+                  });
+                }
+              }}
               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
-              {state.projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
+              {activeProjects.length > 0 && (
+                <optgroup label="Projects">
+                  {activeProjects.map((p) => (
+                    <option key={p.id} value={`project:${p.id}`}>
+                      {p.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {categories.length > 0 && (
+                <optgroup label="Misc Tasks">
+                  {categories.map((c) => (
+                    <option key={c.id} value={`misc:${c.id}`}>
+                      {c.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
 
