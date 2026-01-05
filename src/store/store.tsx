@@ -780,7 +780,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             break;
           // Milestones
           case "ADD_MILESTONE":
+            console.log("Saving milestone:", action.payload);
             await db.createMilestone(action.payload);
+            console.log("Milestone saved successfully");
             break;
           case "UPDATE_MILESTONE":
             await db.updateMilestone(action.payload);

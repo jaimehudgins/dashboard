@@ -418,7 +418,7 @@ export async function fetchMilestones(): Promise<Milestone[]> {
 }
 
 export async function createMilestone(milestone: Milestone): Promise<void> {
-  const { error } = await supabase.from("milestones").insert({
+  const insertData = {
     id: milestone.id,
     project_id: milestone.projectId,
     name: milestone.name,
@@ -427,9 +427,15 @@ export async function createMilestone(milestone: Milestone): Promise<void> {
     status: milestone.status,
     display_order: milestone.displayOrder,
     created_at: milestone.createdAt.toISOString(),
-  });
+  };
+  console.log("Inserting milestone data:", insertData);
 
-  if (error) throw error;
+  const { error } = await supabase.from("milestones").insert(insertData);
+
+  if (error) {
+    console.error("Milestone insert error:", error);
+    throw error;
+  }
 }
 
 export async function updateMilestone(milestone: Milestone): Promise<void> {
