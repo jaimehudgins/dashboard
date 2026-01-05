@@ -36,6 +36,7 @@ import {
   List,
   LayoutGrid,
   Calendar,
+  Flag,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Task, Priority } from "@/types";
@@ -167,6 +168,19 @@ function SortableTaskItem({
                 {task.recurrenceRule}
               </span>
             )}
+            {task.milestoneId &&
+              (() => {
+                const milestone = state.milestones.find(
+                  (m) => m.id === task.milestoneId,
+                );
+                if (!milestone) return null;
+                return (
+                  <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 text-xs">
+                    <Flag size={10} />
+                    {milestone.name}
+                  </span>
+                );
+              })()}
             {task.tagIds &&
               task.tagIds.map((tagId) => {
                 const tag = state.tags.find((t) => t.id === tagId);
