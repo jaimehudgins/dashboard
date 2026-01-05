@@ -217,6 +217,10 @@ export default function ProjectView({
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskPriority, setNewTaskPriority] = useState<Priority>("medium");
+  const [newTaskDueDate, setNewTaskDueDate] = useState("");
+  const [newTaskMilestoneId, setNewTaskMilestoneId] = useState<string>("");
+  const [newTaskTagIds, setNewTaskTagIds] = useState<string[]>([]);
+  const [newTaskDescription, setNewTaskDescription] = useState("");
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "kanban" | "calendar">(
@@ -278,16 +282,26 @@ export default function ProjectView({
       payload: {
         id: `task-${Date.now()}`,
         title: newTaskTitle,
+        description: newTaskDescription || undefined,
         priority: newTaskPriority,
         status: "pending",
         projectId,
+        dueDate: newTaskDueDate ? new Date(newTaskDueDate) : undefined,
+        milestoneId: newTaskMilestoneId || undefined,
+        tagIds: newTaskTagIds.length > 0 ? newTaskTagIds : undefined,
         createdAt: new Date(),
         focusMinutes: 0,
         displayOrder: maxOrder + 1,
       },
     });
 
+    // Reset form
     setNewTaskTitle("");
+    setNewTaskDescription("");
+    setNewTaskPriority("medium");
+    setNewTaskDueDate("");
+    setNewTaskMilestoneId("");
+    setNewTaskTagIds([]);
     setShowAddTask(false);
   };
 
@@ -436,8 +450,9 @@ export default function ProjectView({
           {showAddTask && (
             <form
               onSubmit={handleAddTask}
-              className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-sm"
+              className="bg-white border border-slate-200 rounded-xl p-4 space-y-4 shadow-sm"
             >
+              {/* Title */}
               <input
                 type="text"
                 value={newTaskTitle}
@@ -446,28 +461,149 @@ export default function ProjectView({
                 autoFocus
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
-              <div className="flex items-center gap-3">
-                <select
-                  value={newTaskPriority}
-                  onChange={(e) =>
-                    setNewTaskPriority(e.target.value as Priority)
-                  }
-                  className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="critical">Critical</option>
-                  <option value="high">High</option>
-                  <option value="medium">Medium</option>
-                  <option value="low">Low</option>
-                </select>
+
+              {/* Description */}
+              <textarea
+                value={newTaskDescription}
+                onChange={(e) => setNewTaskDescription(e.target.value)}
+                placeholder="Description (optional)..."
+                rows={2}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm resize-none"
+              />
+
+              {/* Priority & Due Date */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Priority
+                  </label>
+                  <select
+                    value={newTaskPriority}
+                    onChange={(e) =>
+                      setNewTaskPriority(e.target.value as Priority)
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="critical">Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={newTaskDueDate}
+                    onChange={(e) => setNewTaskDueDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Milestone & Tags */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Milestone
+                  </label>
+                  <select
+                    value={newTaskMilestoneId}
+                    onChange={(e) => setNewTaskMilestoneId(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">No milestone</option>
+                    {state.milestones
+                      .filter((m) => m.projectId === projectId)
+                      .map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Tags
+                  </label>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      if (
+                        e.target.value &&
+                        !newTaskTagIds.includes(e.target.value)
+                      ) {
+                        setNewTaskTagIds([...newTaskTagIds, e.target.value]);
+                      }
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">Add tag...</option>
+                    {state.tags
+                      .filter((t) => !newTaskTagIds.includes(t.id))
+                      .map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Selected Tags */}
+              {newTaskTagIds.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {newTaskTagIds.map((tagId) => {
+                    const tag = state.tags.find((t) => t.id === tagId);
+                    if (!tag) return null;
+                    return (
+                      <span
+                        key={tag.id}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium"
+                        style={{
+                          backgroundColor: `${tag.color}20`,
+                          color: tag.color,
+                        }}
+                      >
+                        {tag.name}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setNewTaskTagIds(
+                              newTaskTagIds.filter((id) => id !== tagId),
+                            )
+                          }
+                          className="hover:opacity-70"
+                        >
+                          &times;
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex items-center gap-3 pt-2">
                 <button
                   type="submit"
                   className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                 >
-                  Add
+                  Add Task
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowAddTask(false)}
+                  onClick={() => {
+                    setShowAddTask(false);
+                    setNewTaskTitle("");
+                    setNewTaskDescription("");
+                    setNewTaskPriority("medium");
+                    setNewTaskDueDate("");
+                    setNewTaskMilestoneId("");
+                    setNewTaskTagIds([]);
+                  }}
                   className="text-slate-500 hover:text-slate-700 px-4 py-2 text-sm transition-colors"
                 >
                   Cancel
