@@ -649,9 +649,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Sync actions to Supabase
   useEffect(() => {
+    console.log(
+      "Sync useEffect triggered, pendingActions:",
+      pendingActions.length,
+      pendingActions.map((a) => a.type),
+    );
     if (pendingActions.length === 0) return;
 
     const action = pendingActions[0];
+    console.log("Processing action:", action.type, action);
 
     async function syncAction() {
       try {
@@ -843,12 +849,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [pendingActions, state.activeFocusSession, state.tasks, state.projects]);
 
   const syncedDispatch = useCallback((action: Action) => {
+    console.log("syncedDispatch called with:", action.type);
     dispatch(action);
     if (
       action.type !== "LOAD_STATE" &&
       action.type !== "SET_LOADING" &&
       action.type !== "SET_ERROR"
     ) {
+      console.log("Adding to pendingActions:", action.type);
       setPendingActions((prev) => [...prev, action]);
     }
   }, []);
