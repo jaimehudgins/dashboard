@@ -618,6 +618,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         dispatch({ type: "SET_LOADING", payload: true });
         const data = await db.loadAllData();
+        console.log("Loaded data from Supabase:", {
+          milestones: data.milestones,
+          milestonesCount: data.milestones.length,
+        });
         dispatch({
           type: "LOAD_STATE",
           payload: {
