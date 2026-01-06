@@ -40,6 +40,8 @@ export interface Task {
   milestoneId?: string;
   // Misc category (for tasks with projectId = "misc")
   categoryId?: string;
+  // External link
+  link?: string;
 }
 
 export interface TaskDependency {
@@ -67,6 +69,7 @@ export interface Milestone {
   status: MilestoneStatus;
   displayOrder?: number;
   createdAt: Date;
+  link?: string;
 }
 
 export interface Comment {

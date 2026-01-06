@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, Plus, Bell, Clock } from "lucide-react";
+import { X, Plus, Bell, Clock, ExternalLink } from "lucide-react";
 import { useApp } from "@/store/store";
 import {
   Task,
@@ -54,6 +54,7 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
   const [milestoneId, setMilestoneId] = useState<string | undefined>(
     task.milestoneId,
   );
+  const [link, setLink] = useState(task.link || "");
 
   // Filter to only show active (non-archived) projects
   const activeProjects = state.projects.filter((p) => !p.archived);
@@ -82,6 +83,7 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
         recurrenceRule,
         recurrenceEndDate,
         milestoneId,
+        link: link.trim() || undefined,
       },
     });
 
@@ -177,6 +179,33 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
               placeholder="Add details, notes, or context..."
               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm text-slate-600 mb-1 flex items-center gap-2">
+              <ExternalLink size={14} className="text-indigo-500" />
+              Link (optional)
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="url"
+                value={link}
+                onChange={(e) => setLink(e.target.value)}
+                placeholder="https://..."
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              {link && (
+                <a
+                  href={link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 rounded-lg transition-colors"
+                  title="Open link"
+                >
+                  <ExternalLink size={16} />
+                </a>
+              )}
+            </div>
           </div>
 
           {/* Subtasks Section - only show for non-subtasks */}

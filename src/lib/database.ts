@@ -41,6 +41,7 @@ function toTask(row: Record<string, unknown>): Task {
     recurringParentId: row.recurring_parent_id as string | undefined,
     milestoneId: row.milestone_id as string | undefined,
     categoryId: row.category_id as string | undefined,
+    link: row.link as string | undefined,
   };
 }
 
@@ -128,6 +129,7 @@ function toMilestone(row: Record<string, unknown>): Milestone {
     status: row.status as Milestone["status"],
     displayOrder: row.display_order as number | undefined,
     createdAt: new Date(row.created_at as string),
+    link: row.link as string | undefined,
   };
 }
 
@@ -254,6 +256,7 @@ export async function createTask(task: Task): Promise<void> {
     recurrence_end_date: task.recurrenceEndDate?.toISOString(),
     recurring_parent_id: task.recurringParentId,
     milestone_id: task.milestoneId,
+    link: task.link,
   });
 
   if (error) throw error;
@@ -279,6 +282,7 @@ export async function updateTask(task: Task): Promise<void> {
       recurrence_end_date: task.recurrenceEndDate?.toISOString(),
       recurring_parent_id: task.recurringParentId,
       milestone_id: task.milestoneId,
+      link: task.link,
     })
     .eq("id", task.id);
 
@@ -427,6 +431,7 @@ export async function createMilestone(milestone: Milestone): Promise<void> {
     status: milestone.status,
     display_order: milestone.displayOrder,
     created_at: milestone.createdAt.toISOString(),
+    link: milestone.link,
   };
 
   const { error } = await supabase.from("milestones").insert(insertData);
@@ -445,6 +450,7 @@ export async function updateMilestone(milestone: Milestone): Promise<void> {
       due_date: milestone.dueDate?.toISOString(),
       status: milestone.status,
       display_order: milestone.displayOrder,
+      link: milestone.link,
     })
     .eq("id", milestone.id);
 

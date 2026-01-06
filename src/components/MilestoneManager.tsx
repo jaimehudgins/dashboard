@@ -1,7 +1,16 @@
 "use client";
 
 import React, { useState } from "react";
-import { Flag, Plus, Trash2, Edit2, X, Check, Calendar } from "lucide-react";
+import {
+  Flag,
+  Plus,
+  Trash2,
+  Edit2,
+  X,
+  Check,
+  Calendar,
+  ExternalLink,
+} from "lucide-react";
 import { format } from "date-fns";
 import { useApp } from "@/store/store";
 import { Milestone, MilestoneStatus } from "@/types";
@@ -17,9 +26,11 @@ export default function MilestoneManager({ projectId }: MilestoneManagerProps) {
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newDueDate, setNewDueDate] = useState("");
+  const [newLink, setNewLink] = useState("");
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
+  const [editLink, setEditLink] = useState("");
 
   const milestones = getProjectMilestones(projectId);
 
@@ -47,12 +58,14 @@ export default function MilestoneManager({ projectId }: MilestoneManagerProps) {
       status: "active",
       displayOrder: milestones.length,
       createdAt: new Date(),
+      link: newLink.trim() || undefined,
     };
 
     dispatch({ type: "ADD_MILESTONE", payload: milestone });
     setNewName("");
     setNewDescription("");
     setNewDueDate("");
+    setNewLink("");
     setShowAddForm(false);
   };
 
@@ -65,6 +78,7 @@ export default function MilestoneManager({ projectId }: MilestoneManagerProps) {
         ? new Date(milestone.dueDate).toISOString().split("T")[0]
         : "",
     );
+    setEditLink(milestone.link || "");
   };
 
   const handleSaveEdit = (milestoneId: string) => {
@@ -80,6 +94,7 @@ export default function MilestoneManager({ projectId }: MilestoneManagerProps) {
         name: editName.trim(),
         description: editDescription.trim() || undefined,
         dueDate: editDueDate ? new Date(editDueDate) : undefined,
+        link: editLink.trim() || undefined,
       },
     });
 
@@ -162,6 +177,13 @@ export default function MilestoneManager({ projectId }: MilestoneManagerProps) {
                       onChange={(e) => setEditDueDate(e.target.value)}
                       className="bg-white border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
+                    <input
+                      type="url"
+                      value={editLink}
+                      onChange={(e) => setEditLink(e.target.value)}
+                      placeholder="Link (optional)"
+                      className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleSaveEdit(milestone.id)}
@@ -203,6 +225,18 @@ export default function MilestoneManager({ projectId }: MilestoneManagerProps) {
                           >
                             {milestone.name}
                           </span>
+                          {milestone.link && (
+                            <a
+                              href={milestone.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-indigo-500 hover:text-indigo-600"
+                              title="Open link"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <ExternalLink size={12} />
+                            </a>
+                          )}
                         </div>
                         {milestone.description && (
                           <p className="text-xs text-slate-500 mt-1 ml-6">
@@ -290,6 +324,13 @@ export default function MilestoneManager({ projectId }: MilestoneManagerProps) {
             onChange={(e) => setNewDueDate(e.target.value)}
             className="bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
+          <input
+            type="url"
+            value={newLink}
+            onChange={(e) => setNewLink(e.target.value)}
+            placeholder="Link (optional)"
+            className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
           <div className="flex gap-2">
             <button
               type="submit"
@@ -305,6 +346,7 @@ export default function MilestoneManager({ projectId }: MilestoneManagerProps) {
                 setNewName("");
                 setNewDescription("");
                 setNewDueDate("");
+                setNewLink("");
               }}
               className="text-xs text-slate-500 hover:text-slate-700"
             >
