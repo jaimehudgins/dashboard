@@ -684,192 +684,233 @@ export default function ProjectView({
           )}
 
           {viewMode === "list" ? (
-            <div className="space-y-4">
-              {/* Milestone Sections */}
-              {projectMilestones.map((milestone) => {
-                const milestoneTasks = getTasksForMilestone(milestone.id);
-                const milestoneCompletedTasks = getCompletedTasksForMilestone(
-                  milestone.id,
-                );
-                const totalTasks =
-                  milestoneTasks.length + milestoneCompletedTasks.length;
-                const isCollapsed = collapsedMilestones.has(milestone.id);
-                const isOverdue =
-                  milestone.dueDate &&
-                  new Date(milestone.dueDate) < new Date() &&
-                  milestone.status !== "completed";
+            <div className="space-y-6">
+              {/* Milestones Section */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-2">
+                  <Flag size={14} className="text-indigo-500" />
+                  Milestones
+                </h3>
+                {projectMilestones.length === 0 ? (
+                  <p className="text-sm text-slate-400 py-2">
+                    No milestones yet
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {projectMilestones.map((milestone) => {
+                      const milestoneTasks = getTasksForMilestone(milestone.id);
+                      const milestoneCompletedTasks =
+                        getCompletedTasksForMilestone(milestone.id);
+                      const totalTasks =
+                        milestoneTasks.length + milestoneCompletedTasks.length;
+                      const isCollapsed = collapsedMilestones.has(milestone.id);
+                      const isOverdue =
+                        milestone.dueDate &&
+                        new Date(milestone.dueDate) < new Date() &&
+                        milestone.status !== "completed";
 
-                return (
-                  <div
-                    key={milestone.id}
-                    className={`bg-white border rounded-xl overflow-hidden ${
-                      milestone.status === "completed"
-                        ? "border-green-200"
-                        : "border-slate-200"
-                    }`}
-                  >
-                    {/* Milestone Header */}
-                    <div
-                      className={`px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors ${
-                        milestone.status === "completed" ? "bg-green-50" : ""
-                      }`}
-                      onClick={() => toggleMilestoneCollapse(milestone.id)}
-                    >
-                      <button className="text-slate-400">
-                        {isCollapsed ? (
-                          <ChevronRight size={16} />
-                        ) : (
-                          <ChevronDown size={16} />
-                        )}
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          dispatch({
-                            type: "UPDATE_MILESTONE",
-                            payload: {
-                              ...milestone,
-                              status:
-                                milestone.status === "active"
-                                  ? "completed"
-                                  : "active",
-                            },
-                          });
-                        }}
-                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                          milestone.status === "completed"
-                            ? "bg-green-500 border-green-500"
-                            : "border-slate-300 hover:border-green-500"
-                        }`}
-                      >
-                        {milestone.status === "completed" && (
-                          <Check size={12} className="text-white" />
-                        )}
-                      </button>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <Flag size={14} className="text-indigo-500" />
-                          <span
-                            className={`font-medium ${
+                      return (
+                        <div
+                          key={milestone.id}
+                          className={`bg-white border rounded-xl overflow-hidden ${
+                            milestone.status === "completed"
+                              ? "border-green-200"
+                              : "border-slate-200"
+                          }`}
+                        >
+                          {/* Milestone Header */}
+                          <div
+                            className={`px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors ${
                               milestone.status === "completed"
-                                ? "text-green-700 line-through"
-                                : "text-slate-900"
+                                ? "bg-green-50"
+                                : ""
                             }`}
+                            onClick={() =>
+                              toggleMilestoneCollapse(milestone.id)
+                            }
                           >
-                            {milestone.name}
-                          </span>
-                          {milestone.link && (
-                            <a
-                              href={milestone.link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-indigo-500 hover:text-indigo-600"
-                              onClick={(e) => e.stopPropagation()}
+                            <button className="text-slate-400">
+                              {isCollapsed ? (
+                                <ChevronRight size={16} />
+                              ) : (
+                                <ChevronDown size={16} />
+                              )}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                dispatch({
+                                  type: "UPDATE_MILESTONE",
+                                  payload: {
+                                    ...milestone,
+                                    status:
+                                      milestone.status === "active"
+                                        ? "completed"
+                                        : "active",
+                                  },
+                                });
+                              }}
+                              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                                milestone.status === "completed"
+                                  ? "bg-green-500 border-green-500"
+                                  : "border-slate-300 hover:border-green-500"
+                              }`}
                             >
-                              <ExternalLink size={12} />
-                            </a>
+                              {milestone.status === "completed" && (
+                                <Check size={12} className="text-white" />
+                              )}
+                            </button>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <Flag size={14} className="text-indigo-500" />
+                                <span
+                                  className={`font-medium ${
+                                    milestone.status === "completed"
+                                      ? "text-green-700 line-through"
+                                      : "text-slate-900"
+                                  }`}
+                                >
+                                  {milestone.name}
+                                </span>
+                                {milestone.link && (
+                                  <a
+                                    href={milestone.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-indigo-500 hover:text-indigo-600"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <ExternalLink size={12} />
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs text-slate-500">
+                              <span>
+                                {milestoneCompletedTasks.length}/{totalTasks}{" "}
+                                tasks
+                              </span>
+                              {milestone.dueDate && (
+                                <span
+                                  className={`flex items-center gap-1 ${
+                                    isOverdue ? "text-red-500" : ""
+                                  }`}
+                                >
+                                  <Calendar size={12} />
+                                  {format(new Date(milestone.dueDate), "MMM d")}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Milestone Tasks */}
+                          {!isCollapsed && (
+                            <div className="border-t border-slate-100 px-4 py-2">
+                              {milestoneTasks.length === 0 &&
+                              milestoneCompletedTasks.length === 0 ? (
+                                <p className="text-sm text-slate-400 py-2 text-center">
+                                  No tasks in this milestone
+                                </p>
+                              ) : (
+                                <div className="space-y-2 py-2">
+                                  {milestoneTasks.map((task) => (
+                                    <SortableTaskItem
+                                      key={task.id}
+                                      task={task}
+                                      onComplete={handleCompleteTask}
+                                      onEdit={setEditingTask}
+                                      onStartFocus={onStartFocus}
+                                      onDelete={handleDeleteTask}
+                                    />
+                                  ))}
+                                  {milestoneCompletedTasks.length > 0 && (
+                                    <div className="pt-2">
+                                      <p className="text-xs text-slate-400 mb-2">
+                                        Completed (
+                                        {milestoneCompletedTasks.length})
+                                      </p>
+                                      {milestoneCompletedTasks
+                                        .slice(0, 3)
+                                        .map((task) => (
+                                          <div
+                                            key={task.id}
+                                            className="bg-slate-50 border border-slate-100 rounded-lg p-2 flex items-center gap-2 mb-1"
+                                          >
+                                            <CheckCircle2
+                                              size={14}
+                                              className="text-green-500"
+                                            />
+                                            <span className="text-slate-400 line-through text-sm">
+                                              {task.title}
+                                            </span>
+                                          </div>
+                                        ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           )}
                         </div>
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-slate-500">
-                        <span>
-                          {milestoneCompletedTasks.length}/{totalTasks} tasks
-                        </span>
-                        {milestone.dueDate && (
-                          <span
-                            className={`flex items-center gap-1 ${
-                              isOverdue ? "text-red-500" : ""
-                            }`}
-                          >
-                            <Calendar size={12} />
-                            {format(new Date(milestone.dueDate), "MMM d")}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Milestone Tasks */}
-                    {!isCollapsed && (
-                      <div className="border-t border-slate-100 px-4 py-2">
-                        {milestoneTasks.length === 0 &&
-                        milestoneCompletedTasks.length === 0 ? (
-                          <p className="text-sm text-slate-400 py-2 text-center">
-                            No tasks in this milestone
-                          </p>
-                        ) : (
-                          <div className="space-y-2 py-2">
-                            {milestoneTasks.map((task) => (
-                              <SortableTaskItem
-                                key={task.id}
-                                task={task}
-                                onComplete={handleCompleteTask}
-                                onEdit={setEditingTask}
-                                onStartFocus={onStartFocus}
-                                onDelete={handleDeleteTask}
-                              />
-                            ))}
-                            {milestoneCompletedTasks.length > 0 && (
-                              <div className="pt-2">
-                                <p className="text-xs text-slate-400 mb-2">
-                                  Completed ({milestoneCompletedTasks.length})
-                                </p>
-                                {milestoneCompletedTasks
-                                  .slice(0, 3)
-                                  .map((task) => (
-                                    <div
-                                      key={task.id}
-                                      className="bg-slate-50 border border-slate-100 rounded-lg p-2 flex items-center gap-2 mb-1"
-                                    >
-                                      <CheckCircle2
-                                        size={14}
-                                        className="text-green-500"
-                                      />
-                                      <span className="text-slate-400 line-through text-sm">
-                                        {task.title}
-                                      </span>
-                                    </div>
-                                  ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
+                      );
+                    })}
                   </div>
-                );
-              })}
+                )}
 
-              {/* Unassigned Tasks Section */}
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                <div
-                  className="px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors"
-                  onClick={() => toggleMilestoneCollapse("unassigned")}
-                >
-                  <button className="text-slate-400">
-                    {collapsedMilestones.has("unassigned") ? (
-                      <ChevronRight size={16} />
-                    ) : (
-                      <ChevronDown size={16} />
-                    )}
+                {/* Add Milestone Button */}
+                {!showAddMilestone ? (
+                  <button
+                    onClick={() => setShowAddMilestone(true)}
+                    className="w-full bg-slate-50 hover:bg-slate-100 border border-dashed border-slate-300 rounded-xl p-3 text-sm text-slate-500 hover:text-slate-700 flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Plus size={16} />
+                    Add Milestone
                   </button>
-                  <div className="flex-1">
-                    <span className="font-medium text-slate-900">
-                      Unassigned Tasks
-                    </span>
-                  </div>
-                  <span className="text-xs text-slate-500">
-                    {unassignedCompletedTasks.length}/
-                    {unassignedTasks.length + unassignedCompletedTasks.length}{" "}
-                    tasks
-                  </span>
-                </div>
+                ) : (
+                  <form
+                    onSubmit={handleAddMilestone}
+                    className="bg-white border border-slate-200 rounded-xl p-4 flex gap-3"
+                  >
+                    <input
+                      type="text"
+                      value={newMilestoneName}
+                      onChange={(e) => setNewMilestoneName(e.target.value)}
+                      placeholder="Milestone name..."
+                      autoFocus
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!newMilestoneName.trim()}
+                      className="bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddMilestone(false);
+                        setNewMilestoneName("");
+                      }}
+                      className="text-slate-500 hover:text-slate-700 px-2 text-sm"
+                    >
+                      Cancel
+                    </button>
+                  </form>
+                )}
+              </div>
 
-                {!collapsedMilestones.has("unassigned") && (
-                  <div className="border-t border-slate-100 px-4 py-2">
+              {/* Project Tasks Section */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+                  Project Tasks
+                </h3>
+                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                  <div className="px-4 py-2">
                     {unassignedTasks.length === 0 &&
                     unassignedCompletedTasks.length === 0 ? (
                       <p className="text-sm text-slate-400 py-2 text-center">
-                        No unassigned tasks
+                        No project tasks
                       </p>
                     ) : (
                       <DndContext
@@ -897,7 +938,7 @@ export default function ProjectView({
                       </DndContext>
                     )}
                     {unassignedCompletedTasks.length > 0 && (
-                      <div className="pt-2">
+                      <div className="pt-2 pb-2">
                         <p className="text-xs text-slate-400 mb-2">
                           Completed ({unassignedCompletedTasks.length})
                         </p>
@@ -918,50 +959,8 @@ export default function ProjectView({
                       </div>
                     )}
                   </div>
-                )}
+                </div>
               </div>
-
-              {/* Add Milestone Button */}
-              {!showAddMilestone ? (
-                <button
-                  onClick={() => setShowAddMilestone(true)}
-                  className="w-full bg-slate-50 hover:bg-slate-100 border border-dashed border-slate-300 rounded-xl p-3 text-sm text-slate-500 hover:text-slate-700 flex items-center justify-center gap-2 transition-colors"
-                >
-                  <Plus size={16} />
-                  Add Milestone
-                </button>
-              ) : (
-                <form
-                  onSubmit={handleAddMilestone}
-                  className="bg-white border border-slate-200 rounded-xl p-4 flex gap-3"
-                >
-                  <input
-                    type="text"
-                    value={newMilestoneName}
-                    onChange={(e) => setNewMilestoneName(e.target.value)}
-                    placeholder="Milestone name..."
-                    autoFocus
-                    className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!newMilestoneName.trim()}
-                    className="bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowAddMilestone(false);
-                      setNewMilestoneName("");
-                    }}
-                    className="text-slate-500 hover:text-slate-700 px-2 text-sm"
-                  >
-                    Cancel
-                  </button>
-                </form>
-              )}
             </div>
           ) : viewMode === "kanban" ? (
             <KanbanBoard
