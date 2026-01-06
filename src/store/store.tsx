@@ -618,10 +618,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         dispatch({ type: "SET_LOADING", payload: true });
         const data = await db.loadAllData();
-        console.log("Loaded data from Supabase:", {
-          milestones: data.milestones,
-          milestonesCount: data.milestones.length,
-        });
         dispatch({
           type: "LOAD_STATE",
           payload: {
@@ -653,15 +649,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Sync actions to Supabase
   useEffect(() => {
-    console.log(
-      "Sync useEffect triggered, pendingActions:",
-      pendingActions.length,
-      pendingActions.map((a) => a.type),
-    );
     if (pendingActions.length === 0) return;
 
     const action = pendingActions[0];
-    console.log("Processing action:", action.type, action);
 
     async function syncAction() {
       try {
@@ -790,9 +780,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             break;
           // Milestones
           case "ADD_MILESTONE":
-            console.log("Saving milestone:", action.payload);
             await db.createMilestone(action.payload);
-            console.log("Milestone saved successfully");
             break;
           case "UPDATE_MILESTONE":
             await db.updateMilestone(action.payload);
@@ -853,14 +841,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [pendingActions, state.activeFocusSession, state.tasks, state.projects]);
 
   const syncedDispatch = useCallback((action: Action) => {
-    console.log("syncedDispatch called with:", action.type);
     dispatch(action);
     if (
       action.type !== "LOAD_STATE" &&
       action.type !== "SET_LOADING" &&
       action.type !== "SET_ERROR"
     ) {
-      console.log("Adding to pendingActions:", action.type);
       setPendingActions((prev) => [...prev, action]);
     }
   }, []);

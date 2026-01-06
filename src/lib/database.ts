@@ -428,12 +428,10 @@ export async function createMilestone(milestone: Milestone): Promise<void> {
     display_order: milestone.displayOrder,
     created_at: milestone.createdAt.toISOString(),
   };
-  console.log("Inserting milestone data:", insertData);
 
   const { error } = await supabase.from("milestones").insert(insertData);
 
   if (error) {
-    console.error("Milestone insert error:", error);
     throw error;
   }
 }
