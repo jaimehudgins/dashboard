@@ -260,6 +260,9 @@ export default function ProjectView({
   );
   const [showAddMilestone, setShowAddMilestone] = useState(false);
   const [newMilestoneName, setNewMilestoneName] = useState("");
+  const [newMilestoneDescription, setNewMilestoneDescription] = useState("");
+  const [newMilestoneDueDate, setNewMilestoneDueDate] = useState("");
+  const [newMilestoneLink, setNewMilestoneLink] = useState("");
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -327,6 +330,9 @@ export default function ProjectView({
       id: crypto.randomUUID(),
       projectId,
       name: newMilestoneName.trim(),
+      description: newMilestoneDescription.trim() || undefined,
+      dueDate: newMilestoneDueDate ? new Date(newMilestoneDueDate) : undefined,
+      link: newMilestoneLink.trim() || undefined,
       status: "active",
       displayOrder: projectMilestones.length,
       createdAt: new Date(),
@@ -334,6 +340,9 @@ export default function ProjectView({
 
     dispatch({ type: "ADD_MILESTONE", payload: milestone });
     setNewMilestoneName("");
+    setNewMilestoneDescription("");
+    setNewMilestoneDueDate("");
+    setNewMilestoneLink("");
     setShowAddMilestone(false);
   };
 
@@ -881,7 +890,7 @@ export default function ProjectView({
                 ) : (
                   <form
                     onSubmit={handleAddMilestone}
-                    className="bg-white border border-slate-200 rounded-xl p-4 flex gap-3"
+                    className="bg-white border border-slate-200 rounded-xl p-4 space-y-3"
                   >
                     <input
                       type="text"
@@ -889,25 +898,66 @@ export default function ProjectView({
                       onChange={(e) => setNewMilestoneName(e.target.value)}
                       placeholder="Milestone name..."
                       autoFocus
-                      className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
-                    <button
-                      type="submit"
-                      disabled={!newMilestoneName.trim()}
-                      className="bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                    >
-                      Add
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowAddMilestone(false);
-                        setNewMilestoneName("");
-                      }}
-                      className="text-slate-500 hover:text-slate-700 px-2 text-sm"
-                    >
-                      Cancel
-                    </button>
+                    <input
+                      type="text"
+                      value={newMilestoneDescription}
+                      onChange={(e) =>
+                        setNewMilestoneDescription(e.target.value)
+                      }
+                      placeholder="Description (optional)"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">
+                          Due Date
+                        </label>
+                        <input
+                          type="date"
+                          value={newMilestoneDueDate}
+                          onChange={(e) =>
+                            setNewMilestoneDueDate(e.target.value)
+                          }
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">
+                          Link (optional)
+                        </label>
+                        <input
+                          type="url"
+                          value={newMilestoneLink}
+                          onChange={(e) => setNewMilestoneLink(e.target.value)}
+                          placeholder="https://..."
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-3 pt-2">
+                      <button
+                        type="submit"
+                        disabled={!newMilestoneName.trim()}
+                        className="bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        Add Milestone
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddMilestone(false);
+                          setNewMilestoneName("");
+                          setNewMilestoneDescription("");
+                          setNewMilestoneDueDate("");
+                          setNewMilestoneLink("");
+                        }}
+                        className="text-slate-500 hover:text-slate-700 px-4 py-2 text-sm"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </form>
                 )}
               </div>
