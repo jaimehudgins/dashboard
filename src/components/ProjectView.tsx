@@ -41,6 +41,7 @@ import {
   ChevronRight,
   ExternalLink,
   Check,
+  GanttChart as GanttChartIcon,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Task, Priority, Milestone } from "@/types";
@@ -49,6 +50,7 @@ import TagBadge from "./TagBadge";
 import TemplateManager from "./TemplateManager";
 import KanbanBoard from "./KanbanBoard";
 import CalendarView from "./CalendarView";
+import GanttChart from "./GanttChart";
 import FilterBar, {
   TaskFilters,
   SortOption,
@@ -241,9 +243,9 @@ export default function ProjectView({
   const [newTaskDescription, setNewTaskDescription] = useState("");
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
-  const [viewMode, setViewMode] = useState<"list" | "kanban" | "calendar">(
-    "list",
-  );
+  const [viewMode, setViewMode] = useState<
+    "list" | "kanban" | "calendar" | "gantt"
+  >("list");
   const [filters, setFilters] = useState<TaskFilters>({
     priority: "all",
     status: "all",
@@ -445,7 +447,6 @@ export default function ProjectView({
         <div className={viewMode === "list" ? "space-y-4" : ""}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <h2 className="text-lg font-semibold text-slate-900">Tasks</h2>
               {/* View Toggle */}
               <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
                 <button
@@ -480,6 +481,17 @@ export default function ProjectView({
                   title="Calendar view"
                 >
                   <Calendar size={16} />
+                </button>
+                <button
+                  onClick={() => setViewMode("gantt")}
+                  className={`p-1.5 rounded-md transition-colors ${
+                    viewMode === "gantt"
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                  title="Gantt chart view"
+                >
+                  <GanttChartIcon size={16} />
                 </button>
               </div>
             </div>
@@ -687,8 +699,8 @@ export default function ProjectView({
             <div className="space-y-6">
               {/* Milestones Section */}
               <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-2">
-                  <Flag size={14} className="text-indigo-500" />
+                <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                  <Flag size={18} className="text-indigo-500" />
                   Milestones
                 </h3>
                 {projectMilestones.length === 0 ? (
@@ -902,7 +914,7 @@ export default function ProjectView({
 
               {/* Project Tasks Section */}
               <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+                <h3 className="text-lg font-semibold text-slate-900">
                   Project Tasks
                 </h3>
                 <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
@@ -968,8 +980,10 @@ export default function ProjectView({
               onEditTask={setEditingTask}
               onStartFocus={onStartFocus}
             />
-          ) : (
+          ) : viewMode === "calendar" ? (
             <CalendarView projectId={projectId} onEditTask={setEditingTask} />
+          ) : (
+            <GanttChart projectId={projectId} onEditTask={setEditingTask} />
           )}
         </div>
 
