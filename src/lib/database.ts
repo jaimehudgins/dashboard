@@ -571,6 +571,7 @@ export async function deleteAttachment(attachmentId: string): Promise<void> {
 
 // Project Notes
 export async function fetchProjectNotes(): Promise<ProjectNote[]> {
+  console.log("[DB] Fetching project notes...");
   const { data, error } = await supabase
     .from("project_notes")
     .select("*")
@@ -578,11 +579,16 @@ export async function fetchProjectNotes(): Promise<ProjectNote[]> {
     .order("display_order", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: true });
 
-  if (error) throw error;
+  if (error) {
+    console.error("[DB] Error fetching project notes:", error);
+    throw error;
+  }
+  console.log("[DB] Fetched", data?.length || 0, "project notes");
   return (data || []).map(toProjectNote);
 }
 
 export async function createProjectNote(note: ProjectNote): Promise<void> {
+  console.log("[DB] Creating project note:", note.id, note.title);
   const { error } = await supabase.from("project_notes").insert({
     id: note.id,
     project_id: note.projectId,
@@ -594,7 +600,11 @@ export async function createProjectNote(note: ProjectNote): Promise<void> {
     updated_at: note.updatedAt.toISOString(),
   });
 
-  if (error) throw error;
+  if (error) {
+    console.error("[DB] Error creating project note:", error);
+    throw error;
+  }
+  console.log("[DB] Project note created successfully");
 }
 
 export async function updateProjectNote(note: ProjectNote): Promise<void> {
@@ -619,6 +629,20 @@ export async function deleteProjectNote(noteId: string): Promise<void> {
     .eq("id", noteId);
 
   if (error) throw error;
+}
+
+// Batch update note orders
+export async function updateNoteOrders(
+  updates: { id: string; displayOrder: number }[],
+): Promise<void> {
+  await Promise.all(
+    updates.map(({ id, displayOrder }) =>
+      supabase
+        .from("project_notes")
+        .update({ display_order: displayOrder })
+        .eq("id", id),
+    ),
+  );
 }
 
 // Misc Categories

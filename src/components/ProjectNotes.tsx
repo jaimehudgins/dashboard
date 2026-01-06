@@ -11,6 +11,8 @@ import {
   PinOff,
   GripVertical,
   AtSign,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import {
@@ -190,6 +192,7 @@ export default function ProjectNotes({ projectId }: ProjectNotesProps) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -296,116 +299,137 @@ export default function ProjectNotes({ projectId }: ProjectNotesProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="flex items-center gap-2 text-lg font-semibold text-slate-900 hover:text-slate-700 transition-colors"
+        >
+          {isCollapsed ? (
+            <ChevronRight size={18} className="text-slate-400" />
+          ) : (
+            <ChevronDown size={18} className="text-slate-400" />
+          )}
           <FileText size={18} />
           Notes
-        </h2>
-        <button
-          onClick={handleAddNote}
-          className="flex items-center gap-1.5 text-indigo-500 hover:text-indigo-600 text-sm font-medium transition-colors"
-        >
-          <Plus size={16} />
-          Add Note
+          <span className="text-sm font-normal text-slate-400">
+            ({sortedNotes.length})
+          </span>
         </button>
-      </div>
-
-      {/* Tabs */}
-      <div className="border-b border-slate-200">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={sortedNotes.map((n) => n.id)}
-            strategy={verticalListSortingStrategy}
+        {!isCollapsed && (
+          <button
+            onClick={handleAddNote}
+            className="flex items-center gap-1.5 text-indigo-500 hover:text-indigo-600 text-sm font-medium transition-colors"
           >
-            <div className="flex items-center gap-1 overflow-x-auto pb-px">
-              {sortedNotes.map((note) => (
-                <SortableNoteTab
-                  key={note.id}
-                  note={note}
-                  isActive={note.id === activeNoteId}
-                  onClick={() => setActiveNoteId(note.id)}
-                  onPin={() => handleTogglePin(note)}
-                  onDelete={() => handleDeleteNote(note.id)}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
+            <Plus size={16} />
+            Add Note
+          </button>
+        )}
       </div>
 
-      {/* Note Content */}
-      {activeNote && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          {/* Note Header */}
-          <div className="flex items-center justify-between p-3 border-b border-slate-100">
-            {editingTitle ? (
-              <input
-                type="text"
-                value={activeNote.title}
-                onChange={(e) => handleUpdateNote({ title: e.target.value })}
-                onBlur={() => setEditingTitle(false)}
-                onKeyDown={(e) => e.key === "Enter" && setEditingTitle(false)}
-                autoFocus
-                className="flex-1 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            ) : (
-              <button
-                onClick={() => setEditingTitle(true)}
-                className="text-sm font-medium text-slate-900 hover:text-indigo-600 transition-colors"
-              >
-                {activeNote.title}
-              </button>
-            )}
-            <button
-              onClick={() => setIsEditing(!isEditing)}
-              className={`flex items-center gap-2 text-sm font-medium transition-colors ${
-                isEditing
-                  ? "text-indigo-500"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
+      {!isCollapsed && (
+        <>
+          {/* Tabs */}
+          <div className="border-b border-slate-200">
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
             >
-              {isEditing ? <Eye size={16} /> : <Edit3 size={16} />}
-              {isEditing ? "Preview" : "Edit"}
-            </button>
+              <SortableContext
+                items={sortedNotes.map((n) => n.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="flex items-center gap-1 overflow-x-auto pb-px">
+                  {sortedNotes.map((note) => (
+                    <SortableNoteTab
+                      key={note.id}
+                      note={note}
+                      isActive={note.id === activeNoteId}
+                      onClick={() => setActiveNoteId(note.id)}
+                      onPin={() => handleTogglePin(note)}
+                      onDelete={() => handleDeleteNote(note.id)}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           </div>
 
-          {/* Note Body */}
-          <div className="h-[400px]">
-            {isEditing ? (
-              <div className="h-full flex flex-col">
-                <textarea
-                  value={activeNote.content}
-                  onChange={(e) =>
-                    handleUpdateNote({ content: e.target.value })
-                  }
-                  className="w-full flex-1 bg-transparent p-4 text-slate-900 placeholder-slate-400 resize-none focus:outline-none font-mono text-sm leading-relaxed"
-                  placeholder="Write your notes in Markdown... Use @[task name] to link to tasks."
-                />
-                <div className="px-4 py-2 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 flex items-center gap-1">
-                  <AtSign size={12} />
-                  Tip: Use @[task name] to link to a task
-                </div>
-              </div>
-            ) : (
-              <div className="p-4 overflow-auto h-full">
-                {activeNote.content ? (
-                  <NoteContent
-                    content={activeNote.content}
-                    tasks={projectTasks}
-                    onTaskClick={setSelectedTask}
+          {/* Note Content */}
+          {activeNote && (
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              {/* Note Header */}
+              <div className="flex items-center justify-between p-3 border-b border-slate-100">
+                {editingTitle ? (
+                  <input
+                    type="text"
+                    value={activeNote.title}
+                    onChange={(e) =>
+                      handleUpdateNote({ title: e.target.value })
+                    }
+                    onBlur={() => setEditingTitle(false)}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" && setEditingTitle(false)
+                    }
+                    autoFocus
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 ) : (
-                  <p className="text-slate-400 italic">
-                    No content yet. Click Edit to start writing.
-                  </p>
+                  <button
+                    onClick={() => setEditingTitle(true)}
+                    className="text-sm font-medium text-slate-900 hover:text-indigo-600 transition-colors"
+                  >
+                    {activeNote.title}
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsEditing(!isEditing)}
+                  className={`flex items-center gap-2 text-sm font-medium transition-colors ${
+                    isEditing
+                      ? "text-indigo-500"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  {isEditing ? <Eye size={16} /> : <Edit3 size={16} />}
+                  {isEditing ? "Preview" : "Edit"}
+                </button>
+              </div>
+
+              {/* Note Body */}
+              <div className="h-[400px]">
+                {isEditing ? (
+                  <div className="h-full flex flex-col">
+                    <textarea
+                      value={activeNote.content}
+                      onChange={(e) =>
+                        handleUpdateNote({ content: e.target.value })
+                      }
+                      className="w-full flex-1 bg-transparent p-4 text-slate-900 placeholder-slate-400 resize-none focus:outline-none font-mono text-sm leading-relaxed"
+                      placeholder="Write your notes in Markdown... Use @[task name] to link to tasks."
+                    />
+                    <div className="px-4 py-2 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 flex items-center gap-1">
+                      <AtSign size={12} />
+                      Tip: Use @[task name] to link to a task
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 overflow-auto h-full">
+                    {activeNote.content ? (
+                      <NoteContent
+                        content={activeNote.content}
+                        tasks={projectTasks}
+                        onTaskClick={setSelectedTask}
+                      />
+                    ) : (
+                      <p className="text-slate-400 italic">
+                        No content yet. Click Edit to start writing.
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
-        </div>
+            </div>
+          )}
+        </>
       )}
 
       {selectedTask && (

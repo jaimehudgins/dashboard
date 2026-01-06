@@ -819,6 +819,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           case "DELETE_NOTE":
             await db.deleteProjectNote(action.payload);
             break;
+          case "REORDER_NOTES": {
+            const updates = action.payload.map((id, index) => ({
+              id,
+              displayOrder: index,
+            }));
+            await db.updateNoteOrders(updates);
+            break;
+          }
           // Misc Categories
           case "ADD_CATEGORY":
             await db.createMiscCategory(action.payload);
