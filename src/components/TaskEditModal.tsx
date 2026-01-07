@@ -77,7 +77,7 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
         projectId,
         priority,
         status,
-        dueDate: dueDate ? new Date(dueDate) : undefined,
+        dueDate: dueDate ? new Date(dueDate + "T12:00:00") : undefined,
         tagIds,
         reminders,
         recurrenceRule,

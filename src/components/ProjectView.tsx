@@ -338,7 +338,9 @@ export default function ProjectView({
       projectId,
       name: newMilestoneName.trim(),
       description: newMilestoneDescription.trim() || undefined,
-      dueDate: newMilestoneDueDate ? new Date(newMilestoneDueDate) : undefined,
+      dueDate: newMilestoneDueDate
+        ? new Date(newMilestoneDueDate + "T12:00:00")
+        : undefined,
       link: newMilestoneLink.trim() || undefined,
       status: "active",
       displayOrder: projectMilestones.length,
@@ -380,7 +382,7 @@ export default function ProjectView({
         name: editMilestoneName.trim(),
         description: editMilestoneDescription.trim() || undefined,
         dueDate: editMilestoneDueDate
-          ? new Date(editMilestoneDueDate)
+          ? new Date(editMilestoneDueDate + "T12:00:00")
           : undefined,
         link: editMilestoneLink.trim() || undefined,
       },
@@ -418,7 +420,9 @@ export default function ProjectView({
         priority: newTaskPriority,
         status: "pending",
         projectId,
-        dueDate: newTaskDueDate ? new Date(newTaskDueDate) : undefined,
+        dueDate: newTaskDueDate
+          ? new Date(newTaskDueDate + "T12:00:00")
+          : undefined,
         milestoneId: newTaskMilestoneId || undefined,
         tagIds: newTaskTagIds.length > 0 ? newTaskTagIds : undefined,
         createdAt: new Date(),
