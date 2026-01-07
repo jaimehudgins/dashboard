@@ -571,7 +571,6 @@ export async function deleteAttachment(attachmentId: string): Promise<void> {
 
 // Project Notes
 export async function fetchProjectNotes(): Promise<ProjectNote[]> {
-  console.log("[DB] Fetching project notes...");
   const { data, error } = await supabase
     .from("project_notes")
     .select("*")
@@ -579,16 +578,11 @@ export async function fetchProjectNotes(): Promise<ProjectNote[]> {
     .order("display_order", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: true });
 
-  if (error) {
-    console.error("[DB] Error fetching project notes:", error);
-    throw error;
-  }
-  console.log("[DB] Fetched", data?.length || 0, "project notes");
+  if (error) throw error;
   return (data || []).map(toProjectNote);
 }
 
 export async function createProjectNote(note: ProjectNote): Promise<void> {
-  console.log("[DB] Creating project note:", note.id, note.title);
   const { error } = await supabase.from("project_notes").insert({
     id: note.id,
     project_id: note.projectId,
@@ -600,11 +594,7 @@ export async function createProjectNote(note: ProjectNote): Promise<void> {
     updated_at: note.updatedAt.toISOString(),
   });
 
-  if (error) {
-    console.error("[DB] Error creating project note:", error);
-    throw error;
-  }
-  console.log("[DB] Project note created successfully");
+  if (error) throw error;
 }
 
 export async function updateProjectNote(note: ProjectNote): Promise<void> {
