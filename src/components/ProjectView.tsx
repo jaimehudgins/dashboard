@@ -1121,68 +1121,6 @@ export default function ProjectView({
                   </form>
                 )}
               </div>
-
-              {/* Project Tasks Section */}
-              <div className="space-y-3">
-                <h3 className="text-lg font-semibold text-slate-900">
-                  Project Tasks
-                </h3>
-                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                  <div className="px-4 py-2">
-                    {unassignedTasks.length === 0 &&
-                    unassignedCompletedTasks.length === 0 ? (
-                      <p className="text-sm text-slate-400 py-2 text-center">
-                        No project tasks
-                      </p>
-                    ) : (
-                      <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleDragEnd}
-                      >
-                        <SortableContext
-                          items={unassignedTasks.map((t) => t.id)}
-                          strategy={verticalListSortingStrategy}
-                        >
-                          <div className="space-y-2 py-2">
-                            {unassignedTasks.map((task) => (
-                              <SortableTaskItem
-                                key={task.id}
-                                task={task}
-                                onComplete={handleCompleteTask}
-                                onEdit={setEditingTask}
-                                onStartFocus={onStartFocus}
-                                onDelete={handleDeleteTask}
-                              />
-                            ))}
-                          </div>
-                        </SortableContext>
-                      </DndContext>
-                    )}
-                    {unassignedCompletedTasks.length > 0 && (
-                      <div className="pt-2 pb-2">
-                        <p className="text-xs text-slate-400 mb-2">
-                          Completed ({unassignedCompletedTasks.length})
-                        </p>
-                        {unassignedCompletedTasks.slice(0, 3).map((task) => (
-                          <div
-                            key={task.id}
-                            className="bg-slate-50 border border-slate-100 rounded-lg p-2 flex items-center gap-2 mb-1"
-                          >
-                            <CheckCircle2
-                              size={14}
-                              className="text-green-500"
-                            />
-                            <span className="text-slate-400 line-through text-sm">
-                              {task.title}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
             </div>
           ) : viewMode === "kanban" ? (
             <KanbanBoard
@@ -1197,9 +1135,68 @@ export default function ProjectView({
           )}
         </div>
 
-        {/* Project Notes & Activity Log Section - only show in list view */}
+        {/* Right Column - Project Tasks, Notes & Activity Log - only show in list view */}
         {viewMode === "list" && (
           <div className="space-y-6">
+            {/* Project Tasks Section */}
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Project Tasks
+              </h3>
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                <div className="px-4 py-2">
+                  {unassignedTasks.length === 0 &&
+                  unassignedCompletedTasks.length === 0 ? (
+                    <p className="text-sm text-slate-400 py-2 text-center">
+                      No project tasks
+                    </p>
+                  ) : (
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <SortableContext
+                        items={unassignedTasks.map((t) => t.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="space-y-2 py-2">
+                          {unassignedTasks.map((task) => (
+                            <SortableTaskItem
+                              key={task.id}
+                              task={task}
+                              onComplete={handleCompleteTask}
+                              onEdit={setEditingTask}
+                              onStartFocus={onStartFocus}
+                              onDelete={handleDeleteTask}
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                  )}
+                  {unassignedCompletedTasks.length > 0 && (
+                    <div className="pt-2 pb-2">
+                      <p className="text-xs text-slate-400 mb-2">
+                        Completed ({unassignedCompletedTasks.length})
+                      </p>
+                      {unassignedCompletedTasks.slice(0, 3).map((task) => (
+                        <div
+                          key={task.id}
+                          className="bg-slate-50 border border-slate-100 rounded-lg p-2 flex items-center gap-2 mb-1"
+                        >
+                          <CheckCircle2 size={14} className="text-green-500" />
+                          <span className="text-slate-400 line-through text-sm">
+                            {task.title}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {/* Project Notes */}
             <ProjectNotes projectId={projectId} />
 
