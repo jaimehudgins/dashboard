@@ -816,7 +816,11 @@ export async function fetchEnergyLogs(): Promise<EnergyLog[]> {
     .order("created_at", { ascending: false })
     .limit(100); // Get last ~25 days worth
 
-  if (error) throw error;
+  // Return empty array if table doesn't exist yet
+  if (error) {
+    console.warn("energy_logs table not found or error:", error.message);
+    return [];
+  }
   return (data || []).map(toEnergyLog);
 }
 
