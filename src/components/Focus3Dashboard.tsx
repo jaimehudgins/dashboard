@@ -15,6 +15,7 @@ import { useApp } from "@/store/store";
 import { Task, Priority } from "@/types";
 import TaskEditModal from "./TaskEditModal";
 import TagBadge from "./TagBadge";
+import EnergyTracker from "./EnergyTracker";
 
 const priorityConfig: Record<
   Priority,
@@ -236,6 +237,9 @@ export default function Focus3Dashboard({
           </div>
         )}
       </div>
+
+      {/* Energy Tracker */}
+      <EnergyTracker />
 
       {/* Quick Stats */}
       <div className="grid grid-cols-3 gap-4">

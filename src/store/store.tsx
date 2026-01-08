@@ -24,6 +24,7 @@ import {
   Attachment,
   ProjectNote,
   MiscCategory,
+  EnergyLog,
 } from "@/types";
 import * as db from "@/lib/database";
 
@@ -43,6 +44,7 @@ interface AppState {
   attachments: Attachment[];
   projectNotes: ProjectNote[];
   miscCategories: MiscCategory[];
+  energyLogs: EnergyLog[];
   isLoading: boolean;
   error: string | null;
 }
@@ -102,6 +104,10 @@ type Action =
   | { type: "ADD_CATEGORY"; payload: MiscCategory }
   | { type: "UPDATE_CATEGORY"; payload: MiscCategory }
   | { type: "DELETE_CATEGORY"; payload: string }
+  // Energy Logs
+  | { type: "ADD_ENERGY_LOG"; payload: EnergyLog }
+  | { type: "UPDATE_ENERGY_LOG"; payload: EnergyLog }
+  | { type: "DELETE_ENERGY_LOG"; payload: string }
   // System
   | { type: "LOAD_STATE"; payload: Partial<AppState> }
   | { type: "SET_LOADING"; payload: boolean }
@@ -123,6 +129,7 @@ const emptyState: AppState = {
   attachments: [],
   projectNotes: [],
   miscCategories: [],
+  energyLogs: [],
   isLoading: true,
   error: null,
 };
@@ -568,6 +575,27 @@ function appReducer(state: AppState, action: Action): AppState {
         ),
       };
 
+    // Energy Logs
+    case "ADD_ENERGY_LOG":
+      return {
+        ...state,
+        energyLogs: [action.payload, ...state.energyLogs],
+      };
+
+    case "UPDATE_ENERGY_LOG":
+      return {
+        ...state,
+        energyLogs: state.energyLogs.map((log) =>
+          log.id === action.payload.id ? action.payload : log,
+        ),
+      };
+
+    case "DELETE_ENERGY_LOG":
+      return {
+        ...state,
+        energyLogs: state.energyLogs.filter((log) => log.id !== action.payload),
+      };
+
     case "LOAD_STATE":
       return {
         ...state,
@@ -634,6 +662,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             attachments: data.attachments,
             projectNotes: data.projectNotes,
             miscCategories: data.miscCategories,
+            energyLogs: data.energyLogs,
           },
         });
       } catch (error) {
@@ -836,6 +865,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             break;
           case "DELETE_CATEGORY":
             await db.deleteMiscCategory(action.payload);
+            break;
+          // Energy Logs
+          case "ADD_ENERGY_LOG":
+            await db.createEnergyLog(action.payload);
+            break;
+          case "UPDATE_ENERGY_LOG":
+            await db.updateEnergyLog(action.payload);
+            break;
+          case "DELETE_ENERGY_LOG":
+            await db.deleteEnergyLog(action.payload);
             break;
         }
       } catch (error) {

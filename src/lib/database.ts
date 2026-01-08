@@ -13,6 +13,7 @@ import {
   Attachment,
   ProjectNote,
   MiscCategory,
+  EnergyLog,
 } from "@/types";
 
 // Helper to convert snake_case DB rows to camelCase
@@ -795,6 +796,61 @@ export async function deleteTag(tagId: string): Promise<void> {
   if (error) throw error;
 }
 
+// Energy Logs
+function toEnergyLog(row: Record<string, unknown>): EnergyLog {
+  return {
+    id: row.id as string,
+    date: new Date(row.date as string),
+    timeSlot: row.time_slot as EnergyLog["timeSlot"],
+    level: row.level as number,
+    note: row.note as string | undefined,
+    createdAt: new Date(row.created_at as string),
+  };
+}
+
+export async function fetchEnergyLogs(): Promise<EnergyLog[]> {
+  const { data, error } = await supabase
+    .from("energy_logs")
+    .select("*")
+    .order("date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(100); // Get last ~25 days worth
+
+  if (error) throw error;
+  return (data || []).map(toEnergyLog);
+}
+
+export async function createEnergyLog(log: EnergyLog): Promise<void> {
+  const { error } = await supabase.from("energy_logs").insert({
+    id: log.id,
+    date: log.date.toISOString().split("T")[0], // Just the date part
+    time_slot: log.timeSlot,
+    level: log.level,
+    note: log.note,
+    created_at: log.createdAt.toISOString(),
+  });
+
+  if (error) throw error;
+}
+
+export async function updateEnergyLog(log: EnergyLog): Promise<void> {
+  const { error } = await supabase
+    .from("energy_logs")
+    .update({
+      level: log.level,
+      note: log.note,
+    })
+    .eq("id", log.id);
+
+  if (error) throw error;
+}
+
+export async function deleteEnergyLog(logId: string): Promise<void> {
+  const { error } = await supabase.from("energy_logs").delete().eq("id", logId);
+
+  if (error) throw error;
+}
+
 // Load all data
 export async function loadAllData(): Promise<{
   projects: Project[];
@@ -810,6 +866,7 @@ export async function loadAllData(): Promise<{
   attachments: Attachment[];
   projectNotes: ProjectNote[];
   miscCategories: MiscCategory[];
+  energyLogs: EnergyLog[];
 }> {
   const [
     projects,
@@ -825,6 +882,7 @@ export async function loadAllData(): Promise<{
     attachments,
     projectNotes,
     miscCategories,
+    energyLogs,
   ] = await Promise.all([
     fetchProjects(),
     fetchTasks(),
@@ -839,6 +897,7 @@ export async function loadAllData(): Promise<{
     fetchAttachments(),
     fetchProjectNotes(),
     fetchMiscCategories(),
+    fetchEnergyLogs(),
   ]);
 
   return {
@@ -855,5 +914,6 @@ export async function loadAllData(): Promise<{
     attachments,
     projectNotes,
     miscCategories,
+    energyLogs,
   };
 }

@@ -154,3 +154,14 @@ export interface MiscCategory {
   isCollapsed?: boolean;
   createdAt: Date;
 }
+
+export type EnergyTimeSlot = "morning" | "midday" | "afternoon" | "evening";
+
+export interface EnergyLog {
+  id: string;
+  date: Date;
+  timeSlot: EnergyTimeSlot;
+  level: number; // 1-5
+  note?: string;
+  createdAt: Date;
+}
