@@ -257,6 +257,7 @@ export async function createTask(task: Task): Promise<void> {
     recurrence_end_date: task.recurrenceEndDate?.toISOString(),
     recurring_parent_id: task.recurringParentId,
     milestone_id: task.milestoneId,
+    category_id: task.categoryId,
     link: task.link,
   });
 
@@ -283,6 +284,7 @@ export async function updateTask(task: Task): Promise<void> {
       recurrence_end_date: task.recurrenceEndDate?.toISOString(),
       recurring_parent_id: task.recurringParentId,
       milestone_id: task.milestoneId,
+      category_id: task.categoryId,
       link: task.link,
     })
     .eq("id", task.id);
