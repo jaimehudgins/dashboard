@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Plus,
   ChevronDown,
@@ -11,9 +12,14 @@ import {
   Pencil,
   MoreHorizontal,
   X,
+  Calendar,
+  AlertCircle,
+  ExternalLink,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { MiscCategory, Task, Priority } from "@/types";
+import TaskEditModal from "./TaskEditModal";
+import TagBadge from "./TagBadge";
 
 const categoryColors = [
   "#6366f1", // indigo
@@ -39,6 +45,7 @@ export default function MiscTasks() {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(
     new Set(),
   );
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   // Get misc categories and tasks
   const categories = [...state.miscCategories].sort(
@@ -144,35 +151,146 @@ export default function MiscTasks() {
     setCollapsedCategories(newCollapsed);
   };
 
-  const renderTask = (task: Task) => (
-    <div
-      key={task.id}
-      className="group flex items-center gap-2 py-1.5 px-2 rounded hover:bg-slate-100 transition-colors"
-    >
-      <button onClick={() => handleToggleTask(task)} className="flex-shrink-0">
-        {task.status === "completed" ? (
-          <CheckCircle2 size={14} className="text-green-500" />
-        ) : (
-          <Circle size={14} className="text-slate-300 hover:text-slate-500" />
-        )}
-      </button>
-      <span
-        className={`flex-1 text-sm truncate ${
-          task.status === "completed"
-            ? "text-slate-400 line-through"
-            : "text-slate-700"
-        }`}
+  const getPriorityColor = (priority: Priority) => {
+    switch (priority) {
+      case "critical":
+        return "text-red-500";
+      case "high":
+        return "text-orange-500";
+      case "medium":
+        return "text-yellow-500";
+      case "low":
+        return "text-slate-400";
+      default:
+        return "text-slate-400";
+    }
+  };
+
+  const formatDueDate = (date: Date) => {
+    const d = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const taskDate = new Date(d);
+    taskDate.setHours(0, 0, 0, 0);
+
+    const diffDays = Math.ceil(
+      (taskDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+    );
+
+    if (diffDays < 0) return { text: "Overdue", className: "text-red-500" };
+    if (diffDays === 0) return { text: "Today", className: "text-amber-500" };
+    if (diffDays === 1) return { text: "Tomorrow", className: "text-blue-500" };
+    if (diffDays <= 7)
+      return { text: `${diffDays}d`, className: "text-slate-500" };
+    return {
+      text: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      className: "text-slate-400",
+    };
+  };
+
+  const renderTask = (task: Task) => {
+    const taskTags = (task.tagIds || [])
+      .map((id) => state.tags.find((t) => t.id === id))
+      .filter(Boolean);
+
+    return (
+      <div
+        key={task.id}
+        className="group flex items-start gap-2 py-1.5 px-2 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+        onClick={() => setEditingTask(task)}
       >
-        {task.title}
-      </span>
-      <button
-        onClick={() => handleDeleteTask(task.id)}
-        className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all"
-      >
-        <Trash2 size={12} />
-      </button>
-    </div>
-  );
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleToggleTask(task);
+          }}
+          className="flex-shrink-0 mt-0.5"
+        >
+          {task.status === "completed" ? (
+            <CheckCircle2 size={14} className="text-green-500" />
+          ) : (
+            <Circle size={14} className="text-slate-300 hover:text-slate-500" />
+          )}
+        </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            {task.priority && task.priority !== "medium" && (
+              <AlertCircle
+                size={12}
+                className={getPriorityColor(task.priority)}
+              />
+            )}
+            <span
+              className={`text-sm ${
+                task.status === "completed"
+                  ? "text-slate-400 line-through"
+                  : "text-slate-700"
+              }`}
+            >
+              {task.title}
+            </span>
+            {task.link && (
+              <a
+                href={task.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="text-indigo-400 hover:text-indigo-600"
+              >
+                <ExternalLink size={10} />
+              </a>
+            )}
+          </div>
+          {/* Show additional details */}
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            {task.dueDate && (
+              <span
+                className={`text-xs flex items-center gap-0.5 ${formatDueDate(task.dueDate).className}`}
+              >
+                <Calendar size={10} />
+                {formatDueDate(task.dueDate).text}
+              </span>
+            )}
+            {taskTags.length > 0 && (
+              <div className="flex gap-1">
+                {taskTags.slice(0, 2).map((tag) => (
+                  <span
+                    key={tag!.id}
+                    className="text-xs px-1.5 py-0.5 rounded-full"
+                    style={{
+                      backgroundColor: `${tag!.color}20`,
+                      color: tag!.color,
+                    }}
+                  >
+                    {tag!.name}
+                  </span>
+                ))}
+                {taskTags.length > 2 && (
+                  <span className="text-xs text-slate-400">
+                    +{taskTags.length - 2}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          {task.description && (
+            <p className="text-xs text-slate-400 mt-0.5 truncate">
+              {task.description}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDeleteTask(task.id);
+          }}
+          className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all flex-shrink-0"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
+    );
+  };
 
   const renderCategory = (category: MiscCategory) => {
     const tasks = getTasksForCategory(category.id);
@@ -357,6 +475,17 @@ export default function MiscTasks() {
             </p>
           )}
       </div>
+
+      {/* Task Edit Modal - rendered via portal to escape sidebar overflow */}
+      {editingTask &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <TaskEditModal
+            task={editingTask}
+            onClose={() => setEditingTask(null)}
+          />,
+          document.body,
+        )}
     </div>
   );
 }

@@ -55,6 +55,12 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
     task.milestoneId,
   );
   const [link, setLink] = useState(task.link || "");
+  const [categoryId, setCategoryId] = useState<string | undefined>(
+    task.categoryId,
+  );
+
+  // Check if this is a misc task
+  const isMiscTask = projectId === "misc";
 
   // Filter to only show active (non-archived) projects
   const activeProjects = state.projects.filter((p) => !p.archived);
@@ -63,6 +69,9 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
   const projectMilestones = state.milestones.filter(
     (m) => m.projectId === projectId,
   );
+
+  // Get misc categories
+  const miscCategories = state.miscCategories || [];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,7 +91,8 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
         reminders,
         recurrenceRule,
         recurrenceEndDate,
-        milestoneId,
+        milestoneId: isMiscTask ? undefined : milestoneId,
+        categoryId: isMiscTask ? categoryId : undefined,
         link: link.trim() || undefined,
       },
     });
@@ -218,20 +228,42 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
             <DependencyPicker taskId={task.id} projectId={task.projectId} />
           )}
 
-          <div>
-            <label className="block text-sm text-slate-600 mb-1">Project</label>
-            <select
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              {activeProjects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {isMiscTask ? (
+            <div>
+              <label className="block text-sm text-slate-600 mb-1">
+                Category
+              </label>
+              <select
+                value={categoryId || ""}
+                onChange={(e) => setCategoryId(e.target.value || undefined)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">Uncategorized</option>
+                {miscCategories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm text-slate-600 mb-1">
+                Project
+              </label>
+              <select
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                {activeProjects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Milestone Selector - only show for non-subtasks and if milestones exist */}
           {!task.parentTaskId && projectMilestones.length > 0 && (
