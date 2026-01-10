@@ -22,7 +22,7 @@ export interface Task {
   description?: string;
   priority: Priority;
   status: TaskStatus;
-  projectId: string;
+  projectId: string | null;
   dueDate?: Date;
   createdAt: Date;
   completedAt?: Date;
@@ -82,7 +82,7 @@ export interface Comment {
 
 export interface ActivityLog {
   id: string;
-  projectId?: string;
+  projectId?: string | null;
   taskId?: string;
   action: string;
   details?: Record<string, unknown>;
@@ -131,7 +131,7 @@ export interface InboxItem {
 export interface FocusSession {
   id: string;
   taskId: string;
-  projectId: string;
+  projectId: string | null;
   startTime: Date;
   endTime?: Date;
   minutes: number;

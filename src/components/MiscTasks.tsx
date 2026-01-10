@@ -57,7 +57,7 @@ export default function MiscTasks() {
   );
 
   const miscTasks = state.tasks.filter(
-    (t) => t.projectId === "misc" && !t.parentTaskId,
+    (t) => (t.projectId === "misc" || t.projectId === null) && !t.parentTaskId,
   );
 
   const getTasksForCategory = (categoryId: string) =>
@@ -123,7 +123,7 @@ export default function MiscTasks() {
       title: newTaskTitle.trim(),
       priority: "medium" as Priority,
       status: "pending",
-      projectId: "misc",
+      projectId: null,
       categoryId,
       createdAt: new Date(),
       focusMinutes: 0,

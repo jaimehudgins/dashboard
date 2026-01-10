@@ -52,7 +52,7 @@ export default function QuickCapture() {
           title: input.trim(),
           priority: "medium" as Priority,
           status: "pending",
-          projectId: "misc",
+          projectId: null,
           categoryId: target.categoryId,
           createdAt: new Date(),
           focusMinutes: 0,

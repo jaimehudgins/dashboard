@@ -24,7 +24,7 @@ import { Task, Priority } from "@/types";
 
 interface SubtaskListProps {
   parentTaskId: string;
-  projectId: string;
+  projectId: string | null;
 }
 
 interface SortableSubtaskProps {
@@ -33,7 +33,11 @@ interface SortableSubtaskProps {
   onDelete: () => void;
 }
 
-function SortableSubtask({ subtask, onToggle, onDelete }: SortableSubtaskProps) {
+function SortableSubtask({
+  subtask,
+  onToggle,
+  onDelete,
+}: SortableSubtaskProps) {
   const {
     attributes,
     listeners,
@@ -69,9 +73,7 @@ function SortableSubtask({ subtask, onToggle, onDelete }: SortableSubtaskProps) 
       <button
         onClick={onToggle}
         className={`flex-shrink-0 transition-colors ${
-          isCompleted
-            ? "text-green-500"
-            : "text-slate-300 hover:text-green-500"
+          isCompleted ? "text-green-500" : "text-slate-300 hover:text-green-500"
         }`}
         aria-label={isCompleted ? "Mark incomplete" : "Mark complete"}
       >
@@ -95,7 +97,10 @@ function SortableSubtask({ subtask, onToggle, onDelete }: SortableSubtaskProps) 
   );
 }
 
-export default function SubtaskList({ parentTaskId, projectId }: SubtaskListProps) {
+export default function SubtaskList({
+  parentTaskId,
+  projectId,
+}: SubtaskListProps) {
   const { dispatch, getSubtasks } = useApp();
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
   const [isAdding, setIsAdding] = useState(false);
@@ -106,7 +111,7 @@ export default function SubtaskList({ parentTaskId, projectId }: SubtaskListProp
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    })
+    }),
   );
 
   const handleAddSubtask = (e: React.FormEvent) => {
@@ -163,9 +168,12 @@ export default function SubtaskList({ parentTaskId, projectId }: SubtaskListProp
     }
   };
 
-  const completedCount = subtasks.filter((t) => t.status === "completed").length;
+  const completedCount = subtasks.filter(
+    (t) => t.status === "completed",
+  ).length;
   const totalCount = subtasks.length;
-  const progressPercent = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+  const progressPercent =
+    totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
   return (
     <div className="space-y-3">

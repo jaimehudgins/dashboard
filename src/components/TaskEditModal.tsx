@@ -60,7 +60,7 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
   );
 
   // Check if this is a misc task
-  const isMiscTask = projectId === "misc";
+  const isMiscTask = projectId === "misc" || projectId === null;
 
   // Filter to only show active (non-archived) projects
   const activeProjects = state.projects.filter((p) => !p.archived);

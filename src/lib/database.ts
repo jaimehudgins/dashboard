@@ -24,7 +24,7 @@ function toTask(row: Record<string, unknown>): Task {
     description: row.description as string | undefined,
     priority: row.priority as Task["priority"],
     status: row.status as Task["status"],
-    projectId: row.project_id as string,
+    projectId: (row.project_id as string | null) ?? null,
     dueDate: row.due_date ? new Date(row.due_date as string) : undefined,
     createdAt: new Date(row.created_at as string),
     completedAt: row.completed_at

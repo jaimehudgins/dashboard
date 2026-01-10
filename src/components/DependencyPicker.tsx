@@ -7,7 +7,7 @@ import { Task, TaskDependency } from "@/types";
 
 interface DependencyPickerProps {
   taskId: string;
-  projectId: string;
+  projectId: string | null;
 }
 
 export default function DependencyPicker({

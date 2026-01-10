@@ -63,7 +63,7 @@ function ProcessModal({ item, onClose }: ProcessModalProps) {
           title,
           priority,
           status: "pending",
-          projectId: "misc",
+          projectId: null,
           categoryId: target.categoryId,
           dueDate: dueDate ? new Date(dueDate) : undefined,
           createdAt: new Date(),
