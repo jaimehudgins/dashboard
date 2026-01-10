@@ -38,8 +38,12 @@ export default function MiscTasks() {
   const { state, dispatch } = useApp();
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
-  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [newCategoryColor, setNewCategoryColor] = useState(categoryColors[0]);
+  const [editingCategory, setEditingCategory] = useState<MiscCategory | null>(
+    null,
+  );
   const [editingCategoryName, setEditingCategoryName] = useState("");
+  const [editingCategoryColor, setEditingCategoryColor] = useState("");
   const [addingTaskTo, setAddingTaskTo] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(
@@ -76,7 +80,7 @@ export default function MiscTasks() {
     const newCategory: MiscCategory = {
       id: crypto.randomUUID(),
       name: newCategoryName.trim(),
-      color: categoryColors[categories.length % categoryColors.length],
+      color: newCategoryColor,
       displayOrder: categories.length,
       isCollapsed: false,
       createdAt: new Date(),
@@ -84,22 +88,26 @@ export default function MiscTasks() {
 
     dispatch({ type: "ADD_CATEGORY", payload: newCategory });
     setNewCategoryName("");
+    setNewCategoryColor(
+      categoryColors[(categories.length + 1) % categoryColors.length],
+    );
     setShowAddCategory(false);
   };
 
-  const handleUpdateCategoryName = (categoryId: string) => {
-    if (!editingCategoryName.trim()) {
+  const handleUpdateCategory = () => {
+    if (!editingCategoryName.trim() || !editingCategory) {
       setEditingCategory(null);
       return;
     }
 
-    const category = categories.find((c) => c.id === categoryId);
-    if (category) {
-      dispatch({
-        type: "UPDATE_CATEGORY",
-        payload: { ...category, name: editingCategoryName.trim() },
-      });
-    }
+    dispatch({
+      type: "UPDATE_CATEGORY",
+      payload: {
+        ...editingCategory,
+        name: editingCategoryName.trim(),
+        color: editingCategoryColor,
+      },
+    });
     setEditingCategory(null);
   };
 
@@ -296,7 +304,6 @@ export default function MiscTasks() {
     const tasks = getTasksForCategory(category.id);
     const completedTasks = getCompletedTasksForCategory(category.id);
     const isCollapsed = collapsedCategories.has(category.id);
-    const isEditing = editingCategory === category.id;
     const isAddingTask = addingTaskTo === category.id;
 
     return (
@@ -317,24 +324,9 @@ export default function MiscTasks() {
             className="w-2 h-2 rounded-full flex-shrink-0"
             style={{ backgroundColor: category.color }}
           />
-          {isEditing ? (
-            <input
-              type="text"
-              value={editingCategoryName}
-              onChange={(e) => setEditingCategoryName(e.target.value)}
-              onBlur={() => handleUpdateCategoryName(category.id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleUpdateCategoryName(category.id);
-                if (e.key === "Escape") setEditingCategory(null);
-              }}
-              autoFocus
-              className="flex-1 text-sm bg-white border border-slate-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
-          ) : (
-            <span className="flex-1 text-sm font-medium text-slate-700 truncate">
-              {category.name}
-            </span>
-          )}
+          <span className="flex-1 text-sm font-medium text-slate-700 truncate">
+            {category.name}
+          </span>
           <span className="text-xs text-slate-400">{tasks.length}</span>
           <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
             <button
@@ -346,8 +338,9 @@ export default function MiscTasks() {
             </button>
             <button
               onClick={() => {
-                setEditingCategory(category.id);
+                setEditingCategory(category);
                 setEditingCategoryName(category.name);
+                setEditingCategoryColor(category.color);
               }}
               className="p-0.5 text-slate-400 hover:text-slate-600"
               title="Edit category"
@@ -425,30 +418,54 @@ export default function MiscTasks() {
 
       {/* Add Category Form */}
       {showAddCategory && (
-        <div className="mx-3 mb-2 flex items-center gap-2">
-          <input
-            type="text"
-            value={newCategoryName}
-            onChange={(e) => setNewCategoryName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleAddCategory();
-              if (e.key === "Escape") {
+        <div className="mx-3 mb-2 space-y-2">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAddCategory();
+                if (e.key === "Escape") {
+                  setShowAddCategory(false);
+                  setNewCategoryName("");
+                }
+              }}
+              placeholder="Category name..."
+              autoFocus
+              className="flex-1 text-sm bg-white border border-slate-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+            <button
+              onClick={() => {
                 setShowAddCategory(false);
                 setNewCategoryName("");
-              }
-            }}
-            placeholder="Category name..."
-            autoFocus
-            className="flex-1 text-sm bg-white border border-slate-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          />
+              }}
+              className="text-slate-400 hover:text-slate-600"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <div className="flex items-center gap-1 flex-wrap">
+            {categoryColors.map((color) => (
+              <button
+                key={color}
+                onClick={() => setNewCategoryColor(color)}
+                className={`w-5 h-5 rounded-full border-2 transition-all ${
+                  newCategoryColor === color
+                    ? "border-slate-600 scale-110"
+                    : "border-transparent hover:scale-105"
+                }`}
+                style={{ backgroundColor: color }}
+                title={color}
+              />
+            ))}
+          </div>
           <button
-            onClick={() => {
-              setShowAddCategory(false);
-              setNewCategoryName("");
-            }}
-            className="text-slate-400 hover:text-slate-600"
+            onClick={handleAddCategory}
+            disabled={!newCategoryName.trim()}
+            className="w-full text-sm bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-300 text-white px-3 py-1.5 rounded transition-colors"
           >
-            <X size={16} />
+            Add Category
           </button>
         </div>
       )}
@@ -475,6 +492,75 @@ export default function MiscTasks() {
             </p>
           )}
       </div>
+
+      {/* Category Edit Modal - rendered via portal */}
+      {editingCategory &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+            <div className="bg-white border border-slate-200 rounded-xl w-full max-w-sm p-5 shadow-xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-semibold text-slate-900">
+                  Edit Category
+                </h3>
+                <button
+                  onClick={() => setEditingCategory(null)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1">
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editingCategoryName}
+                    onChange={(e) => setEditingCategoryName(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-600 mb-2">
+                    Color
+                  </label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {categoryColors.map((color) => (
+                      <button
+                        key={color}
+                        onClick={() => setEditingCategoryColor(color)}
+                        className={`w-7 h-7 rounded-full border-2 transition-all ${
+                          editingCategoryColor === color
+                            ? "border-slate-600 scale-110"
+                            : "border-transparent hover:scale-105"
+                        }`}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => setEditingCategory(null)}
+                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleUpdateCategory}
+                    className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* Task Edit Modal - rendered via portal to escape sidebar overflow */}
       {editingTask &&
