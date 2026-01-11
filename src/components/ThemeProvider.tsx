@@ -42,13 +42,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
 
+  // Always render children to avoid blocking interactions
+  // Theme will update correctly after hydration
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
-      {mounted ? (
-        children
-      ) : (
-        <div style={{ visibility: "hidden" }}>{children}</div>
-      )}
+      {children}
     </ThemeContext.Provider>
   );
 }
