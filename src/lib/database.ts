@@ -914,9 +914,14 @@ export async function deleteTag(tagId: string): Promise<void> {
 
 // Energy Logs
 function toEnergyLog(row: Record<string, unknown>): EnergyLog {
+  // Parse date string (YYYY-MM-DD) as local date, not UTC
+  const dateStr = row.date as string;
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const localDate = new Date(year, month - 1, day);
+
   return {
     id: row.id as string,
-    date: new Date(row.date as string),
+    date: localDate,
     timeSlot: row.time_slot as EnergyLog["timeSlot"],
     level: row.level as number,
     note: row.note as string | undefined,

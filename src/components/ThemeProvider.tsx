@@ -42,14 +42,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
 
-  // Prevent flash of unstyled content
-  if (!mounted) {
-    return null;
-  }
-
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
-      {children}
+      {mounted ? (
+        children
+      ) : (
+        <div style={{ visibility: "hidden" }}>{children}</div>
+      )}
     </ThemeContext.Provider>
   );
 }
