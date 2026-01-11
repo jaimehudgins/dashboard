@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   DndContext,
@@ -69,6 +68,7 @@ function SortableProjectItem({
   isActive,
   onEdit,
 }: SortableProjectItemProps) {
+  const router = useRouter();
   const {
     attributes,
     listeners,
@@ -101,16 +101,16 @@ function SortableProjectItem({
       >
         <GripVertical size={14} />
       </button>
-      <Link
-        href={`/projects/${project.id}`}
-        className="flex items-center gap-3 flex-1 min-w-0"
+      <button
+        onClick={() => router.push(`/projects/${project.id}`)}
+        className="flex items-center gap-3 flex-1 min-w-0 text-left"
       >
         <div
           className="w-2 h-2 rounded-full flex-shrink-0"
           style={{ backgroundColor: project.color }}
         />
         <span className="truncate">{project.name}</span>
-      </Link>
+      </button>
       <button
         onClick={(e) => {
           e.preventDefault();
