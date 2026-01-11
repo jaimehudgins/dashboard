@@ -45,6 +45,13 @@ const TIME_SLOTS: { id: EnergyTimeSlot; label: string; time: string }[] = [
 
 const ENERGY_LEVELS = [
   {
+    level: 0,
+    emoji: "🏠",
+    label: "Not working",
+    color: "bg-slate-300",
+    hex: "#cbd5e1",
+  },
+  {
     level: 1,
     emoji: "😴",
     label: "Exhausted",
@@ -125,31 +132,40 @@ export default function EnergyTracker() {
     for (let i = 6; i >= 0; i--) {
       const date = subDays(today, i);
       const dayLogs = getLogsForDate(date);
+      // Filter out "not working" (level 0) entries for average calculation
+      const workingLogs = dayLogs.filter((log) => log.level > 0);
       const avgLevel =
-        dayLogs.length > 0
-          ? dayLogs.reduce((sum, log) => sum + log.level, 0) / dayLogs.length
+        workingLogs.length > 0
+          ? workingLogs.reduce((sum, log) => sum + log.level, 0) /
+            workingLogs.length
           : null;
       days.push({ date, logs: dayLogs, avgLevel });
     }
     return days;
   }, [state.energyLogs, today]);
 
-  // Calculate weekly average
+  // Calculate weekly average (excluding "not working" entries)
   const weeklyAvg = useMemo(() => {
-    const allLogs = last7Days.flatMap((d) => d.logs);
+    const allLogs = last7Days
+      .flatMap((d) => d.logs)
+      .filter((log) => log.level > 0);
     if (allLogs.length === 0) return null;
     return allLogs.reduce((sum, log) => sum + log.level, 0) / allLogs.length;
   }, [last7Days]);
 
-  // Calculate trend
+  // Calculate trend (excluding "not working" entries)
   const trend = useMemo(() => {
     const thisWeekLogs = state.energyLogs.filter((log) => {
       const logDate = new Date(log.date);
-      return logDate >= subDays(today, 7) && logDate <= today;
+      return logDate >= subDays(today, 7) && logDate <= today && log.level > 0;
     });
     const lastWeekLogs = state.energyLogs.filter((log) => {
       const logDate = new Date(log.date);
-      return logDate >= subDays(today, 14) && logDate < subDays(today, 7);
+      return (
+        logDate >= subDays(today, 14) &&
+        logDate < subDays(today, 7) &&
+        log.level > 0
+      );
     });
 
     if (thisWeekLogs.length === 0 || lastWeekLogs.length === 0) return null;
@@ -183,9 +199,12 @@ export default function EnergyTracker() {
       month: targetMonth,
       days: days.map((date) => {
         const dayLogs = getLogsForDate(date);
+        // Filter out "not working" (level 0) entries for average calculation
+        const workingLogs = dayLogs.filter((log) => log.level > 0);
         const avgLevel =
-          dayLogs.length > 0
-            ? dayLogs.reduce((sum, log) => sum + log.level, 0) / dayLogs.length
+          workingLogs.length > 0
+            ? workingLogs.reduce((sum, log) => sum + log.level, 0) /
+              workingLogs.length
             : null;
         return { date, logs: dayLogs, avgLevel };
       }),
@@ -210,7 +229,8 @@ export default function EnergyTracker() {
 
     state.energyLogs.forEach((log) => {
       const logDate = new Date(log.date);
-      if (logDate >= subDays(today, 30)) {
+      // Exclude "not working" (level 0) entries from insights
+      if (logDate >= subDays(today, 30) && log.level > 0) {
         slotAverages[log.timeSlot].total += log.level;
         slotAverages[log.timeSlot].count += 1;
       }
@@ -231,7 +251,8 @@ export default function EnergyTracker() {
 
     state.energyLogs.forEach((log) => {
       const logDate = new Date(log.date);
-      if (logDate >= subDays(today, 30)) {
+      // Exclude "not working" (level 0) entries from insights
+      if (logDate >= subDays(today, 30) && log.level > 0) {
         const dow = getDay(logDate);
         dayOfWeekAverages[dow].total += log.level;
         dayOfWeekAverages[dow].count += 1;
@@ -261,9 +282,12 @@ export default function EnergyTracker() {
 
     last30Days.forEach((date) => {
       const dayLogs = getLogsForDate(date);
-      if (dayLogs.length > 0) {
+      // Filter out "not working" (level 0) entries
+      const workingLogs = dayLogs.filter((log) => log.level > 0);
+      if (workingLogs.length > 0) {
         const avg =
-          dayLogs.reduce((sum, log) => sum + log.level, 0) / dayLogs.length;
+          workingLogs.reduce((sum, log) => sum + log.level, 0) /
+          workingLogs.length;
         if (avg >= 4) highEnergyDays.push(date);
         else if (avg <= 2) lowEnergyDays.push(date);
       }
@@ -674,14 +698,16 @@ export default function EnergyTracker() {
           </div>
 
           {/* Today's Stats */}
-          {todayLogs.length > 0 && (
+          {todayLogs.filter((log) => log.level > 0).length > 0 && (
             <div className="border-t border-slate-100 pt-3 mt-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-500">Today&apos;s average:</span>
                 <span className="font-medium text-slate-900">
                   {(
-                    todayLogs.reduce((sum, log) => sum + log.level, 0) /
-                    todayLogs.length
+                    todayLogs
+                      .filter((log) => log.level > 0)
+                      .reduce((sum, log) => sum + log.level, 0) /
+                    todayLogs.filter((log) => log.level > 0).length
                   ).toFixed(1)}{" "}
                   / 5
                 </span>
