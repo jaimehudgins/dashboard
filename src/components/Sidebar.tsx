@@ -129,7 +129,7 @@ export default function Sidebar({ children }: SidebarProps) {
   const pathname = usePathname();
   const { state, dispatch } = useApp();
   const { openSearch } = useKeyboardShortcuts();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, mounted } = useTheme();
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [showTagManager, setShowTagManager] = useState(false);
@@ -172,18 +172,24 @@ export default function Sidebar({ children }: SidebarProps) {
           <h1 className="text-xl font-semibold text-slate-900 tracking-tight">
             Jaime's Dashboard
           </h1>
-          <button
-            onClick={toggleTheme}
-            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-            aria-label={
-              theme === "light" ? "Switch to dark mode" : "Switch to light mode"
-            }
-            title={
-              theme === "light" ? "Switch to dark mode" : "Switch to light mode"
-            }
-          >
-            {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
-          </button>
+          {mounted && (
+            <button
+              onClick={toggleTheme}
+              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              aria-label={
+                theme === "light"
+                  ? "Switch to dark mode"
+                  : "Switch to light mode"
+              }
+              title={
+                theme === "light"
+                  ? "Switch to dark mode"
+                  : "Switch to light mode"
+              }
+            >
+              {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+            </button>
+          )}
         </div>
 
         {/* Search Button */}
