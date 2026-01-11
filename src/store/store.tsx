@@ -969,10 +969,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             break;
           // Energy Logs
           case "ADD_ENERGY_LOG":
+            console.log("Saving energy log:", action.payload);
             await db.createEnergyLog(action.payload);
+            console.log("Energy log saved successfully");
             break;
           case "UPDATE_ENERGY_LOG":
+            console.log("Updating energy log:", action.payload);
             await db.updateEnergyLog(action.payload);
+            console.log("Energy log updated successfully");
             break;
           case "DELETE_ENERGY_LOG":
             await db.deleteEnergyLog(action.payload);
