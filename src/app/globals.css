@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
-/* Casa Azul - Frida Kahlo's Bold Mexican Palette */
+/* EXTRA Frida Kahlo - Maximum Color Fiesta! */
 :root {
-    /* Warm cream/paper background with a hint of marigold */
+    /* Warm cream background */
     --background: #fef9f0;
     --foreground: #2d1810;
     /* Warm white cards */
@@ -14,13 +14,19 @@
     /* Warm terracotta muted text */
     --muted: #8b6b4f;
     --muted-light: #a68968;
-    /* Vibrant cobalt blue accent (Casa Azul) */
-    --accent: #1565c0;
+
+    /* THE FRIDA RAINBOW - all the colors! */
+    --frida-blue: #1565c0; /* Casa Azul cobalt */
+    --frida-pink: #e91e63; /* Hot bougainvillea pink */
+    --frida-yellow: #ffc107; /* Marigold/cempasúchil */
+    --frida-green: #2e7d32; /* Jungle green */
+    --frida-orange: #f57c00; /* Terracotta orange */
+    --frida-turquoise: #00acc1; /* Mexican turquoise */
+    --frida-magenta: #c2185b; /* Deep magenta */
+    --frida-lime: #7cb342; /* Bright lime */
+
+    --accent: var(--frida-blue);
     --accent-light: #1976d2;
-    /* Secondary accent - hot pink/magenta */
-    --accent-secondary: #d81b60;
-    /* Tertiary - marigold yellow */
-    --accent-tertiary: #f9a825;
     --scrollbar-track: #f5ebe0;
     --scrollbar-thumb: #d4b89a;
     --scrollbar-thumb-hover: #c4a080;
@@ -39,13 +45,19 @@
     /* Soft cream muted text */
     --muted: #b8c9dc;
     --muted-light: #8aa4c0;
-    /* Bright marigold yellow accent */
-    --accent: #ffc107;
+
+    /* DARK MODE FRIDA RAINBOW - brighter for dark bg */
+    --frida-blue: #42a5f5; /* Bright sky blue */
+    --frida-pink: #f48fb1; /* Soft hot pink */
+    --frida-yellow: #ffca28; /* Bright marigold */
+    --frida-green: #66bb6a; /* Bright jungle green */
+    --frida-orange: #ffa726; /* Bright orange */
+    --frida-turquoise: #26c6da; /* Bright turquoise */
+    --frida-magenta: #f06292; /* Bright magenta */
+    --frida-lime: #9ccc65; /* Bright lime */
+
+    --accent: var(--frida-yellow);
     --accent-light: #ffd54f;
-    /* Secondary - hot pink */
-    --accent-secondary: #f50057;
-    /* Tertiary - turquoise */
-    --accent-tertiary: #00bcd4;
     --scrollbar-track: #0a1929;
     --scrollbar-thumb: #2a4a6e;
     --scrollbar-thumb-hover: #3d6089;
@@ -492,4 +504,297 @@ body {
 
 .animate-slide-in {
     animation: slide-in 0.3s ease-out;
+}
+
+/* ========================================
+   FRIDA'S COLORFUL FIESTA - MAXIMUM EXTRA!
+   ======================================== */
+
+/* Sidebar gets a colorful gradient border */
+aside {
+    border-right: 3px solid transparent !important;
+    border-image: linear-gradient(
+            180deg,
+            var(--frida-pink),
+            var(--frida-yellow),
+            var(--frida-turquoise),
+            var(--frida-green)
+        )
+        1 !important;
+}
+
+/* Main header area - colorful top border */
+header {
+    border-bottom: 2px solid transparent !important;
+    border-image: linear-gradient(
+            90deg,
+            var(--frida-blue),
+            var(--frida-pink),
+            var(--frida-yellow),
+            var(--frida-green)
+        )
+        1 !important;
+}
+
+/* Cards get colorful left borders - rotating through the palette */
+.rounded-xl {
+    border-left: 4px solid var(--frida-blue) !important;
+}
+
+.rounded-xl:nth-child(2n) {
+    border-left-color: var(--frida-pink) !important;
+}
+
+.rounded-xl:nth-child(3n) {
+    border-left-color: var(--frida-yellow) !important;
+}
+
+.rounded-xl:nth-child(4n) {
+    border-left-color: var(--frida-green) !important;
+}
+
+.rounded-xl:nth-child(5n) {
+    border-left-color: var(--frida-turquoise) !important;
+}
+
+/* Quick Capture button - hot pink! */
+button:has(.text-rose-500),
+.text-rose-500 {
+    color: var(--frida-pink) !important;
+}
+
+/* Focus 3 section header - gradient text effect */
+h2:first-of-type {
+    background: linear-gradient(
+        90deg,
+        var(--frida-blue),
+        var(--frida-pink)
+    ) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+}
+
+/* Start Focus buttons - vibrant blue */
+.bg-emerald-500 {
+    background: linear-gradient(
+        135deg,
+        var(--frida-blue),
+        var(--frida-turquoise)
+    ) !important;
+    border: none !important;
+}
+
+.bg-emerald-500:hover,
+.hover\:bg-emerald-600:hover {
+    background: linear-gradient(135deg, #0d47a1, #00838f) !important;
+}
+
+/* Dark mode Start Focus - golden gradient */
+.dark .bg-emerald-500 {
+    background: linear-gradient(
+        135deg,
+        var(--frida-yellow),
+        var(--frida-orange)
+    ) !important;
+    color: #1a1a2e !important;
+}
+
+.dark .bg-emerald-500:hover,
+.dark .hover\:bg-emerald-600:hover {
+    background: linear-gradient(135deg, #e6a800, #e65100) !important;
+}
+
+/* Capture button - pink to orange gradient */
+button.bg-indigo-500,
+.bg-indigo-500 {
+    background: linear-gradient(
+        135deg,
+        var(--frida-pink),
+        var(--frida-orange)
+    ) !important;
+}
+
+.dark button.bg-indigo-500,
+.dark .bg-indigo-500 {
+    background: linear-gradient(
+        135deg,
+        var(--frida-yellow),
+        var(--frida-lime)
+    ) !important;
+    color: #1a1a2e !important;
+}
+
+/* Project dots in sidebar - make them bigger and more vibrant */
+.w-2.h-2.rounded-full {
+    width: 10px !important;
+    height: 10px !important;
+    box-shadow: 0 0 6px currentColor !important;
+}
+
+/* Energy tracker slots - colorful backgrounds */
+.bg-emerald-100 {
+    background-color: rgba(46, 125, 50, 0.2) !important;
+}
+
+.bg-lime-100 {
+    background-color: rgba(124, 179, 66, 0.2) !important;
+}
+
+.bg-yellow-100 {
+    background-color: rgba(255, 193, 7, 0.25) !important;
+}
+
+.bg-orange-100 {
+    background-color: rgba(245, 124, 0, 0.2) !important;
+}
+
+.bg-red-100 {
+    background-color: rgba(233, 30, 99, 0.2) !important;
+}
+
+/* Active nav item - colorful indicator */
+aside button[class*="bg-indigo-50"],
+aside a[class*="bg-indigo-50"] {
+    background: linear-gradient(
+        90deg,
+        rgba(233, 30, 99, 0.15),
+        rgba(21, 101, 192, 0.1)
+    ) !important;
+    border-left: 3px solid var(--frida-pink) !important;
+}
+
+.dark aside button[class*="bg-indigo-50"],
+.dark aside a[class*="bg-indigo-50"] {
+    background: linear-gradient(
+        90deg,
+        rgba(255, 202, 40, 0.2),
+        rgba(38, 198, 218, 0.1)
+    ) !important;
+    border-left: 3px solid var(--frida-yellow) !important;
+}
+
+/* Project cards in grid - colorful top borders */
+.grid > div.rounded-xl:nth-child(1) {
+    border-top: 3px solid var(--frida-pink) !important;
+    border-left: none !important;
+}
+
+.grid > div.rounded-xl:nth-child(2) {
+    border-top: 3px solid var(--frida-blue) !important;
+    border-left: none !important;
+}
+
+.grid > div.rounded-xl:nth-child(3) {
+    border-top: 3px solid var(--frida-yellow) !important;
+    border-left: none !important;
+}
+
+.grid > div.rounded-xl:nth-child(4) {
+    border-top: 3px solid var(--frida-green) !important;
+    border-left: none !important;
+}
+
+.grid > div.rounded-xl:nth-child(5) {
+    border-top: 3px solid var(--frida-turquoise) !important;
+    border-left: none !important;
+}
+
+.grid > div.rounded-xl:nth-child(6) {
+    border-top: 3px solid var(--frida-magenta) !important;
+    border-left: none !important;
+}
+
+/* Focus time/momentum badges - colorful */
+.text-indigo-600 {
+    color: var(--frida-blue) !important;
+}
+
+.text-emerald-600 {
+    color: var(--frida-green) !important;
+}
+
+/* Colorful scrollbar */
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(
+        180deg,
+        var(--frida-pink),
+        var(--frida-blue)
+    ) !important;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+    background: linear-gradient(
+        180deg,
+        var(--frida-yellow),
+        var(--frida-turquoise)
+    ) !important;
+}
+
+/* Badge colors - more vibrant */
+.bg-red-500 {
+    background-color: var(--frida-pink) !important;
+}
+
+.bg-green-500 {
+    background-color: var(--frida-green) !important;
+}
+
+.bg-blue-500 {
+    background-color: var(--frida-blue) !important;
+}
+
+.bg-yellow-500 {
+    background-color: var(--frida-yellow) !important;
+}
+
+/* Input focus - colorful ring */
+input:focus,
+textarea:focus {
+    outline: none !important;
+    box-shadow: 0 0 0 2px var(--frida-turquoise) !important;
+}
+
+.dark input:focus,
+.dark textarea:focus {
+    box-shadow: 0 0 0 2px var(--frida-pink) !important;
+}
+
+/* Links - colorful */
+a:not([class]) {
+    color: var(--frida-blue);
+}
+
+a:not([class]):hover {
+    color: var(--frida-pink);
+}
+
+.dark a:not([class]) {
+    color: var(--frida-turquoise);
+}
+
+.dark a:not([class]):hover {
+    color: var(--frida-yellow);
+}
+
+/* Checkbox/radio when checked - colorful */
+input[type="checkbox"]:checked {
+    background-color: var(--frida-pink) !important;
+    border-color: var(--frida-pink) !important;
+}
+
+.dark input[type="checkbox"]:checked {
+    background-color: var(--frida-yellow) !important;
+    border-color: var(--frida-yellow) !important;
+}
+
+/* Selection highlight */
+::selection {
+    background-color: rgba(233, 30, 99, 0.3);
+    color: inherit;
+}
+
+.dark ::selection {
+    background-color: rgba(255, 202, 40, 0.3);
+    color: inherit;
 }
