@@ -216,9 +216,17 @@ function appReducer(state: AppState, action: Action): AppState {
           }
 
           // Check if we should create the next instance (not past end date)
+          // Normalize both dates to start of day for accurate comparison
+          const normalizedNextDue = new Date(nextDueDate);
+          normalizedNextDue.setHours(0, 0, 0, 0);
+          const normalizedEndDate = updatedTask.recurrenceEndDate
+            ? new Date(updatedTask.recurrenceEndDate)
+            : null;
+          if (normalizedEndDate) {
+            normalizedEndDate.setHours(23, 59, 59, 999);
+          }
           const shouldCreate =
-            !updatedTask.recurrenceEndDate ||
-            nextDueDate <= new Date(updatedTask.recurrenceEndDate);
+            !normalizedEndDate || normalizedNextDue <= normalizedEndDate;
 
           if (shouldCreate) {
             const newRecurringTask: Task = {
@@ -275,10 +283,29 @@ function appReducer(state: AppState, action: Action): AppState {
         details: { taskTitle: taskToDelete?.title || "Unknown" },
         createdAt: new Date(),
       };
+      // Get all task IDs being deleted (task + its subtasks)
+      const deletedTaskIds = new Set([
+        action.payload,
+        ...state.tasks
+          .filter((t) => t.parentTaskId === action.payload)
+          .map((t) => t.id),
+      ]);
       return {
         ...state,
         tasks: state.tasks.filter(
           (t) => t.id !== action.payload && t.parentTaskId !== action.payload,
+        ),
+        // Clean up dependencies that reference deleted tasks
+        taskDependencies: state.taskDependencies.filter(
+          (d) =>
+            !deletedTaskIds.has(d.taskId) &&
+            !deletedTaskIds.has(d.dependsOnTaskId),
+        ),
+        // Clean up comments for deleted tasks
+        comments: state.comments.filter((c) => !deletedTaskIds.has(c.taskId)),
+        // Clean up attachments for deleted tasks
+        attachments: state.attachments.filter(
+          (a) => !deletedTaskIds.has(a.taskId),
         ),
         activityLogs: [...state.activityLogs, activityLog],
       };
@@ -741,6 +768,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             await db.updateTask(action.payload);
             break;
           case "DELETE_TASK":
+            // Clean up related data before deleting the task
+            await db.deleteTaskDependenciesByTaskId(action.payload);
+            await db.deleteCommentsByTaskId(action.payload);
+            await db.deleteAttachmentsByTaskId(action.payload);
+            // Also clean up subtasks' related data
+            const subtaskIds = state.tasks
+              .filter((t) => t.parentTaskId === action.payload)
+              .map((t) => t.id);
+            for (const subtaskId of subtaskIds) {
+              await db.deleteTaskDependenciesByTaskId(subtaskId);
+              await db.deleteCommentsByTaskId(subtaskId);
+              await db.deleteAttachmentsByTaskId(subtaskId);
+            }
             await db.deleteTask(action.payload);
             break;
           case "REORDER_TASKS": {

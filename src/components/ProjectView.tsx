@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
 import {
   DndContext,
@@ -163,6 +163,52 @@ function SortableTaskItem({
                 {task.focusMinutes}m
               </span>
             )}
+            {(task.estimatedMinutes || task.actualMinutes) && (
+              <span
+                className={`flex items-center gap-1 ${
+                  task.actualMinutes && task.estimatedMinutes
+                    ? task.actualMinutes > task.estimatedMinutes
+                      ? "text-red-500"
+                      : task.actualMinutes < task.estimatedMinutes
+                        ? "text-green-600"
+                        : "text-slate-500"
+                    : "text-slate-500"
+                }`}
+                title={
+                  task.estimatedMinutes && task.actualMinutes
+                    ? `Estimated: ${task.estimatedMinutes}m, Actual: ${task.actualMinutes}m`
+                    : task.estimatedMinutes
+                      ? "Estimated time"
+                      : "Actual time"
+                }
+              >
+                <Clock size={12} className="text-indigo-500" />
+                {task.estimatedMinutes && task.actualMinutes ? (
+                  <>
+                    {task.actualMinutes >= 60
+                      ? `${Math.floor(task.actualMinutes / 60)}h${task.actualMinutes % 60 > 0 ? `${task.actualMinutes % 60}m` : ""}`
+                      : `${task.actualMinutes}m`}
+                    /
+                    {task.estimatedMinutes >= 60
+                      ? `${Math.floor(task.estimatedMinutes / 60)}h${task.estimatedMinutes % 60 > 0 ? `${task.estimatedMinutes % 60}m` : ""}`
+                      : `${task.estimatedMinutes}m`}
+                  </>
+                ) : task.estimatedMinutes ? (
+                  <>
+                    Est:{" "}
+                    {task.estimatedMinutes >= 60
+                      ? `${Math.floor(task.estimatedMinutes / 60)}h${task.estimatedMinutes % 60 > 0 ? ` ${task.estimatedMinutes % 60}m` : ""}`
+                      : `${task.estimatedMinutes}m`}
+                  </>
+                ) : (
+                  <>
+                    {task.actualMinutes! >= 60
+                      ? `${Math.floor(task.actualMinutes! / 60)}h${task.actualMinutes! % 60 > 0 ? ` ${task.actualMinutes! % 60}m` : ""}`
+                      : `${task.actualMinutes}m`}
+                  </>
+                )}
+              </span>
+            )}
             {hasSubtasks && (
               <span className="flex items-center gap-1 text-slate-500">
                 <ListChecks size={12} className="text-indigo-500" />
@@ -260,6 +306,38 @@ export default function ProjectView({
     new Set(),
   );
   const [showAddMilestone, setShowAddMilestone] = useState(false);
+
+  // Load filter preferences from localStorage on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const savedFilters = localStorage.getItem(`project-filters-${projectId}`);
+    if (savedFilters) {
+      try {
+        const parsed = JSON.parse(savedFilters);
+        if (parsed.filters) setFilters(parsed.filters);
+        if (parsed.sortBy) setSortBy(parsed.sortBy);
+        if (parsed.sortDirection) setSortDirection(parsed.sortDirection);
+        if (parsed.viewMode) setViewMode(parsed.viewMode);
+      } catch (e) {
+        console.warn("Failed to parse saved filters:", e);
+      }
+    }
+  }, [projectId]);
+
+  // Save filter preferences to localStorage when they change
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const filterState = {
+      filters,
+      sortBy,
+      sortDirection,
+      viewMode,
+    };
+    localStorage.setItem(
+      `project-filters-${projectId}`,
+      JSON.stringify(filterState),
+    );
+  }, [filters, sortBy, sortDirection, viewMode, projectId]);
   const [newMilestoneName, setNewMilestoneName] = useState("");
   const [newMilestoneDescription, setNewMilestoneDescription] = useState("");
   const [newMilestoneDueDate, setNewMilestoneDueDate] = useState("");

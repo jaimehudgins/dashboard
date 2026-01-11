@@ -58,6 +58,12 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
   const [categoryId, setCategoryId] = useState<string | undefined>(
     task.categoryId,
   );
+  const [estimatedMinutes, setEstimatedMinutes] = useState<number | undefined>(
+    task.estimatedMinutes,
+  );
+  const [actualMinutes, setActualMinutes] = useState<number | undefined>(
+    task.actualMinutes,
+  );
 
   // Check if this is a misc task
   const isMiscTask = projectId === "misc" || projectId === null;
@@ -94,6 +100,8 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
         milestoneId: isMiscTask ? undefined : milestoneId,
         categoryId: isMiscTask ? categoryId : undefined,
         link: link.trim() || undefined,
+        estimatedMinutes,
+        actualMinutes,
       },
     });
 
@@ -287,7 +295,7 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-slate-600 mb-1">
                 Priority
@@ -330,6 +338,60 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
                 onChange={(e) => setDueDate(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm text-slate-600 mb-1 flex items-center gap-1">
+                <Clock size={14} />
+                Estimated
+              </label>
+              <select
+                value={estimatedMinutes || ""}
+                onChange={(e) =>
+                  setEstimatedMinutes(
+                    e.target.value ? parseInt(e.target.value) : undefined,
+                  )
+                }
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">No estimate</option>
+                <option value="15">15 minutes</option>
+                <option value="30">30 minutes</option>
+                <option value="45">45 minutes</option>
+                <option value="60">1 hour</option>
+                <option value="90">1.5 hours</option>
+                <option value="120">2 hours</option>
+                <option value="180">3 hours</option>
+                <option value="240">4 hours</option>
+                <option value="480">Full day (8h)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm text-slate-600 mb-1 flex items-center gap-1">
+                <Clock size={14} />
+                Actual
+              </label>
+              <select
+                value={actualMinutes || ""}
+                onChange={(e) =>
+                  setActualMinutes(
+                    e.target.value ? parseInt(e.target.value) : undefined,
+                  )
+                }
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">Not tracked</option>
+                <option value="15">15 minutes</option>
+                <option value="30">30 minutes</option>
+                <option value="45">45 minutes</option>
+                <option value="60">1 hour</option>
+                <option value="90">1.5 hours</option>
+                <option value="120">2 hours</option>
+                <option value="180">3 hours</option>
+                <option value="240">4 hours</option>
+                <option value="480">Full day (8h)</option>
+              </select>
             </div>
           </div>
 

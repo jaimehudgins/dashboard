@@ -35,6 +35,8 @@ function toTask(row: Record<string, unknown>): Task {
     displayOrder: row.display_order as number | undefined,
     tagIds: (row.tag_ids as string[]) || [],
     reminders: (row.reminders as Task["reminders"]) || [],
+    estimatedMinutes: row.estimated_minutes as number | undefined,
+    actualMinutes: row.actual_minutes as number | undefined,
     parentTaskId: row.parent_task_id as string | undefined,
     recurrenceRule: row.recurrence_rule as Task["recurrenceRule"],
     recurrenceEndDate: row.recurrence_end_date
@@ -264,6 +266,8 @@ export async function createTask(task: Task): Promise<void> {
     display_order: task.displayOrder,
     tag_ids: task.tagIds || [],
     reminders: task.reminders || [],
+    estimated_minutes: task.estimatedMinutes,
+    actual_minutes: task.actualMinutes,
     parent_task_id: task.parentTaskId,
     recurrence_rule: task.recurrenceRule,
     recurrence_end_date: task.recurrenceEndDate?.toISOString(),
@@ -291,6 +295,8 @@ export async function updateTask(task: Task): Promise<void> {
       display_order: task.displayOrder,
       tag_ids: task.tagIds || [],
       reminders: task.reminders || [],
+      estimated_minutes: task.estimatedMinutes,
+      actual_minutes: task.actualMinutes,
       parent_task_id: task.parentTaskId,
       recurrence_rule: task.recurrenceRule,
       recurrence_end_date: task.recurrenceEndDate?.toISOString(),
@@ -369,6 +375,36 @@ export async function deleteTaskDependency(
     .from("task_dependencies")
     .delete()
     .eq("id", dependencyId);
+
+  if (error) throw error;
+}
+
+export async function deleteTaskDependenciesByTaskId(
+  taskId: string,
+): Promise<void> {
+  // Delete dependencies where this task is either the dependent or the dependency
+  const { error } = await supabase
+    .from("task_dependencies")
+    .delete()
+    .or(`task_id.eq.${taskId},depends_on_task_id.eq.${taskId}`);
+
+  if (error) throw error;
+}
+
+export async function deleteCommentsByTaskId(taskId: string): Promise<void> {
+  const { error } = await supabase
+    .from("comments")
+    .delete()
+    .eq("task_id", taskId);
+
+  if (error) throw error;
+}
+
+export async function deleteAttachmentsByTaskId(taskId: string): Promise<void> {
+  const { error } = await supabase
+    .from("attachments")
+    .delete()
+    .eq("task_id", taskId);
 
   if (error) throw error;
 }

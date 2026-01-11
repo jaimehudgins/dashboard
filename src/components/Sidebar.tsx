@@ -32,6 +32,10 @@ import {
   Circle,
   Trash2,
   MoreHorizontal,
+  Search,
+  TrendingUp,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Project } from "@/types";
@@ -40,6 +44,8 @@ import ProjectCreateModal from "./ProjectCreateModal";
 import ProjectEditModal from "./ProjectEditModal";
 import TagManager from "./TagManager";
 import MiscTasks from "./MiscTasks";
+import { useKeyboardShortcuts } from "./KeyboardShortcuts";
+import { useTheme } from "./ThemeProvider";
 
 interface SidebarProps {
   children: React.ReactNode;
@@ -49,6 +55,7 @@ const navItems = [
   { href: "/", label: "Command Center", icon: Command },
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/archive", label: "Daily Archive", icon: Calendar },
+  { href: "/review", label: "Weekly Review", icon: TrendingUp },
 ];
 
 interface SortableProjectItemProps {
@@ -121,6 +128,8 @@ function SortableProjectItem({
 export default function Sidebar({ children }: SidebarProps) {
   const pathname = usePathname();
   const { state, dispatch } = useApp();
+  const { openSearch } = useKeyboardShortcuts();
+  const { theme, toggleTheme } = useTheme();
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [showTagManager, setShowTagManager] = useState(false);
@@ -159,10 +168,36 @@ export default function Sidebar({ children }: SidebarProps) {
       {/* Fixed Sidebar */}
       <aside className="w-64 flex-shrink-0 border-r border-slate-200 flex flex-col bg-white">
         {/* Logo */}
-        <div className="p-6 border-b border-slate-200">
+        <div className="p-6 border-b border-slate-200 flex items-center justify-between">
           <h1 className="text-xl font-semibold text-slate-900 tracking-tight">
             Jaime's Dashboard
           </h1>
+          <button
+            onClick={toggleTheme}
+            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            aria-label={
+              theme === "light" ? "Switch to dark mode" : "Switch to light mode"
+            }
+            title={
+              theme === "light" ? "Switch to dark mode" : "Switch to light mode"
+            }
+          >
+            {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+          </button>
+        </div>
+
+        {/* Search Button */}
+        <div className="px-4 pt-4">
+          <button
+            onClick={openSearch}
+            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+          >
+            <Search size={16} />
+            <span className="flex-1 text-left">Search...</span>
+            <kbd className="text-xs text-slate-400 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+              /
+            </kbd>
+          </button>
         </div>
 
         {/* Navigation */}

@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppProvider } from "@/store/store";
 import ReminderProvider from "@/components/ReminderProvider";
+import { KeyboardShortcutsProvider } from "@/components/KeyboardShortcuts";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,9 +31,13 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-50`}
       >
-        <AppProvider>
-          <ReminderProvider>{children}</ReminderProvider>
-        </AppProvider>
+        <ThemeProvider>
+          <AppProvider>
+            <KeyboardShortcutsProvider>
+              <ReminderProvider>{children}</ReminderProvider>
+            </KeyboardShortcutsProvider>
+          </AppProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

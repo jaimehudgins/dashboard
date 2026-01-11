@@ -30,6 +30,10 @@ export interface Task {
   displayOrder?: number;
   tagIds?: string[];
   reminders?: Reminder[];
+  // Time estimate in minutes
+  estimatedMinutes?: number;
+  // Actual time spent in minutes
+  actualMinutes?: number;
   // Subtasks
   parentTaskId?: string;
   // Recurring
