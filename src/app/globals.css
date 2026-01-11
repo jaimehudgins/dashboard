@@ -510,61 +510,204 @@ body {
    FRIDA'S COLORFUL FIESTA - MAXIMUM EXTRA!
    ======================================== */
 
-/* Sidebar gets a colorful gradient border */
+/* Sidebar - colorful left border that's always visible */
 aside {
-    border-right: 3px solid transparent !important;
-    border-image: linear-gradient(
-            180deg,
-            var(--frida-pink),
-            var(--frida-yellow),
-            var(--frida-turquoise),
-            var(--frida-green)
-        )
-        1 !important;
+    border-right: 4px solid var(--frida-pink) !important;
+    background: linear-gradient(
+        180deg,
+        rgba(233, 30, 99, 0.03) 0%,
+        rgba(255, 193, 7, 0.03) 50%,
+        rgba(0, 172, 193, 0.03) 100%
+    ) !important;
 }
 
-/* Main header area - colorful top border */
-header {
-    border-bottom: 2px solid transparent !important;
-    border-image: linear-gradient(
-            90deg,
-            var(--frida-blue),
-            var(--frida-pink),
-            var(--frida-yellow),
-            var(--frida-green)
-        )
-        1 !important;
+.dark aside {
+    border-right: 4px solid var(--frida-yellow) !important;
+    background: linear-gradient(
+        180deg,
+        rgba(255, 202, 40, 0.05) 0%,
+        rgba(244, 143, 177, 0.05) 50%,
+        rgba(38, 198, 218, 0.05) 100%
+    ) !important;
 }
 
-/* Cards get colorful left borders - rotating through the palette */
-.rounded-xl {
-    border-left: 4px solid var(--frida-blue) !important;
+/* ===== BUTTONS - THE STAR OF THE SHOW ===== */
+
+/* Light mode: Start Focus / primary buttons - VIBRANT BLUE TO TURQUOISE */
+button[class*="bg-indigo-500"],
+.bg-indigo-500,
+button[class*="bg-emerald-500"],
+.bg-emerald-500 {
+    background: linear-gradient(135deg, #1565c0, #00acc1) !important;
+    border: none !important;
+    color: white !important;
 }
 
-.rounded-xl:nth-child(2n) {
-    border-left-color: var(--frida-pink) !important;
+button[class*="bg-indigo-500"]:hover,
+button[class*="bg-emerald-500"]:hover {
+    background: linear-gradient(135deg, #0d47a1, #00838f) !important;
 }
 
-.rounded-xl:nth-child(3n) {
-    border-left-color: var(--frida-yellow) !important;
+/* Dark mode: Start Focus buttons - GOLDEN YELLOW TO ORANGE */
+.dark button[class*="bg-indigo-500"],
+.dark .bg-indigo-500,
+.dark button[class*="bg-emerald-500"],
+.dark .bg-emerald-500 {
+    background: linear-gradient(135deg, #ffc107, #ff9800) !important;
+    color: #1a1a2e !important;
 }
 
-.rounded-xl:nth-child(4n) {
-    border-left-color: var(--frida-green) !important;
+.dark button[class*="bg-indigo-500"]:hover,
+.dark button[class*="bg-emerald-500"]:hover {
+    background: linear-gradient(135deg, #ffca28, #ffa726) !important;
 }
 
-.rounded-xl:nth-child(5n) {
-    border-left-color: var(--frida-turquoise) !important;
+/* Quick Capture text - HOT PINK */
+.text-rose-500,
+.text-rose-600 {
+    color: #e91e63 !important;
 }
 
-/* Quick Capture button - hot pink! */
-button:has(.text-rose-500),
-.text-rose-500 {
-    color: var(--frida-pink) !important;
+.dark .text-rose-500,
+.dark .text-rose-600 {
+    color: #f48fb1 !important;
 }
 
-/* Focus 3 section header - gradient text effect */
-h2:first-of-type {
+/* ===== FOCUS 3 TASK CARDS - EACH GETS A DIFFERENT COLOR ===== */
+
+/* Card 1 - Pink top border */
+.grid > div:first-child .rounded-xl,
+.space-y-4 > div:first-child {
+    border-top: 4px solid #e91e63 !important;
+}
+
+/* Card 2 - Blue top border */
+.grid > div:nth-child(2) .rounded-xl,
+.space-y-4 > div:nth-child(2) {
+    border-top: 4px solid #1565c0 !important;
+}
+
+/* Card 3 - Green top border */
+.grid > div:nth-child(3) .rounded-xl,
+.space-y-4 > div:nth-child(3) {
+    border-top: 4px solid #2e7d32 !important;
+}
+
+/* ===== PROJECT SUMMARY CARDS - RAINBOW TOP BORDERS ===== */
+.grid.grid-cols-2 > div:nth-child(1),
+.grid.grid-cols-3 > div:nth-child(1) {
+    border-top: 4px solid #e91e63 !important;
+    border-left: none !important;
+}
+
+.grid.grid-cols-2 > div:nth-child(2),
+.grid.grid-cols-3 > div:nth-child(2) {
+    border-top: 4px solid #1565c0 !important;
+    border-left: none !important;
+}
+
+.grid.grid-cols-2 > div:nth-child(3),
+.grid.grid-cols-3 > div:nth-child(3) {
+    border-top: 4px solid #ffc107 !important;
+    border-left: none !important;
+}
+
+.grid.grid-cols-2 > div:nth-child(4),
+.grid.grid-cols-3 > div:nth-child(4) {
+    border-top: 4px solid #2e7d32 !important;
+    border-left: none !important;
+}
+
+.grid.grid-cols-2 > div:nth-child(5),
+.grid.grid-cols-3 > div:nth-child(5) {
+    border-top: 4px solid #00acc1 !important;
+    border-left: none !important;
+}
+
+.grid.grid-cols-2 > div:nth-child(6),
+.grid.grid-cols-3 > div:nth-child(6) {
+    border-top: 4px solid #c2185b !important;
+    border-left: none !important;
+}
+
+/* ===== ENERGY TRACKER - VIBRANT COLORS ===== */
+.bg-emerald-100 {
+    background-color: rgba(46, 125, 50, 0.25) !important;
+}
+.bg-lime-100 {
+    background-color: rgba(124, 179, 66, 0.25) !important;
+}
+.bg-yellow-100 {
+    background-color: rgba(255, 193, 7, 0.3) !important;
+}
+.bg-orange-100 {
+    background-color: rgba(245, 124, 0, 0.25) !important;
+}
+.bg-red-100 {
+    background-color: rgba(233, 30, 99, 0.25) !important;
+}
+
+/* Energy bar colors - more saturated */
+.bg-emerald-400,
+.bg-emerald-500 {
+    background-color: #2e7d32 !important;
+}
+.bg-lime-400,
+.bg-lime-500 {
+    background-color: #7cb342 !important;
+}
+.bg-yellow-400,
+.bg-yellow-500 {
+    background-color: #ffc107 !important;
+}
+.bg-orange-400,
+.bg-orange-500 {
+    background-color: #f57c00 !important;
+}
+
+/* ===== SIDEBAR ACTIVE STATE ===== */
+aside button[class*="bg-indigo-50"],
+aside a[class*="bg-indigo-50"] {
+    background: linear-gradient(
+        90deg,
+        rgba(233, 30, 99, 0.2),
+        rgba(21, 101, 192, 0.1)
+    ) !important;
+    border-left: 4px solid #e91e63 !important;
+    margin-left: -4px;
+    padding-left: calc(0.75rem + 4px);
+}
+
+.dark aside button[class*="bg-indigo-50"],
+.dark aside a[class*="bg-indigo-50"] {
+    background: linear-gradient(
+        90deg,
+        rgba(255, 202, 40, 0.25),
+        rgba(38, 198, 218, 0.1)
+    ) !important;
+    border-left: 4px solid #ffc107 !important;
+}
+
+/* ===== PROJECT COLOR DOTS - BIGGER & GLOWING ===== */
+.w-2.h-2.rounded-full,
+.w-2\.5.h-2\.5.rounded-full {
+    width: 12px !important;
+    height: 12px !important;
+    box-shadow: 0 0 8px currentColor !important;
+}
+
+/* ===== INBOX BADGE - HOT PINK ===== */
+.bg-indigo-500.text-white.text-xs {
+    background: #e91e63 !important;
+}
+
+.dark .bg-indigo-500.text-white.text-xs {
+    background: #ffc107 !important;
+    color: #1a1a2e !important;
+}
+
+/* ===== SECTION HEADERS - GRADIENT TEXT ===== */
+h2 {
     background: linear-gradient(
         90deg,
         var(--frida-blue),
@@ -575,226 +718,131 @@ h2:first-of-type {
     background-clip: text !important;
 }
 
-/* Start Focus buttons - vibrant blue */
-.bg-emerald-500 {
-    background: linear-gradient(
-        135deg,
-        var(--frida-blue),
-        var(--frida-turquoise)
-    ) !important;
-    border: none !important;
-}
-
-.bg-emerald-500:hover,
-.hover\:bg-emerald-600:hover {
-    background: linear-gradient(135deg, #0d47a1, #00838f) !important;
-}
-
-/* Dark mode Start Focus - golden gradient */
-.dark .bg-emerald-500 {
-    background: linear-gradient(
-        135deg,
-        var(--frida-yellow),
-        var(--frida-orange)
-    ) !important;
-    color: #1a1a2e !important;
-}
-
-.dark .bg-emerald-500:hover,
-.dark .hover\:bg-emerald-600:hover {
-    background: linear-gradient(135deg, #e6a800, #e65100) !important;
-}
-
-/* Capture button - pink to orange gradient */
-button.bg-indigo-500,
-.bg-indigo-500 {
-    background: linear-gradient(
-        135deg,
-        var(--frida-pink),
-        var(--frida-orange)
-    ) !important;
-}
-
-.dark button.bg-indigo-500,
-.dark .bg-indigo-500 {
-    background: linear-gradient(
-        135deg,
-        var(--frida-yellow),
-        var(--frida-lime)
-    ) !important;
-    color: #1a1a2e !important;
-}
-
-/* Project dots in sidebar - make them bigger and more vibrant */
-.w-2.h-2.rounded-full {
-    width: 10px !important;
-    height: 10px !important;
-    box-shadow: 0 0 6px currentColor !important;
-}
-
-/* Energy tracker slots - colorful backgrounds */
-.bg-emerald-100 {
-    background-color: rgba(46, 125, 50, 0.2) !important;
-}
-
-.bg-lime-100 {
-    background-color: rgba(124, 179, 66, 0.2) !important;
-}
-
-.bg-yellow-100 {
-    background-color: rgba(255, 193, 7, 0.25) !important;
-}
-
-.bg-orange-100 {
-    background-color: rgba(245, 124, 0, 0.2) !important;
-}
-
-.bg-red-100 {
-    background-color: rgba(233, 30, 99, 0.2) !important;
-}
-
-/* Active nav item - colorful indicator */
-aside button[class*="bg-indigo-50"],
-aside a[class*="bg-indigo-50"] {
+.dark h2 {
     background: linear-gradient(
         90deg,
-        rgba(233, 30, 99, 0.15),
-        rgba(21, 101, 192, 0.1)
+        var(--frida-yellow),
+        var(--frida-pink)
     ) !important;
-    border-left: 3px solid var(--frida-pink) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
 }
 
-.dark aside button[class*="bg-indigo-50"],
-.dark aside a[class*="bg-indigo-50"] {
-    background: linear-gradient(
-        90deg,
-        rgba(255, 202, 40, 0.2),
-        rgba(38, 198, 218, 0.1)
-    ) !important;
-    border-left: 3px solid var(--frida-yellow) !important;
-}
-
-/* Project cards in grid - colorful top borders */
-.grid > div.rounded-xl:nth-child(1) {
-    border-top: 3px solid var(--frida-pink) !important;
-    border-left: none !important;
-}
-
-.grid > div.rounded-xl:nth-child(2) {
-    border-top: 3px solid var(--frida-blue) !important;
-    border-left: none !important;
-}
-
-.grid > div.rounded-xl:nth-child(3) {
-    border-top: 3px solid var(--frida-yellow) !important;
-    border-left: none !important;
-}
-
-.grid > div.rounded-xl:nth-child(4) {
-    border-top: 3px solid var(--frida-green) !important;
-    border-left: none !important;
-}
-
-.grid > div.rounded-xl:nth-child(5) {
-    border-top: 3px solid var(--frida-turquoise) !important;
-    border-left: none !important;
-}
-
-.grid > div.rounded-xl:nth-child(6) {
-    border-top: 3px solid var(--frida-magenta) !important;
-    border-left: none !important;
-}
-
-/* Focus time/momentum badges - colorful */
+/* ===== FOCUS TIME & MOMENTUM STATS ===== */
 .text-indigo-600 {
-    color: var(--frida-blue) !important;
+    color: #1565c0 !important;
 }
 
 .text-emerald-600 {
-    color: var(--frida-green) !important;
+    color: #2e7d32 !important;
 }
 
-/* Colorful scrollbar */
+.dark .text-indigo-600 {
+    color: #42a5f5 !important;
+}
+
+.dark .text-emerald-600 {
+    color: #66bb6a !important;
+}
+
+/* ===== MISC TASKS CATEGORY HEADERS ===== */
+.font-medium.text-slate-700 {
+    color: var(--frida-blue) !important;
+}
+
+.dark .font-medium.text-slate-700 {
+    color: var(--frida-yellow) !important;
+}
+
+/* ===== PRIORITY BADGES - MORE VIBRANT ===== */
+.bg-red-50 {
+    background-color: rgba(233, 30, 99, 0.15) !important;
+}
+.text-red-700,
+.text-red-600 {
+    color: #c2185b !important;
+}
+
+.bg-orange-50 {
+    background-color: rgba(245, 124, 0, 0.15) !important;
+}
+.text-orange-700,
+.text-orange-600 {
+    color: #e65100 !important;
+}
+
+.bg-yellow-50 {
+    background-color: rgba(255, 193, 7, 0.2) !important;
+}
+.text-yellow-700,
+.text-yellow-600 {
+    color: #f57c00 !important;
+}
+
+.bg-green-50 {
+    background-color: rgba(46, 125, 50, 0.15) !important;
+}
+.text-green-700,
+.text-green-600 {
+    color: #2e7d32 !important;
+}
+
+/* ===== SCROLLBAR - RAINBOW ===== */
 ::-webkit-scrollbar-thumb {
-    background: linear-gradient(
-        180deg,
-        var(--frida-pink),
-        var(--frida-blue)
-    ) !important;
+    background: linear-gradient(180deg, #e91e63, #1565c0, #2e7d32) !important;
+    border-radius: 4px !important;
 }
 
 .dark ::-webkit-scrollbar-thumb {
-    background: linear-gradient(
-        180deg,
-        var(--frida-yellow),
-        var(--frida-turquoise)
-    ) !important;
+    background: linear-gradient(180deg, #ffc107, #f48fb1, #26c6da) !important;
 }
 
-/* Badge colors - more vibrant */
-.bg-red-500 {
-    background-color: var(--frida-pink) !important;
-}
-
-.bg-green-500 {
-    background-color: var(--frida-green) !important;
-}
-
-.bg-blue-500 {
-    background-color: var(--frida-blue) !important;
-}
-
-.bg-yellow-500 {
-    background-color: var(--frida-yellow) !important;
-}
-
-/* Input focus - colorful ring */
+/* ===== INPUT FOCUS RINGS ===== */
 input:focus,
-textarea:focus {
+textarea:focus,
+select:focus {
     outline: none !important;
-    box-shadow: 0 0 0 2px var(--frida-turquoise) !important;
+    box-shadow: 0 0 0 3px rgba(0, 172, 193, 0.4) !important;
 }
 
 .dark input:focus,
-.dark textarea:focus {
-    box-shadow: 0 0 0 2px var(--frida-pink) !important;
+.dark textarea:focus,
+.dark select:focus {
+    box-shadow: 0 0 0 3px rgba(244, 143, 177, 0.4) !important;
 }
 
-/* Links - colorful */
-a:not([class]) {
-    color: var(--frida-blue);
-}
-
-a:not([class]):hover {
-    color: var(--frida-pink);
-}
-
-.dark a:not([class]) {
-    color: var(--frida-turquoise);
-}
-
-.dark a:not([class]):hover {
-    color: var(--frida-yellow);
-}
-
-/* Checkbox/radio when checked - colorful */
-input[type="checkbox"]:checked {
-    background-color: var(--frida-pink) !important;
-    border-color: var(--frida-pink) !important;
-}
-
-.dark input[type="checkbox"]:checked {
-    background-color: var(--frida-yellow) !important;
-    border-color: var(--frida-yellow) !important;
-}
-
-/* Selection highlight */
+/* ===== TEXT SELECTION ===== */
 ::selection {
     background-color: rgba(233, 30, 99, 0.3);
-    color: inherit;
 }
 
 .dark ::selection {
     background-color: rgba(255, 202, 40, 0.3);
-    color: inherit;
+}
+
+/* ===== CHECKBOXES ===== */
+input[type="checkbox"]:checked {
+    background-color: #e91e63 !important;
+    border-color: #e91e63 !important;
+}
+
+.dark input[type="checkbox"]:checked {
+    background-color: #ffc107 !important;
+    border-color: #ffc107 !important;
+}
+
+/* ===== LINKS ===== */
+a:not([class]) {
+    color: #1565c0;
+}
+a:not([class]):hover {
+    color: #e91e63;
+}
+
+.dark a:not([class]) {
+    color: #26c6da;
+}
+.dark a:not([class]):hover {
+    color: #ffc107;
 }
