@@ -1,46 +1,54 @@
 @import "tailwindcss";
 
-/* Frieda Kahlo meets Nature - Warm, earthy, vibrant */
+/* Casa Azul - Frida Kahlo's Bold Mexican Palette */
 :root {
-    /* Warm terracotta/clay background */
-    --background: #faf5f0;
-    --foreground: #3d2e1f;
-    /* Creamy canvas cards */
-    --card-bg: #fffcf7;
-    --card-border: #e8ddd0;
-    --card-hover-border: #d4c4b0;
-    --input-bg: #faf7f2;
-    --input-border: #e0d5c7;
-    /* Warm earth tones for muted text */
-    --muted: #8b7355;
-    --muted-light: #a69076;
-    /* Vibrant coral/magenta accent (bougainvillea) */
-    --accent: #c2185b;
-    --accent-light: #e91e63;
-    --scrollbar-track: #f5ede3;
-    --scrollbar-thumb: #d4c4b0;
-    --scrollbar-thumb-hover: #b8a590;
+    /* Warm cream/paper background with a hint of marigold */
+    --background: #fef9f0;
+    --foreground: #2d1810;
+    /* Warm white cards */
+    --card-bg: #fffdf8;
+    --card-border: #e8d5c4;
+    --card-hover-border: #d4b89a;
+    --input-bg: #fefbf5;
+    --input-border: #dcc9b5;
+    /* Warm terracotta muted text */
+    --muted: #8b6b4f;
+    --muted-light: #a68968;
+    /* Vibrant cobalt blue accent (Casa Azul) */
+    --accent: #1565c0;
+    --accent-light: #1976d2;
+    /* Secondary accent - hot pink/magenta */
+    --accent-secondary: #d81b60;
+    /* Tertiary - marigold yellow */
+    --accent-tertiary: #f9a825;
+    --scrollbar-track: #f5ebe0;
+    --scrollbar-thumb: #d4b89a;
+    --scrollbar-thumb-hover: #c4a080;
 }
 
 .dark {
-    /* Deep forest green background */
-    --background: #1a2f23;
-    --foreground: #f0ebe4;
-    /* Rich warm brown cards */
-    --card-bg: #2d3b32;
-    --card-border: #4a5d4f;
-    --card-hover-border: #5f7562;
-    --input-bg: #2d3b32;
-    --input-border: #4a5d4f;
-    /* Soft sage for muted text */
-    --muted: #a3b5a5;
-    --muted-light: #7d8f7f;
-    /* Golden marigold accent */
-    --accent: #f5a623;
-    --accent-light: #ffb847;
-    --scrollbar-track: #243528;
-    --scrollbar-thumb: #4a5d4f;
-    --scrollbar-thumb-hover: #5f7562;
+    /* Deep cobalt blue background (Casa Azul at night) */
+    --background: #0d253f;
+    --foreground: #fef9f0;
+    /* Rich midnight blue cards */
+    --card-bg: #153354;
+    --card-border: #2a4a6e;
+    --card-hover-border: #3d6089;
+    --input-bg: #153354;
+    --input-border: #2a4a6e;
+    /* Soft cream muted text */
+    --muted: #b8c9dc;
+    --muted-light: #8aa4c0;
+    /* Bright marigold yellow accent */
+    --accent: #ffc107;
+    --accent-light: #ffd54f;
+    /* Secondary - hot pink */
+    --accent-secondary: #f50057;
+    /* Tertiary - turquoise */
+    --accent-tertiary: #00bcd4;
+    --scrollbar-track: #0a1929;
+    --scrollbar-thumb: #2a4a6e;
+    --scrollbar-thumb-hover: #3d6089;
 }
 
 body {
@@ -49,7 +57,7 @@ body {
     font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-/* Light mode overrides - warm earthy tones */
+/* Light mode overrides - warm Mexican palette */
 .bg-white {
     background-color: var(--card-bg) !important;
 }
@@ -59,7 +67,7 @@ body {
 }
 
 .bg-slate-100 {
-    background-color: #f0e8dc !important;
+    background-color: #faf3e7 !important;
 }
 
 .border-slate-200 {
@@ -67,7 +75,7 @@ body {
 }
 
 .border-slate-100 {
-    border-color: #e8ddd0 !important;
+    border-color: #f0e5d5 !important;
 }
 
 .text-slate-900 {
@@ -75,15 +83,15 @@ body {
 }
 
 .text-slate-800 {
-    color: #4a3c2d !important;
+    color: #3d2518 !important;
 }
 
 .text-slate-700 {
-    color: #5c4a38 !important;
+    color: #4d3020 !important;
 }
 
 .text-slate-600 {
-    color: #6e5a46 !important;
+    color: #5d3c28 !important;
 }
 
 .text-slate-500 {
@@ -95,16 +103,16 @@ body {
 }
 
 .text-slate-300 {
-    color: #c4b5a3 !important;
+    color: #c9b59e !important;
 }
 
-/* Accent color overrides - magenta/coral in light, gold in dark */
+/* Accent color overrides - Cobalt Blue (Casa Azul) */
 .bg-indigo-500 {
     background-color: var(--accent) !important;
 }
 
 .bg-indigo-600 {
-    background-color: #a01550 !important;
+    background-color: #0d47a1 !important;
 }
 
 .text-indigo-500 {
@@ -112,11 +120,11 @@ body {
 }
 
 .text-indigo-600 {
-    color: #a01550 !important;
+    color: #0d47a1 !important;
 }
 
 .bg-indigo-50 {
-    background-color: rgba(194, 24, 91, 0.1) !important;
+    background-color: rgba(21, 101, 192, 0.1) !important;
 }
 
 .hover\:bg-indigo-500:hover {
@@ -124,7 +132,7 @@ body {
 }
 
 .hover\:bg-indigo-600:hover {
-    background-color: #a01550 !important;
+    background-color: #0d47a1 !important;
 }
 
 .hover\:text-indigo-500:hover {
@@ -132,18 +140,31 @@ body {
 }
 
 .hover\:text-indigo-600:hover {
-    color: #a01550 !important;
+    color: #0d47a1 !important;
 }
 
 .hover\:bg-indigo-50:hover {
-    background-color: rgba(194, 24, 91, 0.1) !important;
+    background-color: rgba(21, 101, 192, 0.1) !important;
 }
 
 .focus\:ring-indigo-500:focus {
     --tw-ring-color: var(--accent) !important;
 }
 
-/* Dark mode overrides - forest green with gold accents */
+/* Emerald/Green buttons get Casa Azul blue treatment */
+.bg-emerald-500 {
+    background-color: var(--accent) !important;
+}
+
+.bg-emerald-600 {
+    background-color: #0d47a1 !important;
+}
+
+.hover\:bg-emerald-600:hover {
+    background-color: #0d47a1 !important;
+}
+
+/* Dark mode overrides - Deep blue Casa Azul night */
 .dark .bg-white {
     background-color: var(--card-bg) !important;
 }
@@ -153,7 +174,7 @@ body {
 }
 
 .dark .bg-slate-100 {
-    background-color: #3a4a3f !important;
+    background-color: #1c3a5a !important;
 }
 
 .dark .border-slate-200 {
@@ -161,7 +182,7 @@ body {
 }
 
 .dark .border-slate-100 {
-    border-color: #3a4a3f !important;
+    border-color: #1c3a5a !important;
 }
 
 .dark .text-slate-900 {
@@ -169,15 +190,15 @@ body {
 }
 
 .dark .text-slate-800 {
-    color: #e5dfd6 !important;
+    color: #f5f0e6 !important;
 }
 
 .dark .text-slate-700 {
-    color: #d4cdc3 !important;
+    color: #e8e0d2 !important;
 }
 
 .dark .text-slate-600 {
-    color: #b8c0b9 !important;
+    color: #c8d5e5 !important;
 }
 
 .dark .text-slate-500 {
@@ -189,15 +210,15 @@ body {
 }
 
 .dark .text-slate-300 {
-    color: #5f7562 !important;
+    color: #3d6089 !important;
 }
 
 .dark .hover\:bg-slate-100:hover {
-    background-color: #3a4a3f !important;
+    background-color: #1c3a5a !important;
 }
 
 .dark .hover\:bg-slate-50:hover {
-    background-color: #243528 !important;
+    background-color: #0a1929 !important;
 }
 
 .dark .hover\:text-slate-900:hover {
@@ -205,28 +226,28 @@ body {
 }
 
 .dark .hover\:text-slate-700:hover {
-    color: #d4cdc3 !important;
+    color: #e8e0d2 !important;
 }
 
 .dark .hover\:text-slate-600:hover {
-    color: #b8c0b9 !important;
+    color: #c8d5e5 !important;
 }
 
 .dark .hover\:border-slate-300:hover {
-    border-color: #5f7562 !important;
+    border-color: #3d6089 !important;
 }
 
 .dark .placeholder-slate-400::placeholder {
     color: var(--muted-light) !important;
 }
 
-/* Dark mode accent - golden marigold */
+/* Dark mode accent - bright marigold yellow */
 .dark .bg-indigo-500 {
     background-color: var(--accent) !important;
 }
 
 .dark .bg-indigo-600 {
-    background-color: #d4900f !important;
+    background-color: #e6a800 !important;
 }
 
 .dark .text-indigo-500 {
@@ -238,7 +259,7 @@ body {
 }
 
 .dark .bg-indigo-50 {
-    background-color: rgba(245, 166, 35, 0.15) !important;
+    background-color: rgba(255, 193, 7, 0.15) !important;
 }
 
 .dark .hover\:bg-indigo-500:hover {
@@ -246,7 +267,7 @@ body {
 }
 
 .dark .hover\:bg-indigo-600:hover {
-    background-color: #d4900f !important;
+    background-color: #e6a800 !important;
 }
 
 .dark .hover\:text-indigo-500:hover {
@@ -258,11 +279,30 @@ body {
 }
 
 .dark .hover\:bg-indigo-50:hover {
-    background-color: rgba(245, 166, 35, 0.15) !important;
+    background-color: rgba(255, 193, 7, 0.15) !important;
 }
 
 .dark .focus\:ring-indigo-500:focus {
     --tw-ring-color: var(--accent) !important;
+}
+
+/* Dark mode emerald buttons get marigold treatment */
+.dark .bg-emerald-500 {
+    background-color: var(--accent) !important;
+}
+
+.dark .bg-emerald-600 {
+    background-color: #e6a800 !important;
+}
+
+.dark .hover\:bg-emerald-600:hover {
+    background-color: #e6a800 !important;
+}
+
+/* Dark mode text on yellow buttons needs to be dark */
+.dark .bg-emerald-500,
+.dark .bg-indigo-500 {
+    color: #0d253f !important;
 }
 
 /* Priority badge adjustments for both modes */
