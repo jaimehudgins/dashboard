@@ -1,6 +1,13 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  ReactNode,
+} from "react";
 import GlobalSearch from "./GlobalSearch";
 
 interface KeyboardShortcutsContextType {
@@ -9,12 +16,15 @@ interface KeyboardShortcutsContextType {
   isSearchOpen: boolean;
 }
 
-const KeyboardShortcutsContext = createContext<KeyboardShortcutsContextType | undefined>(undefined);
+const KeyboardShortcutsContext = createContext<
+  KeyboardShortcutsContextType | undefined
+>(undefined);
 
 export function useKeyboardShortcuts() {
   const context = useContext(KeyboardShortcutsContext);
+  // Return default values if context is not available (during SSR)
   if (!context) {
-    throw new Error("useKeyboardShortcuts must be used within KeyboardShortcutsProvider");
+    return { openSearch: () => {}, closeSearch: () => {}, isSearchOpen: false };
   }
   return context;
 }
@@ -23,7 +33,9 @@ interface KeyboardShortcutsProviderProps {
   children: ReactNode;
 }
 
-export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProviderProps) {
+export function KeyboardShortcutsProvider({
+  children,
+}: KeyboardShortcutsProviderProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const openSearch = useCallback(() => setIsSearchOpen(true), []);
@@ -34,9 +46,10 @@ export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProvide
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger shortcuts when typing in inputs
       const target = e.target as HTMLElement;
-      const isInput = target.tagName === "INPUT" ||
-                      target.tagName === "TEXTAREA" ||
-                      target.isContentEditable;
+      const isInput =
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable;
 
       // Cmd/Ctrl + K - Open search
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -68,7 +81,9 @@ export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProvide
   }, [isSearchOpen]);
 
   return (
-    <KeyboardShortcutsContext.Provider value={{ openSearch, closeSearch, isSearchOpen }}>
+    <KeyboardShortcutsContext.Provider
+      value={{ openSearch, closeSearch, isSearchOpen }}
+    >
       {children}
       <GlobalSearch isOpen={isSearchOpen} onClose={closeSearch} />
     </KeyboardShortcutsContext.Provider>
