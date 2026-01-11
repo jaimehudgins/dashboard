@@ -593,7 +593,10 @@ export async function fetchProjectNotes(): Promise<ProjectNote[]> {
     .order("display_order", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: true });
 
-  if (error) throw error;
+  if (error) {
+    console.warn("project_notes table not found or error:", error.message);
+    return [];
+  }
   return (data || []).map(toProjectNote);
 }
 

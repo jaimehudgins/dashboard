@@ -193,6 +193,7 @@ export default function ProjectNotes({ projectId }: ProjectNotesProps) {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
