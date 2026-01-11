@@ -846,3 +846,404 @@ a:not([class]):hover {
 .dark a:not([class]):hover {
     color: #ffc107;
 }
+
+/* ========================================
+   MAXIMUM EXTRA - TURN IT UP TO 11!
+   ======================================== */
+
+/* ===== GLOWING BUTTONS ===== */
+button[class*="bg-indigo-500"],
+button[class*="bg-emerald-500"] {
+    box-shadow:
+        0 4px 15px rgba(21, 101, 192, 0.4),
+        0 0 20px rgba(0, 172, 193, 0.2) !important;
+    transition: all 0.3s ease !important;
+}
+
+button[class*="bg-indigo-500"]:hover,
+button[class*="bg-emerald-500"]:hover {
+    box-shadow:
+        0 6px 25px rgba(21, 101, 192, 0.5),
+        0 0 30px rgba(0, 172, 193, 0.3) !important;
+    transform: translateY(-2px) !important;
+}
+
+.dark button[class*="bg-indigo-500"],
+.dark button[class*="bg-emerald-500"] {
+    box-shadow:
+        0 4px 15px rgba(255, 193, 7, 0.4),
+        0 0 20px rgba(255, 152, 0, 0.2) !important;
+}
+
+.dark button[class*="bg-indigo-500"]:hover,
+.dark button[class*="bg-emerald-500"]:hover {
+    box-shadow:
+        0 6px 25px rgba(255, 193, 7, 0.5),
+        0 0 30px rgba(255, 152, 0, 0.3) !important;
+}
+
+/* ===== NUMBERED BADGES (1, 2, 3) - RAINBOW! ===== */
+.bg-indigo-500.text-white.rounded-full,
+.rounded-full.bg-indigo-500 {
+    font-weight: bold !important;
+}
+
+/* First badge - Hot Pink */
+.flex.items-start.gap-3:nth-child(1) .bg-indigo-500.rounded-full,
+div:nth-child(1) > .bg-indigo-500.rounded-full {
+    background: linear-gradient(135deg, #e91e63, #c2185b) !important;
+    box-shadow: 0 2px 10px rgba(233, 30, 99, 0.5) !important;
+}
+
+/* Second badge - Cobalt Blue */
+.flex.items-start.gap-3:nth-child(2) .bg-indigo-500.rounded-full,
+div:nth-child(2) > .bg-indigo-500.rounded-full {
+    background: linear-gradient(135deg, #1565c0, #0d47a1) !important;
+    box-shadow: 0 2px 10px rgba(21, 101, 192, 0.5) !important;
+}
+
+/* Third badge - Jungle Green */
+.flex.items-start.gap-3:nth-child(3) .bg-indigo-500.rounded-full,
+div:nth-child(3) > .bg-indigo-500.rounded-full {
+    background: linear-gradient(135deg, #2e7d32, #1b5e20) !important;
+    box-shadow: 0 2px 10px rgba(46, 125, 50, 0.5) !important;
+}
+
+/* ===== FOCUS 3 TASK CARDS - COLORFUL LEFT BORDERS ===== */
+.border.rounded-xl:nth-child(1),
+.flex.items-start.gap-3:nth-child(1) {
+    border-left: 5px solid #e91e63 !important;
+    background: linear-gradient(
+        135deg,
+        rgba(233, 30, 99, 0.03),
+        transparent
+    ) !important;
+}
+
+.border.rounded-xl:nth-child(2),
+.flex.items-start.gap-3:nth-child(2) {
+    border-left: 5px solid #1565c0 !important;
+    background: linear-gradient(
+        135deg,
+        rgba(21, 101, 192, 0.03),
+        transparent
+    ) !important;
+}
+
+.border.rounded-xl:nth-child(3),
+.flex.items-start.gap-3:nth-child(3) {
+    border-left: 5px solid #2e7d32 !important;
+    background: linear-gradient(
+        135deg,
+        rgba(46, 125, 50, 0.03),
+        transparent
+    ) !important;
+}
+
+.dark .border.rounded-xl:nth-child(1),
+.dark .flex.items-start.gap-3:nth-child(1) {
+    background: linear-gradient(
+        135deg,
+        rgba(233, 30, 99, 0.08),
+        transparent
+    ) !important;
+}
+
+.dark .border.rounded-xl:nth-child(2),
+.dark .flex.items-start.gap-3:nth-child(2) {
+    background: linear-gradient(
+        135deg,
+        rgba(21, 101, 192, 0.08),
+        transparent
+    ) !important;
+}
+
+.dark .border.rounded-xl:nth-child(3),
+.dark .flex.items-start.gap-3:nth-child(3) {
+    background: linear-gradient(
+        135deg,
+        rgba(46, 125, 50, 0.08),
+        transparent
+    ) !important;
+}
+
+/* ===== PROJECT SUMMARY CARDS - GRADIENT BACKGROUNDS ===== */
+.grid.grid-cols-2 > div:nth-child(1),
+.grid.grid-cols-3 > div:nth-child(1) {
+    background: linear-gradient(
+        135deg,
+        rgba(233, 30, 99, 0.08),
+        rgba(255, 255, 255, 0.9)
+    ) !important;
+}
+
+.grid.grid-cols-2 > div:nth-child(2),
+.grid.grid-cols-3 > div:nth-child(2) {
+    background: linear-gradient(
+        135deg,
+        rgba(21, 101, 192, 0.08),
+        rgba(255, 255, 255, 0.9)
+    ) !important;
+}
+
+.grid.grid-cols-2 > div:nth-child(3),
+.grid.grid-cols-3 > div:nth-child(3) {
+    background: linear-gradient(
+        135deg,
+        rgba(255, 193, 7, 0.12),
+        rgba(255, 255, 255, 0.9)
+    ) !important;
+}
+
+.grid.grid-cols-2 > div:nth-child(4),
+.grid.grid-cols-3 > div:nth-child(4) {
+    background: linear-gradient(
+        135deg,
+        rgba(46, 125, 50, 0.08),
+        rgba(255, 255, 255, 0.9)
+    ) !important;
+}
+
+.grid.grid-cols-2 > div:nth-child(5),
+.grid.grid-cols-3 > div:nth-child(5) {
+    background: linear-gradient(
+        135deg,
+        rgba(0, 172, 193, 0.08),
+        rgba(255, 255, 255, 0.9)
+    ) !important;
+}
+
+.grid.grid-cols-2 > div:nth-child(6),
+.grid.grid-cols-3 > div:nth-child(6) {
+    background: linear-gradient(
+        135deg,
+        rgba(194, 24, 91, 0.08),
+        rgba(255, 255, 255, 0.9)
+    ) !important;
+}
+
+/* Dark mode project cards */
+.dark .grid.grid-cols-2 > div:nth-child(1),
+.dark .grid.grid-cols-3 > div:nth-child(1) {
+    background: linear-gradient(
+        135deg,
+        rgba(233, 30, 99, 0.15),
+        rgba(21, 51, 84, 0.9)
+    ) !important;
+}
+
+.dark .grid.grid-cols-2 > div:nth-child(2),
+.dark .grid.grid-cols-3 > div:nth-child(2) {
+    background: linear-gradient(
+        135deg,
+        rgba(66, 165, 245, 0.15),
+        rgba(21, 51, 84, 0.9)
+    ) !important;
+}
+
+.dark .grid.grid-cols-2 > div:nth-child(3),
+.dark .grid.grid-cols-3 > div:nth-child(3) {
+    background: linear-gradient(
+        135deg,
+        rgba(255, 193, 7, 0.2),
+        rgba(21, 51, 84, 0.9)
+    ) !important;
+}
+
+.dark .grid.grid-cols-2 > div:nth-child(4),
+.dark .grid.grid-cols-3 > div:nth-child(4) {
+    background: linear-gradient(
+        135deg,
+        rgba(102, 187, 106, 0.15),
+        rgba(21, 51, 84, 0.9)
+    ) !important;
+}
+
+.dark .grid.grid-cols-2 > div:nth-child(5),
+.dark .grid.grid-cols-3 > div:nth-child(5) {
+    background: linear-gradient(
+        135deg,
+        rgba(38, 198, 218, 0.15),
+        rgba(21, 51, 84, 0.9)
+    ) !important;
+}
+
+.dark .grid.grid-cols-2 > div:nth-child(6),
+.dark .grid.grid-cols-3 > div:nth-child(6) {
+    background: linear-gradient(
+        135deg,
+        rgba(240, 98, 146, 0.15),
+        rgba(21, 51, 84, 0.9)
+    ) !important;
+}
+
+/* ===== ENERGY TRACKER - RAINBOW GRADIENT BAR ===== */
+.bg-gradient-to-r {
+    background: linear-gradient(
+        90deg,
+        #e91e63,
+        #ffc107,
+        #2e7d32,
+        #00acc1,
+        #1565c0
+    ) !important;
+}
+
+/* ===== CAPTURE BUTTON - EXTRA GLOW ===== */
+button:has(svg):has(span):last-child {
+    box-shadow: 0 4px 15px rgba(233, 30, 99, 0.4) !important;
+}
+
+.dark button:has(svg):has(span):last-child {
+    box-shadow: 0 4px 15px rgba(255, 193, 7, 0.4) !important;
+}
+
+/* ===== SIDEBAR NAV ITEMS - COLORFUL HOVER ===== */
+aside button:hover,
+aside a:hover {
+    background: linear-gradient(
+        90deg,
+        rgba(233, 30, 99, 0.1),
+        rgba(21, 101, 192, 0.05)
+    ) !important;
+    border-left: 3px solid #e91e63 !important;
+    margin-left: -3px;
+    padding-left: calc(0.75rem + 3px);
+}
+
+.dark aside button:hover,
+.dark aside a:hover {
+    background: linear-gradient(
+        90deg,
+        rgba(255, 193, 7, 0.15),
+        rgba(38, 198, 218, 0.05)
+    ) !important;
+    border-left: 3px solid #ffc107 !important;
+}
+
+/* ===== MISC TASKS CATEGORIES - COLORFUL HEADERS ===== */
+.text-sm.font-medium:nth-of-type(1) {
+    color: #e91e63 !important;
+}
+
+.text-sm.font-medium:nth-of-type(2) {
+    color: #1565c0 !important;
+}
+
+.text-sm.font-medium:nth-of-type(3) {
+    color: #2e7d32 !important;
+}
+
+/* ===== FOCUS TIME & MOMENTUM - COLORFUL STATS ===== */
+.text-2xl.font-bold {
+    background: linear-gradient(135deg, #1565c0, #00acc1) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+}
+
+.dark .text-2xl.font-bold {
+    background: linear-gradient(135deg, #ffc107, #ff9800) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+}
+
+/* ===== MAIN CONTENT AREA - SUBTLE GRADIENT ===== */
+main {
+    background: linear-gradient(
+        180deg,
+        rgba(233, 30, 99, 0.02) 0%,
+        rgba(255, 193, 7, 0.02) 25%,
+        rgba(46, 125, 50, 0.02) 50%,
+        rgba(21, 101, 192, 0.02) 75%,
+        rgba(0, 172, 193, 0.02) 100%
+    ) !important;
+}
+
+.dark main {
+    background: linear-gradient(
+        180deg,
+        rgba(255, 193, 7, 0.03) 0%,
+        rgba(244, 143, 177, 0.03) 25%,
+        rgba(102, 187, 106, 0.03) 50%,
+        rgba(66, 165, 245, 0.03) 75%,
+        rgba(38, 198, 218, 0.03) 100%
+    ) !important;
+}
+
+/* ===== DASHBOARD TITLE - RAINBOW GRADIENT ===== */
+h1 {
+    background: linear-gradient(
+        90deg,
+        #e91e63,
+        #ffc107,
+        #2e7d32,
+        #1565c0
+    ) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+    font-weight: 800 !important;
+}
+
+.dark h1 {
+    background: linear-gradient(
+        90deg,
+        #ffc107,
+        #f48fb1,
+        #66bb6a,
+        #42a5f5
+    ) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+}
+
+/* ===== CARD HOVER EFFECTS ===== */
+.rounded-xl {
+    transition: all 0.3s ease !important;
+}
+
+.rounded-xl:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1) !important;
+}
+
+.dark .rounded-xl:hover {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* ===== QUICK CAPTURE - RAINBOW BORDER ===== */
+input[placeholder*="Brain dump"],
+input[placeholder*="capture"] {
+    border: 2px solid transparent !important;
+    border-image: linear-gradient(90deg, #e91e63, #ffc107, #2e7d32, #1565c0) 1 !important;
+    border-radius: 8px !important;
+}
+
+/* ===== TODAY HIGHLIGHT IN CALENDAR ===== */
+.text-indigo-600.font-bold,
+.font-bold.text-indigo-600 {
+    color: #e91e63 !important;
+    text-shadow: 0 0 10px rgba(233, 30, 99, 0.3) !important;
+}
+
+.dark .text-indigo-600.font-bold,
+.dark .font-bold.text-indigo-600 {
+    color: #ffc107 !important;
+    text-shadow: 0 0 10px rgba(255, 193, 7, 0.3) !important;
+}
+
+/* ===== LOG YOUR ENERGY TOAST - COLORFUL ===== */
+.fixed.bottom-4,
+[class*="animate-slide-in"] {
+    border-left: 4px solid #ffc107 !important;
+    box-shadow: 0 4px 20px rgba(255, 193, 7, 0.3) !important;
+}
+
+.dark .fixed.bottom-4,
+.dark [class*="animate-slide-in"] {
+    border-left: 4px solid #e91e63 !important;
+    box-shadow: 0 4px 20px rgba(233, 30, 99, 0.3) !important;
+}
