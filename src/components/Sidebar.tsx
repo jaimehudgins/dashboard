@@ -102,7 +102,9 @@ function SortableProjectItem({
         <GripVertical size={14} />
       </button>
       <button
-        onClick={() => router.push(`/projects/${project.id}`)}
+        onClick={() => {
+          window.location.href = `/projects/${project.id}`;
+        }}
         className="flex items-center gap-3 flex-1 min-w-0 text-left"
       >
         <div
@@ -215,7 +217,9 @@ export default function Sidebar({ children }: SidebarProps) {
             return (
               <button
                 key={item.href}
-                onClick={() => router.push(item.href)}
+                onClick={() => {
+                  window.location.href = item.href;
+                }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive
                     ? "bg-indigo-50 text-indigo-600"
