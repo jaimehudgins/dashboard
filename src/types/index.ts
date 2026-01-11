@@ -110,6 +110,15 @@ export interface ProjectNote {
   updatedAt: Date;
 }
 
+export interface ProjectLink {
+  id: string;
+  projectId: string;
+  title: string;
+  url: string;
+  displayOrder?: number;
+  createdAt: Date;
+}
+
 export interface Project {
   id: string;
   name: string;

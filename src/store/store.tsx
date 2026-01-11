@@ -23,6 +23,7 @@ import {
   ActivityLog,
   Attachment,
   ProjectNote,
+  ProjectLink,
   MiscCategory,
   EnergyLog,
 } from "@/types";
@@ -43,6 +44,7 @@ interface AppState {
   activityLogs: ActivityLog[];
   attachments: Attachment[];
   projectNotes: ProjectNote[];
+  projectLinks: ProjectLink[];
   miscCategories: MiscCategory[];
   energyLogs: EnergyLog[];
   isLoading: boolean;
@@ -100,6 +102,11 @@ type Action =
   | { type: "UPDATE_NOTE"; payload: ProjectNote }
   | { type: "DELETE_NOTE"; payload: string }
   | { type: "REORDER_NOTES"; payload: string[] }
+  // Project Links
+  | { type: "ADD_LINK"; payload: ProjectLink }
+  | { type: "UPDATE_LINK"; payload: ProjectLink }
+  | { type: "DELETE_LINK"; payload: string }
+  | { type: "REORDER_LINKS"; payload: string[] }
   // Misc Categories
   | { type: "ADD_CATEGORY"; payload: MiscCategory }
   | { type: "UPDATE_CATEGORY"; payload: MiscCategory }
@@ -128,6 +135,7 @@ const emptyState: AppState = {
   activityLogs: [],
   attachments: [],
   projectNotes: [],
+  projectLinks: [],
   miscCategories: [],
   energyLogs: [],
   isLoading: true,
@@ -548,6 +556,39 @@ function appReducer(state: AppState, action: Action): AppState {
       return { ...state, projectNotes: updatedNotes };
     }
 
+    // Project Links
+    case "ADD_LINK":
+      return {
+        ...state,
+        projectLinks: [...state.projectLinks, action.payload],
+      };
+
+    case "UPDATE_LINK":
+      return {
+        ...state,
+        projectLinks: state.projectLinks.map((l) =>
+          l.id === action.payload.id ? action.payload : l,
+        ),
+      };
+
+    case "DELETE_LINK":
+      return {
+        ...state,
+        projectLinks: state.projectLinks.filter((l) => l.id !== action.payload),
+      };
+
+    case "REORDER_LINKS": {
+      const linkIds = action.payload;
+      const updatedLinks = state.projectLinks.map((link) => {
+        const newOrder = linkIds.indexOf(link.id);
+        if (newOrder !== -1) {
+          return { ...link, displayOrder: newOrder };
+        }
+        return link;
+      });
+      return { ...state, projectLinks: updatedLinks };
+    }
+
     // Misc Categories
     case "ADD_CATEGORY":
       return {
@@ -631,6 +672,7 @@ interface AppContextType {
   getTaskComments: (taskId: string) => Comment[];
   getTaskAttachments: (taskId: string) => Attachment[];
   getProjectNotes: (projectId: string) => ProjectNote[];
+  getProjectLinks: (projectId: string) => ProjectLink[];
   getProjectMilestones: (projectId: string) => Milestone[];
 }
 
@@ -661,6 +703,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             activityLogs: data.activityLogs,
             attachments: data.attachments,
             projectNotes: data.projectNotes,
+            projectLinks: data.projectLinks,
             miscCategories: data.miscCategories,
             energyLogs: data.energyLogs,
           },
@@ -856,6 +899,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             await db.updateNoteOrders(updates);
             break;
           }
+          // Project Links
+          case "ADD_LINK":
+            await db.createProjectLink(action.payload);
+            break;
+          case "UPDATE_LINK":
+            await db.updateProjectLink(action.payload);
+            break;
+          case "DELETE_LINK":
+            await db.deleteProjectLink(action.payload);
+            break;
+          case "REORDER_LINKS": {
+            const updates = action.payload.map((id, index) => ({
+              id,
+              displayOrder: index,
+            }));
+            await db.updateLinkOrders(updates);
+            break;
+          }
           // Misc Categories
           case "ADD_CATEGORY":
             await db.createMiscCategory(action.payload);
@@ -1042,6 +1103,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [state.milestones],
   );
 
+  const getProjectLinks = useCallback(
+    (projectId: string): ProjectLink[] => {
+      return state.projectLinks
+        .filter((l) => l.projectId === projectId)
+        .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+    },
+    [state.projectLinks],
+  );
+
   const contextValue = useMemo(
     () => ({
       state,
@@ -1057,6 +1127,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       getTaskComments,
       getTaskAttachments,
       getProjectNotes,
+      getProjectLinks,
       getProjectMilestones,
     }),
     [
@@ -1073,6 +1144,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       getTaskComments,
       getTaskAttachments,
       getProjectNotes,
+      getProjectLinks,
       getProjectMilestones,
     ],
   );

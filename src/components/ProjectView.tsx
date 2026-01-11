@@ -61,6 +61,7 @@ import ProgressBar from "./ProgressBar";
 import MilestoneManager from "./MilestoneManager";
 import ActivityLogPanel from "./ActivityLogPanel";
 import ProjectNotes from "./ProjectNotes";
+import ProjectLinks from "./ProjectLinks";
 
 const priorityConfig: Record<
   Priority,
@@ -1199,6 +1200,9 @@ export default function ProjectView({
 
             {/* Project Notes */}
             <ProjectNotes projectId={projectId} />
+
+            {/* Files & Links */}
+            <ProjectLinks projectId={projectId} />
 
             {/* Activity Log */}
             <div className="bg-white border border-slate-200 rounded-xl p-4">

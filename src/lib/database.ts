@@ -12,6 +12,7 @@ import {
   ActivityLog,
   Attachment,
   ProjectNote,
+  ProjectLink,
   MiscCategory,
   EnergyLog,
 } from "@/types";
@@ -177,6 +178,17 @@ function toProjectNote(row: Record<string, unknown>): ProjectNote {
     isPinned: row.is_pinned as boolean,
     createdAt: new Date(row.created_at as string),
     updatedAt: new Date(row.updated_at as string),
+  };
+}
+
+function toProjectLink(row: Record<string, unknown>): ProjectLink {
+  return {
+    id: row.id as string,
+    projectId: row.project_id as string,
+    title: row.title as string,
+    url: row.url as string,
+    displayOrder: row.display_order as number | undefined,
+    createdAt: new Date(row.created_at as string),
   };
 }
 
@@ -638,6 +650,69 @@ export async function updateNoteOrders(
   );
 }
 
+// Project Links
+export async function fetchProjectLinks(): Promise<ProjectLink[]> {
+  const { data, error } = await supabase
+    .from("project_links")
+    .select("*")
+    .order("display_order", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.warn("project_links table not found or error:", error.message);
+    return [];
+  }
+  return (data || []).map(toProjectLink);
+}
+
+export async function createProjectLink(link: ProjectLink): Promise<void> {
+  const { error } = await supabase.from("project_links").insert({
+    id: link.id,
+    project_id: link.projectId,
+    title: link.title,
+    url: link.url,
+    display_order: link.displayOrder,
+    created_at: link.createdAt.toISOString(),
+  });
+
+  if (error) throw error;
+}
+
+export async function updateProjectLink(link: ProjectLink): Promise<void> {
+  const { error } = await supabase
+    .from("project_links")
+    .update({
+      title: link.title,
+      url: link.url,
+      display_order: link.displayOrder,
+    })
+    .eq("id", link.id);
+
+  if (error) throw error;
+}
+
+export async function deleteProjectLink(linkId: string): Promise<void> {
+  const { error } = await supabase
+    .from("project_links")
+    .delete()
+    .eq("id", linkId);
+
+  if (error) throw error;
+}
+
+export async function updateLinkOrders(
+  updates: { id: string; displayOrder: number }[],
+): Promise<void> {
+  await Promise.all(
+    updates.map(({ id, displayOrder }) =>
+      supabase
+        .from("project_links")
+        .update({ display_order: displayOrder })
+        .eq("id", id),
+    ),
+  );
+}
+
 // Misc Categories
 export async function fetchMiscCategories(): Promise<MiscCategory[]> {
   const { data, error } = await supabase
@@ -871,6 +946,7 @@ export async function loadAllData(): Promise<{
   activityLogs: ActivityLog[];
   attachments: Attachment[];
   projectNotes: ProjectNote[];
+  projectLinks: ProjectLink[];
   miscCategories: MiscCategory[];
   energyLogs: EnergyLog[];
 }> {
@@ -887,6 +963,7 @@ export async function loadAllData(): Promise<{
     activityLogs,
     attachments,
     projectNotes,
+    projectLinks,
     miscCategories,
     energyLogs,
   ] = await Promise.all([
@@ -902,6 +979,7 @@ export async function loadAllData(): Promise<{
     fetchActivityLogs(),
     fetchAttachments(),
     fetchProjectNotes(),
+    fetchProjectLinks(),
     fetchMiscCategories(),
     fetchEnergyLogs(),
   ]);
@@ -919,6 +997,7 @@ export async function loadAllData(): Promise<{
     activityLogs,
     attachments,
     projectNotes,
+    projectLinks,
     miscCategories,
     energyLogs,
   };
