@@ -1247,3 +1247,59 @@ input[placeholder*="capture"] {
     border-left: 4px solid #e91e63 !important;
     box-shadow: 0 4px 20px rgba(233, 30, 99, 0.3) !important;
 }
+
+/* ===== MODALS - SOLID BACKGROUNDS ===== */
+/* Modal backdrop - darker for better contrast */
+.fixed.inset-0.bg-black\/30,
+.fixed.inset-0[class*="bg-black"] {
+    background-color: rgba(0, 0, 0, 0.6) !important;
+    backdrop-filter: blur(4px) !important;
+}
+
+.dark .fixed.inset-0.bg-black\/30,
+.dark .fixed.inset-0[class*="bg-black"] {
+    background-color: rgba(0, 0, 0, 0.75) !important;
+}
+
+/* Modal content - solid opaque background */
+.fixed.inset-0 > div.bg-white,
+.fixed.inset-0 > div[class*="bg-white"] {
+    background-color: #fffdf8 !important;
+    opacity: 1 !important;
+    border: 2px solid var(--frida-pink) !important;
+    box-shadow:
+        0 25px 50px -12px rgba(0, 0, 0, 0.25),
+        0 0 30px rgba(233, 30, 99, 0.15) !important;
+}
+
+.dark .fixed.inset-0 > div.bg-white,
+.dark .fixed.inset-0 > div[class*="bg-white"] {
+    background-color: #153354 !important;
+    border: 2px solid var(--frida-yellow) !important;
+    box-shadow:
+        0 25px 50px -12px rgba(0, 0, 0, 0.5),
+        0 0 30px rgba(255, 193, 7, 0.15) !important;
+}
+
+/* Modal inputs - ensure they're readable */
+.fixed.inset-0 input,
+.fixed.inset-0 textarea,
+.fixed.inset-0 select {
+    background-color: #fef9f0 !important;
+    border-color: #e8d5c4 !important;
+}
+
+.dark .fixed.inset-0 input,
+.dark .fixed.inset-0 textarea,
+.dark .fixed.inset-0 select {
+    background-color: #0d253f !important;
+    border-color: #2a4a6e !important;
+    color: #fef9f0 !important;
+}
+
+/* Modal headings */
+.fixed.inset-0 h2,
+.fixed.inset-0 h3 {
+    -webkit-text-fill-color: unset !important;
+    background: none !important;
+}
