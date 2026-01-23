@@ -33,6 +33,7 @@ import {
   MoreHorizontal,
   Search,
   TrendingUp,
+  Users,
   Moon,
   Sun,
 } from "lucide-react";
@@ -52,6 +53,7 @@ interface SidebarProps {
 }
 
 const navItems = [
+  { href: "/partner-tasks", label: "Partner Tasks", icon: Users },
   { href: "/", label: "Command Center", icon: Command },
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/archive", label: "Daily Archive", icon: Calendar },
