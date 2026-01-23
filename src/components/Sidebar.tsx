@@ -43,6 +43,7 @@ import ProjectCreateModal from "./ProjectCreateModal";
 import ProjectEditModal from "./ProjectEditModal";
 import TagManager from "./TagManager";
 import MiscTasks from "./MiscTasks";
+import PartnerTasks from "./PartnerTasks";
 import { useKeyboardShortcuts } from "./KeyboardShortcuts";
 import { useTheme } from "./ThemeProvider";
 
@@ -282,6 +283,9 @@ export default function Sidebar({ children }: SidebarProps) {
               </SortableContext>
             </DndContext>
           </div>
+
+          {/* Partner Tasks Section */}
+          <PartnerTasks />
 
           {/* Misc Tasks Section */}
           <MiscTasks />
