@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   ChevronDown,
   ChevronRight,
@@ -8,13 +9,15 @@ import {
   Circle,
   Calendar,
   Users,
-  ExternalLink,
+  Pencil,
+  X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 interface SyncedTask {
   id: string;
   source_id: string;
+  source_table: string | null;
   title: string | null;
   description: string | null;
   status: string | null;
@@ -26,6 +29,12 @@ export default function PartnerTasks() {
   const [tasks, setTasks] = useState<SyncedTask[]>([]);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [editingTask, setEditingTask] = useState<SyncedTask | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editStatus, setEditStatus] = useState("");
+  const [editDueDate, setEditDueDate] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     async function fetchTasks() {
@@ -58,7 +67,7 @@ export default function PartnerTasks() {
         { event: "*", schema: "public", table: "synced_tasks" },
         () => {
           fetchTasks();
-        }
+        },
       )
       .subscribe();
 
@@ -77,15 +86,19 @@ export default function PartnerTasks() {
     taskDate.setHours(0, 0, 0, 0);
 
     const diffDays = Math.ceil(
-      (taskDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+      (taskDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
     );
 
     if (diffDays < 0) return { text: "Overdue", className: "text-red-500" };
     if (diffDays === 0) return { text: "Today", className: "text-amber-500" };
     if (diffDays === 1) return { text: "Tomorrow", className: "text-blue-500" };
-    if (diffDays <= 7) return { text: `${diffDays}d`, className: "text-slate-500" };
+    if (diffDays <= 7)
+      return { text: `${diffDays}d`, className: "text-slate-500" };
     return {
-      text: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      text: date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      }),
       className: "text-slate-400",
     };
   };
@@ -96,8 +109,53 @@ export default function PartnerTasks() {
     return lowerStatus === "completed" || lowerStatus === "done";
   };
 
+  const handleToggleComplete = async (task: SyncedTask) => {
+    const newStatus = isCompleted(task.status) ? "pending" : "completed";
+
+    const { error } = await supabase
+      .from("synced_tasks")
+      .update({ status: newStatus })
+      .eq("id", task.id);
+
+    if (error) {
+      console.error("Error updating task:", error);
+    }
+  };
+
+  const openEditModal = (task: SyncedTask) => {
+    setEditingTask(task);
+    setEditTitle(task.title || "");
+    setEditDescription(task.description || "");
+    setEditStatus(task.status || "pending");
+    setEditDueDate(task.due_date ? task.due_date.split("T")[0] : "");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingTask) return;
+
+    setIsSaving(true);
+
+    const { error } = await supabase
+      .from("synced_tasks")
+      .update({
+        title: editTitle,
+        description: editDescription,
+        status: editStatus,
+        due_date: editDueDate || null,
+      })
+      .eq("id", editingTask.id);
+
+    setIsSaving(false);
+
+    if (error) {
+      console.error("Error updating task:", error);
+      return;
+    }
+
+    setEditingTask(null);
+  };
+
   const activeTasks = tasks.filter((t) => !isCompleted(t.status));
-  const completedTasks = tasks.filter((t) => isCompleted(t.status));
 
   const renderTask = (task: SyncedTask) => {
     const completed = isCompleted(task.status);
@@ -106,15 +164,22 @@ export default function PartnerTasks() {
     return (
       <div
         key={task.id}
-        className="group flex items-start gap-2 py-1.5 px-2 rounded hover:bg-slate-100 transition-colors"
+        className="group flex items-start gap-2 py-1.5 px-2 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+        onClick={() => openEditModal(task)}
       >
-        <div className="flex-shrink-0 mt-0.5">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleToggleComplete(task);
+          }}
+          className="flex-shrink-0 mt-0.5"
+        >
           {completed ? (
             <CheckCircle2 size={14} className="text-green-500" />
           ) : (
-            <Circle size={14} className="text-slate-300" />
+            <Circle size={14} className="text-slate-300 hover:text-slate-500" />
           )}
-        </div>
+        </button>
         <div className="flex-1 min-w-0">
           <span
             className={`text-sm ${
@@ -145,6 +210,15 @@ export default function PartnerTasks() {
             </p>
           )}
         </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            openEditModal(task);
+          }}
+          className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-500 transition-all flex-shrink-0"
+        >
+          <Pencil size={12} />
+        </button>
       </div>
     );
   };
@@ -205,6 +279,92 @@ export default function PartnerTasks() {
           )}
         </div>
       </div>
+
+      {/* Edit Modal */}
+      {editingTask &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+            <div className="bg-white border border-slate-200 rounded-xl w-full max-w-md p-5 shadow-xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-semibold text-slate-900">
+                  Edit Partner Task
+                </h3>
+                <button
+                  onClick={() => setEditingTask(null)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1">
+                    Title
+                  </label>
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    rows={3}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1">
+                    Status
+                  </label>
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editDueDate}
+                    onChange={(e) => setEditDueDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => setEditingTask(null)}
+                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveEdit}
+                    disabled={isSaving}
+                    className="flex-1 bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    {isSaving ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
