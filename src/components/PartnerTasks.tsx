@@ -112,6 +112,11 @@ export default function PartnerTasks() {
   const handleToggleComplete = async (task: SyncedTask) => {
     const newStatus = isCompleted(task.status) ? "pending" : "completed";
 
+    // Optimistic update - update UI immediately
+    setTasks((prev) =>
+      prev.map((t) => (t.id === task.id ? { ...t, status: newStatus } : t)),
+    );
+
     const { error } = await supabase
       .from("synced_tasks")
       .update({ status: newStatus })
@@ -119,6 +124,10 @@ export default function PartnerTasks() {
 
     if (error) {
       console.error("Error updating task:", error);
+      // Revert on error
+      setTasks((prev) =>
+        prev.map((t) => (t.id === task.id ? { ...t, status: task.status } : t)),
+      );
     }
   };
 
@@ -135,6 +144,19 @@ export default function PartnerTasks() {
 
     setIsSaving(true);
 
+    const updatedTask = {
+      ...editingTask,
+      title: editTitle,
+      description: editDescription,
+      status: editStatus,
+      due_date: editDueDate || null,
+    };
+
+    // Optimistic update
+    setTasks((prev) =>
+      prev.map((t) => (t.id === editingTask.id ? updatedTask : t)),
+    );
+
     const { error } = await supabase
       .from("synced_tasks")
       .update({
@@ -149,6 +171,10 @@ export default function PartnerTasks() {
 
     if (error) {
       console.error("Error updating task:", error);
+      // Revert on error
+      setTasks((prev) =>
+        prev.map((t) => (t.id === editingTask.id ? editingTask : t)),
+      );
       return;
     }
 
