@@ -152,12 +152,8 @@ export default function PartnerTasks() {
 
   const isCompleted = (status: string | null) => {
     if (!status) return false;
-    const lowerStatus = status.toLowerCase();
-    return (
-      lowerStatus === "completed" ||
-      lowerStatus === "complete" ||
-      lowerStatus === "done"
-    );
+    // Match exactly how Partner Tasks page filters
+    return status === "Complete";
   };
 
   const handleToggleComplete = async (task: PartnerTask) => {
