@@ -986,6 +986,8 @@ function toStickyNote(row: Record<string, unknown>): StickyNote {
     content: row.content as string,
     color: row.color as StickyNote["color"],
     displayOrder: row.display_order as number,
+    positionX: row.position_x as number | undefined,
+    positionY: row.position_y as number | undefined,
     createdAt: new Date(row.created_at as string),
     updatedAt: new Date(row.updated_at as string),
   };
@@ -1012,6 +1014,8 @@ export async function createStickyNote(note: StickyNote): Promise<void> {
     content: note.content,
     color: note.color,
     display_order: note.displayOrder,
+    position_x: note.positionX,
+    position_y: note.positionY,
     created_at: note.createdAt.toISOString(),
     updated_at: note.updatedAt.toISOString(),
   });
@@ -1027,6 +1031,8 @@ export async function updateStickyNote(note: StickyNote): Promise<void> {
       content: note.content,
       color: note.color,
       display_order: note.displayOrder,
+      position_x: note.positionX,
+      position_y: note.positionY,
       updated_at: new Date().toISOString(),
     })
     .eq("id", note.id);
@@ -1063,6 +1069,8 @@ function toQuickTodoList(row: Record<string, unknown>): QuickTodoList {
     title: row.title as string,
     items: (row.items as QuickTodoList["items"]) || [],
     displayOrder: row.display_order as number,
+    positionX: row.position_x as number | undefined,
+    positionY: row.position_y as number | undefined,
     createdAt: new Date(row.created_at as string),
   };
 }
@@ -1087,6 +1095,8 @@ export async function createQuickTodoList(list: QuickTodoList): Promise<void> {
     title: list.title,
     items: list.items,
     display_order: list.displayOrder,
+    position_x: list.positionX,
+    position_y: list.positionY,
     created_at: list.createdAt.toISOString(),
   });
 
@@ -1100,6 +1110,8 @@ export async function updateQuickTodoList(list: QuickTodoList): Promise<void> {
       title: list.title,
       items: list.items,
       display_order: list.displayOrder,
+      position_x: list.positionX,
+      position_y: list.positionY,
     })
     .eq("id", list.id);
 

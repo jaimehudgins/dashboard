@@ -188,6 +188,8 @@ export interface StickyNote {
   content: string;
   color: StickyNoteColor;
   displayOrder: number;
+  positionX?: number;
+  positionY?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -203,5 +205,7 @@ export interface QuickTodoList {
   title: string;
   items: QuickTodoItem[];
   displayOrder: number;
+  positionX?: number;
+  positionY?: number;
   createdAt: Date;
 }
