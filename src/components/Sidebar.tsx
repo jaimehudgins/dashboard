@@ -36,6 +36,7 @@ import {
   Users,
   Moon,
   Sun,
+  StickyNote,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Project } from "@/types";
@@ -57,6 +58,7 @@ const navItems = [
   { href: "/", label: "Command Center", icon: Command },
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/archive", label: "Daily Archive", icon: Calendar },
+  { href: "/notes", label: "Note Catcher", icon: StickyNote },
   { href: "/review", label: "Weekly Review", icon: TrendingUp },
 ];
 

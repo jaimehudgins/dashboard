@@ -178,3 +178,30 @@ export interface EnergyLog {
   note?: string;
   createdAt: Date;
 }
+
+// Note Catcher types
+export type StickyNoteColor = "yellow" | "pink" | "blue" | "green" | "purple";
+
+export interface StickyNote {
+  id: string;
+  title: string;
+  content: string;
+  color: StickyNoteColor;
+  displayOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface QuickTodoItem {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
+export interface QuickTodoList {
+  id: string;
+  title: string;
+  items: QuickTodoItem[];
+  displayOrder: number;
+  createdAt: Date;
+}

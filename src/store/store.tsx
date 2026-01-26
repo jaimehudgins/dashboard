@@ -26,6 +26,8 @@ import {
   ProjectLink,
   MiscCategory,
   EnergyLog,
+  StickyNote,
+  QuickTodoList,
 } from "@/types";
 import * as db from "@/lib/database";
 
@@ -47,6 +49,8 @@ interface AppState {
   projectLinks: ProjectLink[];
   miscCategories: MiscCategory[];
   energyLogs: EnergyLog[];
+  stickyNotes: StickyNote[];
+  quickTodoLists: QuickTodoList[];
   isLoading: boolean;
   error: string | null;
 }
@@ -115,6 +119,15 @@ type Action =
   | { type: "ADD_ENERGY_LOG"; payload: EnergyLog }
   | { type: "UPDATE_ENERGY_LOG"; payload: EnergyLog }
   | { type: "DELETE_ENERGY_LOG"; payload: string }
+  // Sticky Notes
+  | { type: "ADD_STICKY_NOTE"; payload: StickyNote }
+  | { type: "UPDATE_STICKY_NOTE"; payload: StickyNote }
+  | { type: "DELETE_STICKY_NOTE"; payload: string }
+  | { type: "REORDER_STICKY_NOTES"; payload: string[] }
+  // Quick Todo Lists
+  | { type: "ADD_QUICK_TODO_LIST"; payload: QuickTodoList }
+  | { type: "UPDATE_QUICK_TODO_LIST"; payload: QuickTodoList }
+  | { type: "DELETE_QUICK_TODO_LIST"; payload: string }
   // System
   | { type: "LOAD_STATE"; payload: Partial<AppState> }
   | { type: "SET_LOADING"; payload: boolean }
@@ -138,6 +151,8 @@ const emptyState: AppState = {
   projectLinks: [],
   miscCategories: [],
   energyLogs: [],
+  stickyNotes: [],
+  quickTodoLists: [],
   isLoading: true,
   error: null,
 };
@@ -664,6 +679,62 @@ function appReducer(state: AppState, action: Action): AppState {
         energyLogs: state.energyLogs.filter((log) => log.id !== action.payload),
       };
 
+    // Sticky Notes
+    case "ADD_STICKY_NOTE":
+      return {
+        ...state,
+        stickyNotes: [...state.stickyNotes, action.payload],
+      };
+
+    case "UPDATE_STICKY_NOTE":
+      return {
+        ...state,
+        stickyNotes: state.stickyNotes.map((n) =>
+          n.id === action.payload.id ? action.payload : n,
+        ),
+      };
+
+    case "DELETE_STICKY_NOTE":
+      return {
+        ...state,
+        stickyNotes: state.stickyNotes.filter((n) => n.id !== action.payload),
+      };
+
+    case "REORDER_STICKY_NOTES": {
+      const noteIds = action.payload;
+      const updatedNotes = state.stickyNotes.map((note) => {
+        const newOrder = noteIds.indexOf(note.id);
+        if (newOrder !== -1) {
+          return { ...note, displayOrder: newOrder };
+        }
+        return note;
+      });
+      return { ...state, stickyNotes: updatedNotes };
+    }
+
+    // Quick Todo Lists
+    case "ADD_QUICK_TODO_LIST":
+      return {
+        ...state,
+        quickTodoLists: [...state.quickTodoLists, action.payload],
+      };
+
+    case "UPDATE_QUICK_TODO_LIST":
+      return {
+        ...state,
+        quickTodoLists: state.quickTodoLists.map((l) =>
+          l.id === action.payload.id ? action.payload : l,
+        ),
+      };
+
+    case "DELETE_QUICK_TODO_LIST":
+      return {
+        ...state,
+        quickTodoLists: state.quickTodoLists.filter(
+          (l) => l.id !== action.payload,
+        ),
+      };
+
     case "LOAD_STATE":
       return {
         ...state,
@@ -733,6 +804,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             projectLinks: data.projectLinks,
             miscCategories: data.miscCategories,
             energyLogs: data.energyLogs,
+            stickyNotes: data.stickyNotes || [],
+            quickTodoLists: data.quickTodoLists || [],
           },
         });
       } catch (error) {
@@ -980,6 +1053,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             break;
           case "DELETE_ENERGY_LOG":
             await db.deleteEnergyLog(action.payload);
+            break;
+          // Sticky Notes
+          case "ADD_STICKY_NOTE":
+            await db.createStickyNote(action.payload);
+            break;
+          case "UPDATE_STICKY_NOTE":
+            await db.updateStickyNote(action.payload);
+            break;
+          case "DELETE_STICKY_NOTE":
+            await db.deleteStickyNote(action.payload);
+            break;
+          case "REORDER_STICKY_NOTES": {
+            const updates = action.payload.map((id, index) => ({
+              id,
+              displayOrder: index,
+            }));
+            await db.updateStickyNoteOrders(updates);
+            break;
+          }
+          // Quick Todo Lists
+          case "ADD_QUICK_TODO_LIST":
+            await db.createQuickTodoList(action.payload);
+            break;
+          case "UPDATE_QUICK_TODO_LIST":
+            await db.updateQuickTodoList(action.payload);
+            break;
+          case "DELETE_QUICK_TODO_LIST":
+            await db.deleteQuickTodoList(action.payload);
             break;
         }
       } catch (error) {

@@ -15,6 +15,8 @@ import {
   ProjectLink,
   MiscCategory,
   EnergyLog,
+  StickyNote,
+  QuickTodoList,
 } from "@/types";
 
 // Helper to convert snake_case DB rows to camelCase
@@ -976,6 +978,143 @@ export async function deleteEnergyLog(logId: string): Promise<void> {
   if (error) throw error;
 }
 
+// Sticky Notes
+function toStickyNote(row: Record<string, unknown>): StickyNote {
+  return {
+    id: row.id as string,
+    title: row.title as string,
+    content: row.content as string,
+    color: row.color as StickyNote["color"],
+    displayOrder: row.display_order as number,
+    createdAt: new Date(row.created_at as string),
+    updatedAt: new Date(row.updated_at as string),
+  };
+}
+
+export async function fetchStickyNotes(): Promise<StickyNote[]> {
+  const { data, error } = await supabase
+    .from("sticky_notes")
+    .select("*")
+    .order("display_order", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.warn("sticky_notes table not found or error:", error.message);
+    return [];
+  }
+  return (data || []).map(toStickyNote);
+}
+
+export async function createStickyNote(note: StickyNote): Promise<void> {
+  const { error } = await supabase.from("sticky_notes").insert({
+    id: note.id,
+    title: note.title,
+    content: note.content,
+    color: note.color,
+    display_order: note.displayOrder,
+    created_at: note.createdAt.toISOString(),
+    updated_at: note.updatedAt.toISOString(),
+  });
+
+  if (error) throw error;
+}
+
+export async function updateStickyNote(note: StickyNote): Promise<void> {
+  const { error } = await supabase
+    .from("sticky_notes")
+    .update({
+      title: note.title,
+      content: note.content,
+      color: note.color,
+      display_order: note.displayOrder,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", note.id);
+
+  if (error) throw error;
+}
+
+export async function deleteStickyNote(noteId: string): Promise<void> {
+  const { error } = await supabase
+    .from("sticky_notes")
+    .delete()
+    .eq("id", noteId);
+
+  if (error) throw error;
+}
+
+export async function updateStickyNoteOrders(
+  updates: { id: string; displayOrder: number }[],
+): Promise<void> {
+  await Promise.all(
+    updates.map(({ id, displayOrder }) =>
+      supabase
+        .from("sticky_notes")
+        .update({ display_order: displayOrder })
+        .eq("id", id),
+    ),
+  );
+}
+
+// Quick Todo Lists
+function toQuickTodoList(row: Record<string, unknown>): QuickTodoList {
+  return {
+    id: row.id as string,
+    title: row.title as string,
+    items: (row.items as QuickTodoList["items"]) || [],
+    displayOrder: row.display_order as number,
+    createdAt: new Date(row.created_at as string),
+  };
+}
+
+export async function fetchQuickTodoLists(): Promise<QuickTodoList[]> {
+  const { data, error } = await supabase
+    .from("quick_todo_lists")
+    .select("*")
+    .order("display_order", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.warn("quick_todo_lists table not found or error:", error.message);
+    return [];
+  }
+  return (data || []).map(toQuickTodoList);
+}
+
+export async function createQuickTodoList(list: QuickTodoList): Promise<void> {
+  const { error } = await supabase.from("quick_todo_lists").insert({
+    id: list.id,
+    title: list.title,
+    items: list.items,
+    display_order: list.displayOrder,
+    created_at: list.createdAt.toISOString(),
+  });
+
+  if (error) throw error;
+}
+
+export async function updateQuickTodoList(list: QuickTodoList): Promise<void> {
+  const { error } = await supabase
+    .from("quick_todo_lists")
+    .update({
+      title: list.title,
+      items: list.items,
+      display_order: list.displayOrder,
+    })
+    .eq("id", list.id);
+
+  if (error) throw error;
+}
+
+export async function deleteQuickTodoList(listId: string): Promise<void> {
+  const { error } = await supabase
+    .from("quick_todo_lists")
+    .delete()
+    .eq("id", listId);
+
+  if (error) throw error;
+}
+
 // Load all data
 export async function loadAllData(): Promise<{
   projects: Project[];
@@ -993,6 +1132,8 @@ export async function loadAllData(): Promise<{
   projectLinks: ProjectLink[];
   miscCategories: MiscCategory[];
   energyLogs: EnergyLog[];
+  stickyNotes: StickyNote[];
+  quickTodoLists: QuickTodoList[];
 }> {
   const [
     projects,
@@ -1010,6 +1151,8 @@ export async function loadAllData(): Promise<{
     projectLinks,
     miscCategories,
     energyLogs,
+    stickyNotes,
+    quickTodoLists,
   ] = await Promise.all([
     fetchProjects(),
     fetchTasks(),
@@ -1026,6 +1169,8 @@ export async function loadAllData(): Promise<{
     fetchProjectLinks(),
     fetchMiscCategories(),
     fetchEnergyLogs(),
+    fetchStickyNotes(),
+    fetchQuickTodoLists(),
   ]);
 
   return {
@@ -1044,5 +1189,7 @@ export async function loadAllData(): Promise<{
     projectLinks,
     miscCategories,
     energyLogs,
+    stickyNotes,
+    quickTodoLists,
   };
 }
