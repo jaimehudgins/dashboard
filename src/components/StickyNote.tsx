@@ -120,21 +120,24 @@ export default function StickyNote({
       </div>
 
       {/* Content */}
-      <div className="flex-1">
+      <div className="flex-1" onClick={() => !isEditing && setIsEditing(true)}>
         {isEditing ? (
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            onBlur={handleSave}
+            onBlur={(e) => {
+              // Small delay to allow clicking within the note
+              setTimeout(() => handleSave(), 100);
+            }}
             className="w-full h-full min-h-[100px] bg-transparent text-sm focus:outline-none resize-none"
             style={{ color: "#1e293b" }}
             placeholder="Write your note..."
+            autoFocus
           />
         ) : (
           <p
-            className="text-sm whitespace-pre-wrap cursor-pointer"
+            className="text-sm whitespace-pre-wrap cursor-pointer min-h-[100px]"
             style={{ color: "#1e293b" }}
-            onClick={() => setIsEditing(true)}
           >
             {note.content || "Click to add content..."}
           </p>
