@@ -406,6 +406,19 @@ export default function MiscTasks() {
     );
   };
 
+  // Don't render until mounted to prevent hydration mismatch
+  if (!isMounted) {
+    return (
+      <div className="pt-4">
+        <div className="flex items-center justify-between px-3 mb-2">
+          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            Misc Tasks
+          </h3>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="pt-4">
       <div className="flex items-center justify-between px-3 mb-2">

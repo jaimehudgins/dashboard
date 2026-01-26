@@ -337,7 +337,8 @@ export default function PartnerTasks() {
     );
   };
 
-  if (isLoading) {
+  // Don't render until mounted to prevent hydration mismatch
+  if (!isMounted || isLoading) {
     return (
       <div className="pt-4">
         <div className="flex items-center justify-between px-3 mb-2">
