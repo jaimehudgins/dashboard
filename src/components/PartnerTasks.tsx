@@ -181,7 +181,17 @@ export default function PartnerTasks() {
     setEditingTask(null);
   };
 
-  const activeTasks = tasks.filter((t) => !isCompleted(t.status));
+  // Filter to active tasks only and limit to 5 with closest due dates
+  const activeTasks = tasks
+    .filter((t) => !isCompleted(t.status))
+    .sort((a, b) => {
+      // Sort by due date ascending (closest first), nulls last
+      if (!a.due_date && !b.due_date) return 0;
+      if (!a.due_date) return 1;
+      if (!b.due_date) return -1;
+      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+    })
+    .slice(0, 5);
 
   const renderTask = (task: SyncedTask) => {
     const completed = isCompleted(task.status);
