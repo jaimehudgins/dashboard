@@ -80,15 +80,6 @@ export default function PartnerTasksPage() {
       if (partnersError) throw partnersError;
       setPartners(partnersData || []);
 
-      // Debug: log partner statuses
-      console.log(
-        "Partners by status:",
-        partnersData?.reduce((acc: any, p: any) => {
-          acc[p.status] = (acc[p.status] || 0) + 1;
-          return acc;
-        }, {}),
-      );
-
       const { data: followUpData, error: followUpError } = await crmSupabase
         .from("follow_up_tasks")
         .select("*")
@@ -104,24 +95,6 @@ export default function PartnerTasksPage() {
       if (onboardingError) throw onboardingError;
 
       const taskItems: TaskItem[] = [];
-
-      // Debug: log task counts before filtering
-      console.log("Follow-up tasks (raw):", followUpData?.length);
-      console.log(
-        "Onboarding tasks (raw, with due dates):",
-        onboardingData?.length,
-      );
-
-      // Debug: check follow-up task statuses
-      const followUpByStatus = (followUpData || []).reduce(
-        (acc: any, t: any) => {
-          const key = `${t.status || "null"} / completed=${t.completed}`;
-          acc[key] = (acc[key] || 0) + 1;
-          return acc;
-        },
-        {},
-      );
-      console.log("Follow-up tasks by status/completed:", followUpByStatus);
 
       (followUpData || []).forEach((task: CrmFollowUpTask) => {
         const partner = partnersData?.find((p) => p.id === task.partner_id);
@@ -152,24 +125,6 @@ export default function PartnerTasksPage() {
           partnerName: partner?.name || "Unknown Partner",
         });
       });
-
-      // Debug: log active tasks by partner status
-      const activeTasksByPartnerStatus = taskItems
-        .filter((t) => t.status !== "Complete")
-        .reduce((acc: any, t: any) => {
-          const partner = partnersData?.find((p: any) => p.id === t.partnerId);
-          const partnerStatus = partner?.status || "unknown";
-          acc[partnerStatus] = (acc[partnerStatus] || 0) + 1;
-          return acc;
-        }, {});
-      console.log(
-        "Active tasks by partner status:",
-        activeTasksByPartnerStatus,
-      );
-      console.log(
-        "Total active tasks:",
-        taskItems.filter((t) => t.status !== "Complete").length,
-      );
 
       setTasks(taskItems);
     } catch (err) {
@@ -219,6 +174,16 @@ export default function PartnerTasksPage() {
     return dueDate === today;
   };
 
+  // Helper to check if a task is completed (handles different status values)
+  const isTaskCompleted = (status: string) => {
+    const lowerStatus = status.toLowerCase();
+    return (
+      lowerStatus === "complete" ||
+      lowerStatus === "completed" ||
+      lowerStatus === "na"
+    );
+  };
+
   let filteredItems = [...tasks];
 
   if (searchQuery.trim()) {
@@ -235,7 +200,9 @@ export default function PartnerTasksPage() {
   }
 
   if (statusFilter === "active") {
-    filteredItems = filteredItems.filter((item) => item.status !== "Complete");
+    filteredItems = filteredItems.filter(
+      (item) => !isTaskCompleted(item.status),
+    );
   } else if (statusFilter !== "all") {
     filteredItems = filteredItems.filter(
       (item) => item.status === statusFilter,
@@ -255,12 +222,14 @@ export default function PartnerTasksPage() {
     return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
   });
 
-  const activeCount = tasks.filter((item) => item.status !== "Complete").length;
+  const activeCount = tasks.filter(
+    (item) => !isTaskCompleted(item.status),
+  ).length;
   const overdueCount = tasks.filter(
-    (item) => item.status !== "Complete" && isOverdue(item.dueDate),
+    (item) => !isTaskCompleted(item.status) && isOverdue(item.dueDate),
   ).length;
   const dueTodayCount = tasks.filter(
-    (item) => item.status !== "Complete" && isDueToday(item.dueDate),
+    (item) => !isTaskCompleted(item.status) && isDueToday(item.dueDate),
   ).length;
 
   const getTypeLabel = (type: TaskItem["type"]) => {
@@ -712,10 +681,11 @@ export default function PartnerTasksPage() {
                           }`}
                         >
                           <Clock className="h-4 w-4" />
-                          {isOverdue(item.dueDate) && item.status !== "Complete"
+                          {isOverdue(item.dueDate) &&
+                          !isTaskCompleted(item.status)
                             ? "Overdue"
                             : isDueToday(item.dueDate) &&
-                                item.status !== "Complete"
+                                !isTaskCompleted(item.status)
                               ? "Today"
                               : formatDate(item.dueDate)}
                         </div>

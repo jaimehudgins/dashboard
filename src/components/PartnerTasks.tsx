@@ -103,30 +103,6 @@ export default function PartnerTasks() {
           });
         });
 
-        // Debug logging
-        console.log("=== Partner Tasks Debug ===");
-        console.log("Follow-up tasks (raw):", followUpData?.length);
-        console.log(
-          "Onboarding tasks (with due dates):",
-          onboardingData?.length,
-        );
-        console.log("All tasks combined:", allTasks.length);
-
-        const activeTasksCount = allTasks.filter(
-          (t) => t.status !== "Complete",
-        ).length;
-        console.log("Active tasks (status !== Complete):", activeTasksCount);
-
-        // Log each active task for comparison
-        console.log("Active tasks detail:");
-        allTasks
-          .filter((t) => t.status !== "Complete")
-          .forEach((t) => {
-            console.log(
-              `  - [${t.source_table}] ${t.title} | Status: ${t.status} | Partner: ${t.partner_name}`,
-            );
-          });
-
         setTasks(allTasks);
       } catch (err) {
         console.error("Error fetching tasks:", err);
@@ -183,8 +159,13 @@ export default function PartnerTasks() {
 
   const isCompleted = (status: string | null) => {
     if (!status) return false;
-    // Match exactly how Partner Tasks page filters
-    return status === "Complete";
+    // Handle both follow-up tasks (Complete) and onboarding tasks (completed, na)
+    const lowerStatus = status.toLowerCase();
+    return (
+      lowerStatus === "complete" ||
+      lowerStatus === "completed" ||
+      lowerStatus === "na"
+    );
   };
 
   const handleToggleComplete = async (task: PartnerTask) => {
