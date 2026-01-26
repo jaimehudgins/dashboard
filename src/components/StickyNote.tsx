@@ -70,13 +70,13 @@ export default function StickyNote({
             onChange={(e) => setTitle(e.target.value)}
             onBlur={handleSave}
             onKeyDown={(e) => e.key === "Enter" && handleSave()}
-            className="flex-1 bg-transparent border-b border-slate-400 text-sm font-semibold text-slate-800 focus:outline-none focus:border-slate-600"
+            className="flex-1 bg-transparent border-b border-slate-600 text-sm font-semibold text-slate-900 focus:outline-none focus:border-slate-800"
             placeholder="Note title..."
             autoFocus
           />
         ) : (
           <h3
-            className="flex-1 text-sm font-semibold text-slate-800 cursor-pointer hover:text-slate-600"
+            className="flex-1 text-sm font-semibold text-slate-900 cursor-pointer hover:text-slate-700"
             onClick={() => setIsEditing(true)}
           >
             {note.title || "Untitled"}
@@ -124,12 +124,12 @@ export default function StickyNote({
             value={content}
             onChange={(e) => setContent(e.target.value)}
             onBlur={handleSave}
-            className="w-full h-full min-h-[100px] bg-transparent text-sm text-slate-700 focus:outline-none resize-none"
+            className="w-full h-full min-h-[100px] bg-transparent text-sm text-slate-900 focus:outline-none resize-none"
             placeholder="Write your note..."
           />
         ) : (
           <p
-            className="text-sm text-slate-700 whitespace-pre-wrap cursor-pointer"
+            className="text-sm text-slate-900 whitespace-pre-wrap cursor-pointer"
             onClick={() => setIsEditing(true)}
           >
             {note.content || "Click to add content..."}
