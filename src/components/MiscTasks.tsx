@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
   Plus,
@@ -50,6 +50,11 @@ export default function MiscTasks() {
     new Set(),
   );
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Get misc categories and tasks
   const categories = [...state.miscCategories].sort(
@@ -495,7 +500,7 @@ export default function MiscTasks() {
 
       {/* Category Edit Modal - rendered via portal */}
       {editingCategory &&
-        typeof document !== "undefined" &&
+        isMounted &&
         createPortal(
           <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
             <div className="bg-white border border-slate-200 rounded-xl w-full max-w-sm p-5 shadow-xl">
@@ -564,7 +569,7 @@ export default function MiscTasks() {
 
       {/* Task Edit Modal - rendered via portal to escape sidebar overflow */}
       {editingTask &&
-        typeof document !== "undefined" &&
+        isMounted &&
         createPortal(
           <TaskEditModal
             task={editingTask}

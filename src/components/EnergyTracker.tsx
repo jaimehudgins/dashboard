@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   format,
   subDays,
@@ -99,8 +99,14 @@ export default function EnergyTracker() {
   const [noteText, setNoteText] = useState("");
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
 
-  const today = startOfDay(new Date());
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Use a stable date reference that only updates after mount
+  const today = useMemo(() => startOfDay(new Date()), [mounted]);
 
   // Get logs for a specific date
   const getLogsForDate = (date: Date): EnergyLog[] => {

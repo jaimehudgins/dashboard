@@ -103,6 +103,29 @@ export default function PartnerTasks() {
           });
         });
 
+        // Debug: log task filtering
+        const activeCount = allTasks.filter((t) => {
+          const lowerStatus = (t.status || "").toLowerCase();
+          const isComplete =
+            lowerStatus === "complete" ||
+            lowerStatus === "completed" ||
+            lowerStatus === "na";
+          return !isComplete;
+        }).length;
+        console.log("=== PartnerTasks Sidebar Debug ===");
+        console.log("Total tasks:", allTasks.length);
+        console.log("Active tasks after filtering:", activeCount);
+        allTasks.forEach((t) => {
+          const lowerStatus = (t.status || "").toLowerCase();
+          const isComplete =
+            lowerStatus === "complete" ||
+            lowerStatus === "completed" ||
+            lowerStatus === "na";
+          console.log(
+            `  [${t.source_table}] "${t.title}" | status="${t.status}" | isComplete=${isComplete}`,
+          );
+        });
+
         setTasks(allTasks);
       } catch (err) {
         console.error("Error fetching tasks:", err);
