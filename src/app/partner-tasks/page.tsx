@@ -114,13 +114,19 @@ export default function PartnerTasksPage() {
 
       (onboardingData || []).forEach((task: any) => {
         const partner = partnersData?.find((p) => p.id === task.partner_id);
+        // Handle onboarding task statuses: completed, na, pending
+        const lowerStatus = (task.status || "").toLowerCase();
+        const isComplete =
+          lowerStatus === "complete" ||
+          lowerStatus === "completed" ||
+          lowerStatus === "na";
         taskItems.push({
           id: task.id,
           type: "onboarding",
           title: task.title,
           dueDate: task.due_date,
-          completed: task.status === "Complete",
-          status: task.status === "Complete" ? "Complete" : "Not Started",
+          completed: isComplete,
+          status: isComplete ? "Complete" : task.status || "Not Started",
           partnerId: task.partner_id,
           partnerName: partner?.name || "Unknown Partner",
         });
