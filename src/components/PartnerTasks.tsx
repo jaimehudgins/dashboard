@@ -33,19 +33,26 @@ export default function PartnerTasks() {
   const [editStatus, setEditStatus] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     async function fetchTasks() {
       try {
-        // Fetch partners first
+        // Fetch partners first (including status for filtering)
         const { data: partnersData } = await crmSupabase
           .from("partners")
-          .select("id, name");
+          .select("id, name, status");
 
         const partnersMap = new Map<string, string>();
-        (partnersData || []).forEach((p: { id: string; name: string }) => {
-          partnersMap.set(p.id, p.name);
-        });
+        (partnersData || []).forEach(
+          (p: { id: string; name: string; status?: string }) => {
+            partnersMap.set(p.id, p.name);
+          },
+        );
 
         // Fetch follow-up tasks
         const { data: followUpData, error: followUpError } = await crmSupabase
@@ -95,6 +102,30 @@ export default function PartnerTasks() {
             source_table: "onboarding",
           });
         });
+
+        // Debug logging
+        console.log("=== Partner Tasks Debug ===");
+        console.log("Follow-up tasks (raw):", followUpData?.length);
+        console.log(
+          "Onboarding tasks (with due dates):",
+          onboardingData?.length,
+        );
+        console.log("All tasks combined:", allTasks.length);
+
+        const activeTasksCount = allTasks.filter(
+          (t) => t.status !== "Complete",
+        ).length;
+        console.log("Active tasks (status !== Complete):", activeTasksCount);
+
+        // Log each active task for comparison
+        console.log("Active tasks detail:");
+        allTasks
+          .filter((t) => t.status !== "Complete")
+          .forEach((t) => {
+            console.log(
+              `  - [${t.source_table}] ${t.title} | Status: ${t.status} | Partner: ${t.partner_name}`,
+            );
+          });
 
         setTasks(allTasks);
       } catch (err) {
@@ -384,7 +415,7 @@ export default function PartnerTasks() {
 
       {/* Edit Modal */}
       {editingTask &&
-        typeof document !== "undefined" &&
+        isMounted &&
         createPortal(
           <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
             <div className="bg-white border border-slate-200 rounded-xl w-full max-w-md p-5 shadow-xl">

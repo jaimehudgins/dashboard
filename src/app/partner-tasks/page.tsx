@@ -80,6 +80,15 @@ export default function PartnerTasksPage() {
       if (partnersError) throw partnersError;
       setPartners(partnersData || []);
 
+      // Debug: log partner statuses
+      console.log(
+        "Partners by status:",
+        partnersData?.reduce((acc: any, p: any) => {
+          acc[p.status] = (acc[p.status] || 0) + 1;
+          return acc;
+        }, {}),
+      );
+
       const { data: followUpData, error: followUpError } = await crmSupabase
         .from("follow_up_tasks")
         .select("*")
@@ -95,6 +104,24 @@ export default function PartnerTasksPage() {
       if (onboardingError) throw onboardingError;
 
       const taskItems: TaskItem[] = [];
+
+      // Debug: log task counts before filtering
+      console.log("Follow-up tasks (raw):", followUpData?.length);
+      console.log(
+        "Onboarding tasks (raw, with due dates):",
+        onboardingData?.length,
+      );
+
+      // Debug: check follow-up task statuses
+      const followUpByStatus = (followUpData || []).reduce(
+        (acc: any, t: any) => {
+          const key = `${t.status || "null"} / completed=${t.completed}`;
+          acc[key] = (acc[key] || 0) + 1;
+          return acc;
+        },
+        {},
+      );
+      console.log("Follow-up tasks by status/completed:", followUpByStatus);
 
       (followUpData || []).forEach((task: CrmFollowUpTask) => {
         const partner = partnersData?.find((p) => p.id === task.partner_id);
@@ -125,6 +152,24 @@ export default function PartnerTasksPage() {
           partnerName: partner?.name || "Unknown Partner",
         });
       });
+
+      // Debug: log active tasks by partner status
+      const activeTasksByPartnerStatus = taskItems
+        .filter((t) => t.status !== "Complete")
+        .reduce((acc: any, t: any) => {
+          const partner = partnersData?.find((p: any) => p.id === t.partnerId);
+          const partnerStatus = partner?.status || "unknown";
+          acc[partnerStatus] = (acc[partnerStatus] || 0) + 1;
+          return acc;
+        }, {});
+      console.log(
+        "Active tasks by partner status:",
+        activeTasksByPartnerStatus,
+      );
+      console.log(
+        "Total active tasks:",
+        taskItems.filter((t) => t.status !== "Complete").length,
+      );
 
       setTasks(taskItems);
     } catch (err) {
