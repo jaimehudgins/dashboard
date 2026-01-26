@@ -12,26 +12,24 @@ import {
   Pencil,
   X,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { crmSupabase } from "@/lib/crm-supabase";
 
-interface SyncedTask {
+interface PartnerTask {
   id: string;
-  source_id: string;
-  source_table: string | null;
-  title: string | null;
-  description: string | null;
+  title: string;
   status: string | null;
   due_date: string | null;
-  synced_at: string;
+  partner_id: string | null;
+  partner_name: string;
+  source_table: "follow_up" | "onboarding";
 }
 
 export default function PartnerTasks() {
-  const [tasks, setTasks] = useState<SyncedTask[]>([]);
+  const [tasks, setTasks] = useState<PartnerTask[]>([]);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [editingTask, setEditingTask] = useState<SyncedTask | null>(null);
+  const [editingTask, setEditingTask] = useState<PartnerTask | null>(null);
   const [editTitle, setEditTitle] = useState("");
-  const [editDescription, setEditDescription] = useState("");
   const [editStatus, setEditStatus] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -39,19 +37,68 @@ export default function PartnerTasks() {
   useEffect(() => {
     async function fetchTasks() {
       try {
-        const { data, error } = await supabase
-          .from("synced_tasks")
+        // Fetch partners first
+        const { data: partnersData } = await crmSupabase
+          .from("partners")
+          .select("id, name");
+
+        const partnersMap = new Map<string, string>();
+        (partnersData || []).forEach((p: { id: string; name: string }) => {
+          partnersMap.set(p.id, p.name);
+        });
+
+        // Fetch follow-up tasks
+        const { data: followUpData, error: followUpError } = await crmSupabase
+          .from("follow_up_tasks")
           .select("*")
           .order("due_date", { ascending: true, nullsFirst: false });
 
-        if (error) {
-          console.error("Error fetching synced tasks:", error);
-          return;
+        if (followUpError) {
+          console.error("Error fetching follow-up tasks:", followUpError);
         }
 
-        setTasks(data || []);
+        // Fetch onboarding tasks
+        const { data: onboardingData, error: onboardingError } =
+          await crmSupabase
+            .from("onboarding_tasks")
+            .select("*")
+            .not("due_date", "is", null);
+
+        if (onboardingError) {
+          console.error("Error fetching onboarding tasks:", onboardingError);
+        }
+
+        const allTasks: PartnerTask[] = [];
+
+        // Process follow-up tasks
+        (followUpData || []).forEach((task: any) => {
+          allTasks.push({
+            id: task.id,
+            title: task.task,
+            status: task.status,
+            due_date: task.due_date,
+            partner_id: task.partner_id,
+            partner_name: partnersMap.get(task.partner_id) || "Unknown",
+            source_table: "follow_up",
+          });
+        });
+
+        // Process onboarding tasks
+        (onboardingData || []).forEach((task: any) => {
+          allTasks.push({
+            id: task.id,
+            title: task.title,
+            status: task.status,
+            due_date: task.due_date,
+            partner_id: task.partner_id,
+            partner_name: partnersMap.get(task.partner_id) || "Unknown",
+            source_table: "onboarding",
+          });
+        });
+
+        setTasks(allTasks);
       } catch (err) {
-        console.error("Error fetching synced tasks:", err);
+        console.error("Error fetching tasks:", err);
       } finally {
         setIsLoading(false);
       }
@@ -59,12 +106,12 @@ export default function PartnerTasks() {
 
     fetchTasks();
 
-    // Set up real-time subscription
-    const subscription = supabase
-      .channel("synced_tasks_changes")
+    // Set up real-time subscription for follow_up_tasks
+    const subscription = crmSupabase
+      .channel("crm_tasks_changes")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "synced_tasks" },
+        { event: "*", schema: "public", table: "follow_up_tasks" },
         () => {
           fetchTasks();
         },
@@ -113,17 +160,26 @@ export default function PartnerTasks() {
     );
   };
 
-  const handleToggleComplete = async (task: SyncedTask) => {
-    const newStatus = isCompleted(task.status) ? "pending" : "completed";
+  const handleToggleComplete = async (task: PartnerTask) => {
+    const newStatus = isCompleted(task.status) ? "Not Started" : "Complete";
 
-    // Optimistic update - update UI immediately
+    // Optimistic update
     setTasks((prev) =>
       prev.map((t) => (t.id === task.id ? { ...t, status: newStatus } : t)),
     );
 
-    const { error } = await supabase
-      .from("synced_tasks")
-      .update({ status: newStatus })
+    const table =
+      task.source_table === "follow_up"
+        ? "follow_up_tasks"
+        : "onboarding_tasks";
+    const updateData =
+      task.source_table === "follow_up"
+        ? { status: newStatus, completed: newStatus === "Complete" }
+        : { status: newStatus };
+
+    const { error } = await crmSupabase
+      .from(table)
+      .update(updateData)
       .eq("id", task.id);
 
     if (error) {
@@ -135,11 +191,10 @@ export default function PartnerTasks() {
     }
   };
 
-  const openEditModal = (task: SyncedTask) => {
+  const openEditModal = (task: PartnerTask) => {
     setEditingTask(task);
     setEditTitle(task.title || "");
-    setEditDescription(task.description || "");
-    setEditStatus(task.status || "pending");
+    setEditStatus(task.status || "Not Started");
     setEditDueDate(task.due_date ? task.due_date.split("T")[0] : "");
   };
 
@@ -151,7 +206,6 @@ export default function PartnerTasks() {
     const updatedTask = {
       ...editingTask,
       title: editTitle,
-      description: editDescription,
       status: editStatus,
       due_date: editDueDate || null,
     };
@@ -161,14 +215,27 @@ export default function PartnerTasks() {
       prev.map((t) => (t.id === editingTask.id ? updatedTask : t)),
     );
 
-    const { error } = await supabase
-      .from("synced_tasks")
-      .update({
-        title: editTitle,
-        description: editDescription,
-        status: editStatus,
-        due_date: editDueDate || null,
-      })
+    const table =
+      editingTask.source_table === "follow_up"
+        ? "follow_up_tasks"
+        : "onboarding_tasks";
+    const updateData =
+      editingTask.source_table === "follow_up"
+        ? {
+            task: editTitle,
+            status: editStatus,
+            due_date: editDueDate || null,
+            completed: editStatus === "Complete",
+          }
+        : {
+            title: editTitle,
+            status: editStatus,
+            due_date: editDueDate || null,
+          };
+
+    const { error } = await crmSupabase
+      .from(table)
+      .update(updateData)
       .eq("id", editingTask.id);
 
     setIsSaving(false);
@@ -197,7 +264,7 @@ export default function PartnerTasks() {
     })
     .slice(0, 5);
 
-  const renderTask = (task: SyncedTask) => {
+  const renderTask = (task: PartnerTask) => {
     const completed = isCompleted(task.status);
     const dueInfo = formatDueDate(task.due_date);
 
@@ -244,11 +311,10 @@ export default function PartnerTasks() {
               </span>
             )}
           </div>
-          {task.description && (
-            <p className="text-xs text-slate-400 mt-0.5 truncate">
-              {task.description}
-            </p>
-          )}
+          {/* Partner name */}
+          <p className="text-xs text-slate-400 mt-0.5 truncate">
+            {task.partner_name}
+          </p>
         </div>
         <button
           onClick={(e) => {
@@ -351,14 +417,11 @@ export default function PartnerTasks() {
                 </div>
                 <div>
                   <label className="block text-sm text-slate-600 mb-1">
-                    Description
+                    Partner
                   </label>
-                  <textarea
-                    value={editDescription}
-                    onChange={(e) => setEditDescription(e.target.value)}
-                    rows={3}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                  />
+                  <p className="text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                    {editingTask.partner_name}
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm text-slate-600 mb-1">
@@ -369,9 +432,11 @@ export default function PartnerTasks() {
                     onChange={(e) => setEditStatus(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
-                    <option value="pending">Pending</option>
+                    <option value="Not Started">Not Started</option>
                     <option value="In Progress">In Progress</option>
-                    <option value="completed">Completed</option>
+                    <option value="Waiting">Waiting</option>
+                    <option value="Paused">Paused</option>
+                    <option value="Complete">Complete</option>
                   </select>
                 </div>
                 <div>
