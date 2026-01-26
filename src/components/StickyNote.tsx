@@ -25,7 +25,8 @@ export default function StickyNote({
   onUpdate,
   onDelete,
 }: StickyNoteProps) {
-  const [isEditing, setIsEditing] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [editingContent, setEditingContent] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [title, setTitle] = useState(note.title);
   const [content, setContent] = useState(note.content);
@@ -35,16 +36,26 @@ export default function StickyNote({
   // Generate a slight rotation for realistic sticky note look
   const rotation = ((note.id.charCodeAt(0) % 5) - 2) * 0.5;
 
-  const handleSave = () => {
-    if (title !== note.title || content !== note.content) {
+  const handleTitleSave = () => {
+    if (title !== note.title) {
       onUpdate({
         ...note,
         title,
+        updatedAt: new Date(),
+      });
+    }
+    setEditingTitle(false);
+  };
+
+  const handleContentSave = () => {
+    if (content !== note.content) {
+      onUpdate({
+        ...note,
         content,
         updatedAt: new Date(),
       });
     }
-    setIsEditing(false);
+    setEditingContent(false);
   };
 
   const handleColorChange = (color: StickyNoteColor) => {
@@ -63,13 +74,13 @@ export default function StickyNote({
     >
       {/* Header with actions */}
       <div className="flex items-start justify-between mb-2">
-        {isEditing ? (
+        {editingTitle ? (
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            onBlur={handleSave}
-            onKeyDown={(e) => e.key === "Enter" && handleSave()}
+            onBlur={handleTitleSave}
+            onKeyDown={(e) => e.key === "Enter" && handleTitleSave()}
             className="flex-1 bg-transparent border-b border-slate-600 text-sm font-semibold focus:outline-none focus:border-slate-800"
             style={{ color: "#1e293b" }}
             placeholder="Note title..."
@@ -79,7 +90,7 @@ export default function StickyNote({
           <h3
             className="flex-1 text-sm font-semibold cursor-pointer"
             style={{ color: "#1e293b" }}
-            onClick={() => setIsEditing(true)}
+            onClick={() => setEditingTitle(true)}
           >
             {note.title || "Untitled"}
           </h3>
@@ -120,15 +131,12 @@ export default function StickyNote({
       </div>
 
       {/* Content */}
-      <div className="flex-1" onClick={() => !isEditing && setIsEditing(true)}>
-        {isEditing ? (
+      <div className="flex-1">
+        {editingContent ? (
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            onBlur={(e) => {
-              // Small delay to allow clicking within the note
-              setTimeout(() => handleSave(), 100);
-            }}
+            onBlur={handleContentSave}
             className="w-full h-full min-h-[100px] bg-transparent text-sm focus:outline-none resize-none"
             style={{ color: "#1e293b" }}
             placeholder="Write your note..."
@@ -138,6 +146,7 @@ export default function StickyNote({
           <p
             className="text-sm whitespace-pre-wrap cursor-pointer min-h-[100px]"
             style={{ color: "#1e293b" }}
+            onClick={() => setEditingContent(true)}
           >
             {note.content || "Click to add content..."}
           </p>
