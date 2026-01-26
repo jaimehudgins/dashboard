@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
 import {
   AlertCircle,
@@ -157,9 +157,14 @@ export default function Focus3Dashboard({
     getMomentumScore,
   } = useApp();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [mounted, setMounted] = useState(false);
   const focus3 = getFocus3Tasks();
   const focusMinutes = getTodayFocusMinutes();
   const momentum = getMomentumScore();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleComplete = (task: Task) => {
     dispatch({
@@ -175,7 +180,7 @@ export default function Focus3Dashboard({
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Command Center</h1>
           <p className="text-slate-500 mt-1">
-            {format(new Date(), "EEEE, MMMM d, yyyy")}
+            {mounted ? format(new Date(), "EEEE, MMMM d, yyyy") : "\u00A0"}
           </p>
         </div>
 

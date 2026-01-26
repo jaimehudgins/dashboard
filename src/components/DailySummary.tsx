@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
 import {
   Trophy,
@@ -15,6 +15,11 @@ import { useApp } from "@/store/store";
 
 export default function DailySummary() {
   const { state, getTodayFocusMinutes, getMomentumScore } = useApp();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const focusMinutes = getTodayFocusMinutes();
   const momentum = getMomentumScore();
@@ -59,7 +64,8 @@ export default function DailySummary() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Daily Summary</h1>
         <p className="text-slate-500 mt-1">
-          Your work receipt for {format(new Date(), "EEEE, MMMM d, yyyy")}
+          Your work receipt for{" "}
+          {mounted ? format(new Date(), "EEEE, MMMM d, yyyy") : "..."}
         </p>
       </div>
 
