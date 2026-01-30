@@ -390,9 +390,14 @@ export default function ProjectView({
   const getCompletedTasksForMilestone = (milestoneId: string) =>
     completedTasks.filter((t) => t.milestoneId === milestoneId);
 
-  // Tasks without a milestone
-  const unassignedTasks = activeTasks.filter((t) => !t.milestoneId);
-  const unassignedCompletedTasks = completedTasks.filter((t) => !t.milestoneId);
+  // Tasks without a milestone (or with a milestone that no longer exists)
+  const milestoneIds = new Set(projectMilestones.map((m) => m.id));
+  const unassignedTasks = activeTasks.filter(
+    (t) => !t.milestoneId || !milestoneIds.has(t.milestoneId),
+  );
+  const unassignedCompletedTasks = completedTasks.filter(
+    (t) => !t.milestoneId || !milestoneIds.has(t.milestoneId),
+  );
 
   // Toggle milestone collapse
   const toggleMilestoneCollapse = (milestoneId: string) => {
