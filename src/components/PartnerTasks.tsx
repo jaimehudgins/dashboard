@@ -26,7 +26,7 @@ interface PartnerTask {
 
 export default function PartnerTasks() {
   const [tasks, setTasks] = useState<PartnerTask[]>([]);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [editingTask, setEditingTask] = useState<PartnerTask | null>(null);
   const [editTitle, setEditTitle] = useState("");

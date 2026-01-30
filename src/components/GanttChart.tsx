@@ -29,7 +29,7 @@ const priorityColors: Record<string, string> = {
 
 export default function GanttChart({ projectId, onEditTask }: GanttChartProps) {
   const { state } = useApp();
-  const [collapsedMilestones, setCollapsedMilestones] = useState<Set<string>>(
+  const [expandedMilestones, setExpandedMilestones] = useState<Set<string>>(
     new Set(),
   );
 
@@ -41,7 +41,7 @@ export default function GanttChart({ projectId, onEditTask }: GanttChartProps) {
 
   // Toggle milestone collapse
   const toggleMilestone = (milestoneId: string) => {
-    setCollapsedMilestones((prev) => {
+    setExpandedMilestones((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(milestoneId)) {
         newSet.delete(milestoneId);
@@ -288,7 +288,7 @@ export default function GanttChart({ projectId, onEditTask }: GanttChartProps) {
           {/* Milestone rows with nested tasks */}
           {sortedMilestones.map((milestone) => {
             const milestoneTasks = tasksByMilestone.grouped[milestone.id] || [];
-            const isCollapsed = collapsedMilestones.has(milestone.id);
+            const isCollapsed = !expandedMilestones.has(milestone.id);
 
             return (
               <React.Fragment key={milestone.id}>
@@ -427,7 +427,7 @@ export default function GanttChart({ projectId, onEditTask }: GanttChartProps) {
             {sortedMilestones.map((milestone) => {
               const milestoneTasks =
                 tasksByMilestone.grouped[milestone.id] || [];
-              const isCollapsed = collapsedMilestones.has(milestone.id);
+              const isCollapsed = !expandedMilestones.has(milestone.id);
               const position = getMilestonePosition(milestone);
 
               return (

@@ -302,7 +302,7 @@ export default function ProjectView({
   const [sortBy, setSortBy] = useState<SortOption>("priority");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [searchQuery, setSearchQuery] = useState("");
-  const [collapsedMilestones, setCollapsedMilestones] = useState<Set<string>>(
+  const [expandedMilestones, setExpandedMilestones] = useState<Set<string>>(
     new Set(),
   );
   const [showAddMilestone, setShowAddMilestone] = useState(false);
@@ -396,7 +396,7 @@ export default function ProjectView({
 
   // Toggle milestone collapse
   const toggleMilestoneCollapse = (milestoneId: string) => {
-    setCollapsedMilestones((prev) => {
+    setExpandedMilestones((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(milestoneId)) {
         newSet.delete(milestoneId);
@@ -857,7 +857,7 @@ export default function ProjectView({
                         getCompletedTasksForMilestone(milestone.id);
                       const totalTasks =
                         milestoneTasks.length + milestoneCompletedTasks.length;
-                      const isCollapsed = collapsedMilestones.has(milestone.id);
+                      const isCollapsed = !expandedMilestones.has(milestone.id);
                       const isOverdue =
                         milestone.dueDate &&
                         new Date(milestone.dueDate) < new Date() &&

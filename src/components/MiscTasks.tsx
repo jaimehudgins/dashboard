@@ -46,7 +46,7 @@ export default function MiscTasks() {
   const [editingCategoryColor, setEditingCategoryColor] = useState("");
   const [addingTaskTo, setAddingTaskTo] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
-  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
     new Set(),
   );
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -155,13 +155,13 @@ export default function MiscTasks() {
   };
 
   const toggleCategory = (categoryId: string) => {
-    const newCollapsed = new Set(collapsedCategories);
+    const newCollapsed = new Set(expandedCategories);
     if (newCollapsed.has(categoryId)) {
       newCollapsed.delete(categoryId);
     } else {
       newCollapsed.add(categoryId);
     }
-    setCollapsedCategories(newCollapsed);
+    setExpandedCategories(newCollapsed);
   };
 
   const getPriorityColor = (priority: Priority) => {
@@ -308,7 +308,7 @@ export default function MiscTasks() {
   const renderCategory = (category: MiscCategory) => {
     const tasks = getTasksForCategory(category.id);
     const completedTasks = getCompletedTasksForCategory(category.id);
-    const isCollapsed = collapsedCategories.has(category.id);
+    const isCollapsed = !expandedCategories.has(category.id);
     const isAddingTask = addingTaskTo === category.id;
 
     return (
