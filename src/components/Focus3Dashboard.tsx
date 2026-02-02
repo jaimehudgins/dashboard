@@ -158,7 +158,8 @@ export default function Focus3Dashboard({
   } = useApp();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [mounted, setMounted] = useState(false);
-  const focus3 = getFocus3Tasks();
+  const workFocus3 = getFocus3Tasks("work");
+  const personalFocus3 = getFocus3Tasks("personal");
   const focusMinutes = getTodayFocusMinutes();
   const momentum = getMomentumScore();
 
@@ -205,31 +206,73 @@ export default function Focus3Dashboard({
         </div>
       </div>
 
-      {/* Focus 3 Section */}
+      {/* Work Focus 3 Section */}
       <div>
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
             <Target className="text-indigo-500" size={20} />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Focus 3</h2>
+            <h2 className="text-lg font-semibold text-slate-900">
+              Work Focus 3
+            </h2>
             <p className="text-sm text-slate-500">
-              Your highest-priority tasks right now
+              Your highest-priority work tasks right now
             </p>
           </div>
         </div>
 
-        {focus3.length === 0 ? (
+        {workFocus3.length === 0 ? (
           <div className="bg-white border border-slate-200 border-dashed rounded-xl p-8 text-center">
             <CheckCircle2 className="mx-auto text-green-500 mb-3" size={32} />
             <h3 className="text-slate-900 font-medium mb-1">All caught up!</h3>
             <p className="text-sm text-slate-500">
-              No priority tasks pending. Great work!
+              No priority work tasks pending. Great work!
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {focus3.map((task, index) => (
+            {workFocus3.map((task, index) => (
+              <Focus3Card
+                key={task.id}
+                task={task}
+                rank={index + 1}
+                onStartFocus={onStartFocus}
+                onComplete={handleComplete}
+                onEdit={setEditingTask}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Personal Focus 3 Section */}
+      <div>
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
+            <Target className="text-purple-500" size={20} />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">
+              Personal Focus 3
+            </h2>
+            <p className="text-sm text-slate-500">
+              Your highest-priority personal tasks right now
+            </p>
+          </div>
+        </div>
+
+        {personalFocus3.length === 0 ? (
+          <div className="bg-white border border-slate-200 border-dashed rounded-xl p-8 text-center">
+            <CheckCircle2 className="mx-auto text-green-500 mb-3" size={32} />
+            <h3 className="text-slate-900 font-medium mb-1">All caught up!</h3>
+            <p className="text-sm text-slate-500">
+              No priority personal tasks pending. Great work!
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {personalFocus3.map((task, index) => (
               <Focus3Card
                 key={task.id}
                 task={task}

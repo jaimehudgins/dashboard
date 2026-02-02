@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { X, Trash2 } from "lucide-react";
 import { useApp } from "@/store/store";
-import { Project } from "@/types";
+import { Project, ProjectCategory } from "@/types";
 
 interface ProjectEditModalProps {
   project: Project;
@@ -31,6 +31,9 @@ export default function ProjectEditModal({
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description || "");
   const [color, setColor] = useState(project.color);
+  const [category, setCategory] = useState<ProjectCategory>(
+    project.category || "work",
+  );
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -44,6 +47,7 @@ export default function ProjectEditModal({
         name: name.trim(),
         description: description.trim() || undefined,
         color,
+        category,
       },
     });
 
@@ -144,6 +148,36 @@ export default function ProjectEditModal({
                     aria-label={`Select ${option.label} color`}
                   />
                 ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-slate-600 mb-2">
+                Category
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCategory("work")}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    category === "work"
+                      ? "bg-indigo-500 text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  Work
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCategory("personal")}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    category === "personal"
+                      ? "bg-purple-500 text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  Personal
+                </button>
               </div>
             </div>
 

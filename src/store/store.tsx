@@ -28,6 +28,7 @@ import {
   EnergyLog,
   StickyNote,
   QuickTodoList,
+  ProjectCategory,
 } from "@/types";
 import * as db from "@/lib/database";
 
@@ -759,7 +760,7 @@ function appReducer(state: AppState, action: Action): AppState {
 interface AppContextType {
   state: AppState;
   dispatch: React.Dispatch<Action>;
-  getFocus3Tasks: () => Task[];
+  getFocus3Tasks: (category?: ProjectCategory) => Task[];
   getTodayFocusMinutes: () => number;
   getMomentumScore: () => number;
   getActiveProjects: () => Project[];
@@ -1104,46 +1105,61 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const getFocus3Tasks = useCallback((): Task[] => {
-    const now = new Date();
-    const today = now.toDateString();
+  const getFocus3Tasks = useCallback(
+    (category?: ProjectCategory): Task[] => {
+      const now = new Date();
+      const today = now.toDateString();
 
-    // Only get top-level tasks (no subtasks)
-    const activeTasks = state.tasks.filter(
-      (t) => t.status !== "completed" && !t.parentTaskId,
-    );
+      // Only get top-level tasks (no subtasks)
+      let activeTasks = state.tasks.filter(
+        (t) => t.status !== "completed" && !t.parentTaskId,
+      );
 
-    const scored = activeTasks.map((task) => {
-      let score = 0;
-      const dueDate = task.dueDate ? new Date(task.dueDate) : null;
-
-      if (dueDate && dueDate < now && dueDate.toDateString() !== today) {
-        score += 1000;
+      // Filter by project category if specified
+      if (category) {
+        const categoryProjectIds = new Set(
+          state.projects
+            .filter((p) => (p.category || "work") === category)
+            .map((p) => p.id),
+        );
+        activeTasks = activeTasks.filter(
+          (t) => t.projectId && categoryProjectIds.has(t.projectId),
+        );
       }
 
-      if (dueDate && dueDate.toDateString() === today) {
-        if (task.priority === "critical") score += 500;
-        else if (task.priority === "high") score += 400;
-        else if (task.priority === "medium") score += 200;
-        else score += 100;
-      }
+      const scored = activeTasks.map((task) => {
+        let score = 0;
+        const dueDate = task.dueDate ? new Date(task.dueDate) : null;
 
-      if (task.status === "in_progress") {
-        score += 300;
-      }
+        if (dueDate && dueDate < now && dueDate.toDateString() !== today) {
+          score += 1000;
+        }
 
-      if (task.priority === "critical") score += 50;
-      else if (task.priority === "high") score += 30;
-      else if (task.priority === "medium") score += 15;
+        if (dueDate && dueDate.toDateString() === today) {
+          if (task.priority === "critical") score += 500;
+          else if (task.priority === "high") score += 400;
+          else if (task.priority === "medium") score += 200;
+          else score += 100;
+        }
 
-      return { task, score };
-    });
+        if (task.status === "in_progress") {
+          score += 300;
+        }
 
-    return scored
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 3)
-      .map((s) => s.task);
-  }, [state.tasks]);
+        if (task.priority === "critical") score += 50;
+        else if (task.priority === "high") score += 30;
+        else if (task.priority === "medium") score += 15;
+
+        return { task, score };
+      });
+
+      return scored
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3)
+        .map((s) => s.task);
+    },
+    [state.tasks, state.projects],
+  );
 
   const getTodayFocusMinutes = useCallback((): number => {
     const today = new Date().toDateString();

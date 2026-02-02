@@ -17,6 +17,7 @@ import {
   EnergyLog,
   StickyNote,
   QuickTodoList,
+  ProjectCategory,
 } from "@/types";
 
 // Helper to convert snake_case DB rows to camelCase
@@ -73,6 +74,7 @@ function toProject(row: Record<string, unknown>): Project {
     createdAt: new Date(row.created_at as string),
     displayOrder: row.display_order as number | undefined,
     archived: row.archived as boolean | undefined,
+    category: (row.category as ProjectCategory | undefined) || "work",
   };
 }
 
@@ -219,6 +221,7 @@ export async function createProject(project: Project): Promise<void> {
     created_at: project.createdAt.toISOString(),
     display_order: project.displayOrder,
     archived: project.archived || false,
+    category: project.category || "work",
   });
 
   if (error) throw error;
@@ -235,6 +238,7 @@ export async function updateProject(project: Project): Promise<void> {
       total_focus_minutes: project.totalFocusMinutes,
       display_order: project.displayOrder,
       archived: project.archived,
+      category: project.category || "work",
     })
     .eq("id", project.id);
 

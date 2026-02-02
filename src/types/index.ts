@@ -1,6 +1,7 @@
 export type Priority = "critical" | "high" | "medium" | "low";
 export type TaskStatus = "pending" | "in_progress" | "completed" | "blocked";
 export type RecurrenceRule = "daily" | "weekly" | "monthly" | null;
+export type ProjectCategory = "work" | "personal";
 export type MilestoneStatus = "active" | "completed";
 
 export interface Reminder {
@@ -133,6 +134,7 @@ export interface Project {
   createdAt: Date;
   displayOrder?: number;
   archived?: boolean;
+  category?: ProjectCategory;
 }
 
 export interface InboxItem {
