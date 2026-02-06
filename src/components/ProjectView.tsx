@@ -389,12 +389,23 @@ export default function ProjectView({
     (m) => m.status === "completed",
   );
 
-  // Group tasks by milestone
+  // Group tasks by milestone, sorted by due date (closest first)
+  const sortByDueDate = (a: Task, b: Task) => {
+    if (!a.dueDate && !b.dueDate) return 0;
+    if (!a.dueDate) return 1;
+    if (!b.dueDate) return -1;
+    return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+  };
+
   const getTasksForMilestone = (milestoneId: string) =>
-    activeTasks.filter((t) => t.milestoneId === milestoneId);
+    activeTasks
+      .filter((t) => t.milestoneId === milestoneId)
+      .sort(sortByDueDate);
 
   const getCompletedTasksForMilestone = (milestoneId: string) =>
-    completedTasks.filter((t) => t.milestoneId === milestoneId);
+    completedTasks
+      .filter((t) => t.milestoneId === milestoneId)
+      .sort(sortByDueDate);
 
   // Tasks without a milestone (or with a milestone that no longer exists)
   const milestoneIds = new Set(projectMilestones.map((m) => m.id));
