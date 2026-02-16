@@ -324,7 +324,13 @@ export default function Sidebar({ children }: SidebarProps) {
         <QuickCapture />
 
         {/* Content Area */}
-        <div className="flex-1 overflow-auto p-8">{children}</div>
+        <div className="flex-1 overflow-auto p-8">
+          {React.isValidElement(children)
+            ? React.cloneElement(children as React.ReactElement<any>, {
+                onOpenZenMode: setZenModeTask,
+              })
+            : children}
+        </div>
       </main>
 
       {showCreateProject && (

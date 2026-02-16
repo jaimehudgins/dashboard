@@ -11,8 +11,16 @@ import {
   Calendar,
 } from "lucide-react";
 import { useApp } from "@/store/store";
+import { Task } from "@/types";
+import SmartInsights from "./SmartInsights";
 
-export default function AnalyticsDashboard() {
+interface AnalyticsDashboardProps {
+  onOpenZenMode?: (task: Task) => void;
+}
+
+export default function AnalyticsDashboard({
+  onOpenZenMode,
+}: AnalyticsDashboardProps) {
   const { state, getTodayFocusMinutes, getMomentumScore } = useApp();
   const [mounted, setMounted] = useState(false);
 
@@ -159,6 +167,9 @@ export default function AnalyticsDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Smart Insights */}
+      <SmartInsights onFocusTask={onOpenZenMode} />
 
       {/* Summary Stats */}
       <div className="grid grid-cols-3 gap-6">
