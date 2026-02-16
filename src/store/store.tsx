@@ -25,6 +25,7 @@ import {
   ProjectNote,
   ProjectLink,
   MiscCategory,
+  WorkArea,
   EnergyLog,
   StickyNote,
   QuickTodoList,
@@ -49,6 +50,7 @@ interface AppState {
   projectNotes: ProjectNote[];
   projectLinks: ProjectLink[];
   miscCategories: MiscCategory[];
+  workAreas: WorkArea[];
   energyLogs: EnergyLog[];
   stickyNotes: StickyNote[];
   quickTodoLists: QuickTodoList[];
@@ -116,6 +118,10 @@ type Action =
   | { type: "ADD_CATEGORY"; payload: MiscCategory }
   | { type: "UPDATE_CATEGORY"; payload: MiscCategory }
   | { type: "DELETE_CATEGORY"; payload: string }
+  // Work Areas
+  | { type: "ADD_WORK_AREA"; payload: WorkArea }
+  | { type: "UPDATE_WORK_AREA"; payload: WorkArea }
+  | { type: "DELETE_WORK_AREA"; payload: string }
   // Energy Logs
   | { type: "ADD_ENERGY_LOG"; payload: EnergyLog }
   | { type: "UPDATE_ENERGY_LOG"; payload: EnergyLog }
@@ -151,6 +157,7 @@ const emptyState: AppState = {
   projectNotes: [],
   projectLinks: [],
   miscCategories: [],
+  workAreas: [],
   energyLogs: [],
   stickyNotes: [],
   quickTodoLists: [],
@@ -659,6 +666,33 @@ function appReducer(state: AppState, action: Action): AppState {
         ),
       };
 
+    // Work Areas
+    case "ADD_WORK_AREA":
+      return {
+        ...state,
+        workAreas: [...state.workAreas, action.payload],
+      };
+
+    case "UPDATE_WORK_AREA":
+      return {
+        ...state,
+        workAreas: state.workAreas.map((w) =>
+          w.id === action.payload.id ? action.payload : w,
+        ),
+      };
+
+    case "DELETE_WORK_AREA":
+      return {
+        ...state,
+        workAreas: state.workAreas.filter((w) => w.id !== action.payload),
+        // Also clear workAreaId from tasks in this work area
+        tasks: state.tasks.map((t) =>
+          t.workAreaId === action.payload
+            ? { ...t, workAreaId: undefined }
+            : t,
+        ),
+      };
+
     // Energy Logs
     case "ADD_ENERGY_LOG":
       return {
@@ -804,6 +838,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             projectNotes: data.projectNotes,
             projectLinks: data.projectLinks,
             miscCategories: data.miscCategories,
+            workAreas: data.workAreas || [],
             energyLogs: data.energyLogs,
             stickyNotes: data.stickyNotes || [],
             quickTodoLists: data.quickTodoLists || [],
@@ -1040,6 +1075,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             break;
           case "DELETE_CATEGORY":
             await db.deleteMiscCategory(action.payload);
+            break;
+          // Work Areas
+          case "ADD_WORK_AREA":
+            await db.createWorkArea(action.payload);
+            break;
+          case "UPDATE_WORK_AREA":
+            await db.updateWorkArea(action.payload);
+            break;
+          case "DELETE_WORK_AREA":
+            await db.deleteWorkArea(action.payload);
             break;
           // Energy Logs
           case "ADD_ENERGY_LOG":

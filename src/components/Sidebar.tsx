@@ -46,6 +46,7 @@ import ProjectEditModal from "./ProjectEditModal";
 import TagManager from "./TagManager";
 import MiscTasks from "./MiscTasks";
 import PartnerTasks from "./PartnerTasks";
+import FocusButton from "./FocusButton";
 import { useKeyboardShortcuts } from "./KeyboardShortcuts";
 import { useTheme } from "./ThemeProvider";
 
@@ -337,6 +338,9 @@ export default function Sidebar({ children }: SidebarProps) {
       {showTagManager && (
         <TagManager onClose={() => setShowTagManager(false)} />
       )}
+
+      {/* Focus Button - Global */}
+      <FocusButton />
     </div>
   );
 }

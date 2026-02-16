@@ -14,6 +14,7 @@ import {
   ProjectNote,
   ProjectLink,
   MiscCategory,
+  WorkArea,
   EnergyLog,
   StickyNote,
   QuickTodoList,
@@ -49,6 +50,7 @@ function toTask(row: Record<string, unknown>): Task {
     milestoneId: row.milestone_id as string | undefined,
     categoryId: row.category_id as string | undefined,
     link: row.link as string | undefined,
+    workAreaId: row.work_area_id as string | undefined,
   };
 }
 
@@ -59,6 +61,16 @@ function toMiscCategory(row: Record<string, unknown>): MiscCategory {
     color: row.color as string,
     displayOrder: row.display_order as number | undefined,
     isCollapsed: row.is_collapsed as boolean | undefined,
+    createdAt: new Date(row.created_at as string),
+  };
+}
+
+function toWorkArea(row: Record<string, unknown>): WorkArea {
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    color: row.color as string,
+    displayOrder: row.display_order as number | undefined,
     createdAt: new Date(row.created_at as string),
   };
 }
@@ -281,6 +293,7 @@ export async function createTask(task: Task): Promise<void> {
     milestone_id: task.milestoneId,
     category_id: task.categoryId,
     link: task.link,
+    work_area_id: task.workAreaId,
   });
 
   if (error) throw error;
@@ -310,6 +323,7 @@ export async function updateTask(task: Task): Promise<void> {
       milestone_id: task.milestoneId,
       category_id: task.categoryId,
       link: task.link,
+      work_area_id: task.workAreaId,
     })
     .eq("id", task.id);
 
@@ -810,6 +824,55 @@ export async function deleteMiscCategory(categoryId: string): Promise<void> {
   if (error) throw error;
 }
 
+// Work Areas
+export async function fetchWorkAreas(): Promise<WorkArea[]> {
+  const { data, error } = await supabase
+    .from("work_areas")
+    .select("*")
+    .order("display_order", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.warn("work_areas table not found or error:", error.message);
+    return [];
+  }
+  return (data || []).map(toWorkArea);
+}
+
+export async function createWorkArea(workArea: WorkArea): Promise<void> {
+  const { error } = await supabase.from("work_areas").insert({
+    id: workArea.id,
+    name: workArea.name,
+    color: workArea.color,
+    display_order: workArea.displayOrder,
+    created_at: workArea.createdAt.toISOString(),
+  });
+
+  if (error) throw error;
+}
+
+export async function updateWorkArea(workArea: WorkArea): Promise<void> {
+  const { error } = await supabase
+    .from("work_areas")
+    .update({
+      name: workArea.name,
+      color: workArea.color,
+      display_order: workArea.displayOrder,
+    })
+    .eq("id", workArea.id);
+
+  if (error) throw error;
+}
+
+export async function deleteWorkArea(workAreaId: string): Promise<void> {
+  const { error } = await supabase
+    .from("work_areas")
+    .delete()
+    .eq("id", workAreaId);
+
+  if (error) throw error;
+}
+
 // Inbox Items
 export async function fetchInboxItems(): Promise<InboxItem[]> {
   const { data, error } = await supabase
@@ -1147,6 +1210,7 @@ export async function loadAllData(): Promise<{
   projectNotes: ProjectNote[];
   projectLinks: ProjectLink[];
   miscCategories: MiscCategory[];
+  workAreas: WorkArea[];
   energyLogs: EnergyLog[];
   stickyNotes: StickyNote[];
   quickTodoLists: QuickTodoList[];
@@ -1166,6 +1230,7 @@ export async function loadAllData(): Promise<{
     projectNotes,
     projectLinks,
     miscCategories,
+    workAreas,
     energyLogs,
     stickyNotes,
     quickTodoLists,
@@ -1184,6 +1249,7 @@ export async function loadAllData(): Promise<{
     fetchProjectNotes(),
     fetchProjectLinks(),
     fetchMiscCategories(),
+    fetchWorkAreas(),
     fetchEnergyLogs(),
     fetchStickyNotes(),
     fetchQuickTodoLists(),
@@ -1204,6 +1270,7 @@ export async function loadAllData(): Promise<{
     projectNotes,
     projectLinks,
     miscCategories,
+    workAreas,
     energyLogs,
     stickyNotes,
     quickTodoLists,

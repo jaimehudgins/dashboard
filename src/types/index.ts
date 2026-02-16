@@ -47,6 +47,8 @@ export interface Task {
   categoryId?: string;
   // External link
   link?: string;
+  // Work area for time tracking analytics
+  workAreaId?: string;
 }
 
 export interface TaskDependency {
@@ -167,6 +169,14 @@ export interface MiscCategory {
   color: string;
   displayOrder?: number;
   isCollapsed?: boolean;
+  createdAt: Date;
+}
+
+export interface WorkArea {
+  id: string;
+  name: string;
+  color: string;
+  displayOrder?: number;
   createdAt: Date;
 }
 
