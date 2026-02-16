@@ -43,22 +43,9 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
 
   // Get active tasks (not completed, not subtasks)
   const activeTasks = useMemo(() => {
-    return state.tasks
-      .filter((t) => t.status !== "completed" && !t.parentTaskId)
-      .sort((a, b) => {
-        // Sort by priority first
-        const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-        if (a.priority !== b.priority) {
-          return priorityOrder[a.priority] - priorityOrder[b.priority];
-        }
-        // Then by due date
-        if (a.dueDate && b.dueDate) {
-          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-        }
-        if (a.dueDate) return -1;
-        if (b.dueDate) return 1;
-        return 0;
-      });
+    return state.tasks.filter(
+      (t) => t.status !== "completed" && !t.parentTaskId
+    );
   }, [state.tasks]);
 
   // Apply filters
@@ -144,6 +131,26 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
     selectedTags,
     dueDateFilter,
   ]);
+
+  // Split tasks into those with and without due dates
+  const tasksWithDueDate = useMemo(() => {
+    return filteredTasks
+      .filter((t) => t.dueDate)
+      .sort((a, b) => {
+        // Sort by due date (earliest first)
+        return new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime();
+      });
+  }, [filteredTasks]);
+
+  const tasksWithoutDueDate = useMemo(() => {
+    return filteredTasks
+      .filter((t) => !t.dueDate)
+      .sort((a, b) => {
+        // Sort by priority for undated tasks
+        const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+        return priorityOrder[a.priority] - priorityOrder[b.priority];
+      });
+  }, [filteredTasks]);
 
   const toggleArrayFilter = <T,>(
     value: T,
@@ -479,144 +486,302 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {filteredTasks.map((task) => {
-            const project = state.projects.find((p) => p.id === task.projectId);
-            const workArea = task.workAreaId
-              ? state.workAreas.find((w) => w.id === task.workAreaId)
-              : null;
-            const taskIsOverdue = isOverdue(task);
+        <div className="space-y-6">
+          {/* Tasks with Due Dates */}
+          {tasksWithDueDate.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-slate-700 mb-3">
+                Scheduled Tasks ({tasksWithDueDate.length})
+              </h3>
+              <div className="space-y-3">
+                {tasksWithDueDate.map((task) => {
+                  const project = state.projects.find(
+                    (p) => p.id === task.projectId
+                  );
+                  const workArea = task.workAreaId
+                    ? state.workAreas.find((w) => w.id === task.workAreaId)
+                    : null;
+                  const taskIsOverdue = isOverdue(task);
 
-            return (
-              <div
-                key={task.id}
-                className="bg-white border border-slate-200 rounded-xl p-4 hover:border-slate-300 hover:shadow-sm transition-all"
-              >
-                <div className="flex items-start gap-4">
-                  {/* Status Indicator */}
-                  <button
-                    onClick={() => handleComplete(task)}
-                    className="flex-shrink-0 mt-1 text-slate-400 hover:text-green-500 transition-colors"
-                  >
-                    <Circle size={20} />
-                  </button>
-
-                  {/* Task Content */}
-                  <div className="flex-1 min-w-0">
-                    {/* Title and Priority */}
-                    <div className="flex items-start gap-3 mb-2">
-                      <h4 className="text-slate-900 font-medium flex-1">
-                        {task.title}
-                      </h4>
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getPriorityColor(
-                          task.priority
-                        )}`}
-                      >
-                        {task.priority}
-                      </span>
-                    </div>
-
-                    {/* Description */}
-                    {task.description && (
-                      <p className="text-sm text-slate-600 mb-3 line-clamp-2">
-                        {task.description}
-                      </p>
-                    )}
-
-                    {/* Metadata */}
-                    <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap mb-3">
-                      {project && (
-                        <span className="flex items-center gap-1.5">
-                          <span
-                            className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: project.color }}
-                          />
-                          {project.name}
-                        </span>
-                      )}
-
-                      {workArea && (
-                        <span className="flex items-center gap-1.5">
-                          <Briefcase size={12} />
-                          {workArea.name}
-                        </span>
-                      )}
-
-                      {task.dueDate && (
-                        <span
-                          className={`flex items-center gap-1.5 ${
-                            taskIsOverdue ? "text-red-500 font-medium" : ""
-                          }`}
+                  return (
+                    <div
+                      key={task.id}
+                      className="bg-white border border-slate-200 rounded-xl p-4 hover:border-slate-300 hover:shadow-sm transition-all"
+                    >
+                      <div className="flex items-start gap-4">
+                        {/* Status Indicator */}
+                        <button
+                          onClick={() => handleComplete(task)}
+                          className="flex-shrink-0 mt-1 text-slate-400 hover:text-green-500 transition-colors"
                         >
-                          {taskIsOverdue ? (
-                            <AlertCircle size={12} />
-                          ) : (
-                            <Calendar size={12} />
+                          <Circle size={20} />
+                        </button>
+
+                        {/* Task Content */}
+                        <div className="flex-1 min-w-0">
+                          {/* Title and Priority */}
+                          <div className="flex items-start gap-3 mb-2">
+                            <h4 className="text-slate-900 font-medium flex-1">
+                              {task.title}
+                            </h4>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getPriorityColor(
+                                task.priority
+                              )}`}
+                            >
+                              {task.priority}
+                            </span>
+                          </div>
+
+                          {/* Description */}
+                          {task.description && (
+                            <p className="text-sm text-slate-600 mb-3 line-clamp-2">
+                              {task.description}
+                            </p>
                           )}
-                          {taskIsOverdue ? "Overdue: " : "Due: "}
-                          {format(new Date(task.dueDate), "MMM d")}
-                        </span>
-                      )}
 
-                      {task.focusMinutes > 0 && (
-                        <span className="flex items-center gap-1.5">
-                          <Clock size={12} />
-                          {task.focusMinutes}m focused
-                        </span>
-                      )}
+                          {/* Metadata */}
+                          <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap mb-3">
+                            {project && (
+                              <span className="flex items-center gap-1.5">
+                                <span
+                                  className="w-2 h-2 rounded-full"
+                                  style={{ backgroundColor: project.color }}
+                                />
+                                {project.name}
+                              </span>
+                            )}
 
-                      {task.status === "in_progress" && (
-                        <span className="text-indigo-600 font-medium">
-                          In Progress
-                        </span>
-                      )}
+                            {workArea && (
+                              <span className="flex items-center gap-1.5">
+                                <Briefcase size={12} />
+                                {workArea.name}
+                              </span>
+                            )}
 
-                      {task.status === "blocked" && (
-                        <span className="text-red-600 font-medium">Blocked</span>
-                      )}
-                    </div>
+                            {task.dueDate && (
+                              <span
+                                className={`flex items-center gap-1.5 ${
+                                  taskIsOverdue ? "text-red-500 font-medium" : ""
+                                }`}
+                              >
+                                {taskIsOverdue ? (
+                                  <AlertCircle size={12} />
+                                ) : (
+                                  <Calendar size={12} />
+                                )}
+                                {taskIsOverdue ? "Overdue: " : "Due: "}
+                                {format(new Date(task.dueDate), "MMM d")}
+                              </span>
+                            )}
 
-                    {/* Tags */}
-                    {task.tagIds && task.tagIds.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-3">
-                        {task.tagIds.map((tagId) => {
-                          const tag = state.tags.find((t) => t.id === tagId);
-                          if (!tag) return null;
-                          return <TagBadge key={tag.id} tag={tag} size="sm" />;
-                        })}
+                            {task.focusMinutes > 0 && (
+                              <span className="flex items-center gap-1.5">
+                                <Clock size={12} />
+                                {task.focusMinutes}m focused
+                              </span>
+                            )}
+
+                            {task.status === "in_progress" && (
+                              <span className="text-indigo-600 font-medium">
+                                In Progress
+                              </span>
+                            )}
+
+                            {task.status === "blocked" && (
+                              <span className="text-red-600 font-medium">
+                                Blocked
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Tags */}
+                          {task.tagIds && task.tagIds.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-3">
+                              {task.tagIds.map((tagId) => {
+                                const tag = state.tags.find(
+                                  (t) => t.id === tagId
+                                );
+                                if (!tag) return null;
+                                return (
+                                  <TagBadge key={tag.id} tag={tag} size="sm" />
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* Actions */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleFocus(task)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors"
+                            >
+                              <Play size={14} />
+                              Focus
+                            </button>
+                            <button
+                              onClick={() => setEditingTask(task)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors"
+                            >
+                              <Pencil size={14} />
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleComplete(task)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 rounded-lg text-sm font-medium transition-colors"
+                            >
+                              <CheckCircle2 size={14} />
+                              Complete
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    )}
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleFocus(task)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors"
-                      >
-                        <Play size={14} />
-                        Focus
-                      </button>
-                      <button
-                        onClick={() => setEditingTask(task)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors"
-                      >
-                        <Pencil size={14} />
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleComplete(task)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 rounded-lg text-sm font-medium transition-colors"
-                      >
-                        <CheckCircle2 size={14} />
-                        Complete
-                      </button>
                     </div>
-                  </div>
-                </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+          )}
+
+          {/* Tasks without Due Dates */}
+          {tasksWithoutDueDate.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                <AlertCircle size={16} className="text-amber-500" />
+                Unscheduled Tasks ({tasksWithoutDueDate.length})
+              </h3>
+              <div className="space-y-3">
+                {tasksWithoutDueDate.map((task) => {
+                  const project = state.projects.find(
+                    (p) => p.id === task.projectId
+                  );
+                  const workArea = task.workAreaId
+                    ? state.workAreas.find((w) => w.id === task.workAreaId)
+                    : null;
+
+                  return (
+                    <div
+                      key={task.id}
+                      className="bg-white border border-slate-200 rounded-xl p-4 hover:border-slate-300 hover:shadow-sm transition-all"
+                    >
+                      <div className="flex items-start gap-4">
+                        {/* Status Indicator */}
+                        <button
+                          onClick={() => handleComplete(task)}
+                          className="flex-shrink-0 mt-1 text-slate-400 hover:text-green-500 transition-colors"
+                        >
+                          <Circle size={20} />
+                        </button>
+
+                        {/* Task Content */}
+                        <div className="flex-1 min-w-0">
+                          {/* Title and Priority */}
+                          <div className="flex items-start gap-3 mb-2">
+                            <h4 className="text-slate-900 font-medium flex-1">
+                              {task.title}
+                            </h4>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getPriorityColor(
+                                task.priority
+                              )}`}
+                            >
+                              {task.priority}
+                            </span>
+                          </div>
+
+                          {/* Description */}
+                          {task.description && (
+                            <p className="text-sm text-slate-600 mb-3 line-clamp-2">
+                              {task.description}
+                            </p>
+                          )}
+
+                          {/* Metadata */}
+                          <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap mb-3">
+                            {project && (
+                              <span className="flex items-center gap-1.5">
+                                <span
+                                  className="w-2 h-2 rounded-full"
+                                  style={{ backgroundColor: project.color }}
+                                />
+                                {project.name}
+                              </span>
+                            )}
+
+                            {workArea && (
+                              <span className="flex items-center gap-1.5">
+                                <Briefcase size={12} />
+                                {workArea.name}
+                              </span>
+                            )}
+
+                            {task.focusMinutes > 0 && (
+                              <span className="flex items-center gap-1.5">
+                                <Clock size={12} />
+                                {task.focusMinutes}m focused
+                              </span>
+                            )}
+
+                            {task.status === "in_progress" && (
+                              <span className="text-indigo-600 font-medium">
+                                In Progress
+                              </span>
+                            )}
+
+                            {task.status === "blocked" && (
+                              <span className="text-red-600 font-medium">
+                                Blocked
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Tags */}
+                          {task.tagIds && task.tagIds.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-3">
+                              {task.tagIds.map((tagId) => {
+                                const tag = state.tags.find(
+                                  (t) => t.id === tagId
+                                );
+                                if (!tag) return null;
+                                return (
+                                  <TagBadge key={tag.id} tag={tag} size="sm" />
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* Actions */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleFocus(task)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors"
+                            >
+                              <Play size={14} />
+                              Focus
+                            </button>
+                            <button
+                              onClick={() => setEditingTask(task)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors"
+                            >
+                              <Pencil size={14} />
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleComplete(task)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 rounded-lg text-sm font-medium transition-colors"
+                            >
+                              <CheckCircle2 size={14} />
+                              Complete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
