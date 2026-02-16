@@ -13,6 +13,7 @@ import {
 import { useApp } from "@/store/store";
 import { Task } from "@/types";
 import SmartInsights from "./SmartInsights";
+import AllTasks from "./AllTasks";
 
 interface AnalyticsDashboardProps {
   onOpenZenMode?: (task: Task) => void;
@@ -170,6 +171,9 @@ export default function AnalyticsDashboard({
 
       {/* Smart Insights */}
       <SmartInsights onFocusTask={onOpenZenMode} />
+
+      {/* All Tasks */}
+      <AllTasks onFocusTask={onOpenZenMode} />
 
       {/* Summary Stats */}
       <div className="grid grid-cols-3 gap-6">
