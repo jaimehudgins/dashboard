@@ -60,7 +60,7 @@ const navItems = [
   { href: "/partner-tasks", label: "Partner Tasks", icon: Users },
   { href: "/", label: "Command Center", icon: Command },
   { href: "/inbox", label: "Inbox", icon: Inbox },
-  { href: "/archive", label: "Daily Archive", icon: Calendar },
+  { href: "/archive", label: "Work History", icon: Calendar },
   { href: "/notes", label: "Note Catcher", icon: StickyNote },
   { href: "/review", label: "Weekly Review", icon: TrendingUp },
 ];

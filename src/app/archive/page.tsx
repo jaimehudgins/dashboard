@@ -2,12 +2,12 @@
 
 import React from 'react';
 import Sidebar from '@/components/Sidebar';
-import DailySummary from '@/components/DailySummary';
+import WorkHistory from '@/components/WorkHistory';
 
 export default function ArchivePage() {
   return (
     <Sidebar>
-      <DailySummary />
+      <WorkHistory />
     </Sidebar>
   );
 }
