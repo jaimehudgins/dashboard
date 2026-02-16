@@ -64,6 +64,9 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
   const [actualMinutes, setActualMinutes] = useState<number | undefined>(
     task.actualMinutes,
   );
+  const [workAreaId, setWorkAreaId] = useState<string | undefined>(
+    task.workAreaId,
+  );
 
   // Check if this is a misc task
   const isMiscTask = projectId === "misc" || projectId === null;
@@ -102,6 +105,7 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
         link: link.trim() || undefined,
         estimatedMinutes,
         actualMinutes,
+        workAreaId,
       },
     });
 
@@ -289,6 +293,27 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
                 {projectMilestones.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Work Area Selector */}
+          {state.workAreas.length > 0 && (
+            <div>
+              <label className="block text-sm text-slate-600 mb-1">
+                Work Area
+              </label>
+              <select
+                value={workAreaId || ""}
+                onChange={(e) => setWorkAreaId(e.target.value || undefined)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">No work area</option>
+                {state.workAreas.map((wa) => (
+                  <option key={wa.id} value={wa.id}>
+                    {wa.name}
                   </option>
                 ))}
               </select>
