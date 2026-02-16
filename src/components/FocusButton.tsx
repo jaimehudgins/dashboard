@@ -4,15 +4,18 @@ import React, { useState } from "react";
 import { Focus, Timer, X } from "lucide-react";
 import { useApp } from "@/store/store";
 import FocusPicker from "./FocusPicker";
+import { Task } from "@/types";
 
-export default function FocusButton() {
+interface FocusButtonProps {
+  onOpenZenMode: (task: Task) => void;
+}
+
+export default function FocusButton({ onOpenZenMode }: FocusButtonProps) {
   const { state } = useApp();
   const [showPicker, setShowPicker] = useState(false);
 
-  // Find active focus session
-  const activeFocusSession = state.focusSessions.find(
-    (session) => !session.endTime
-  );
+  // Use the active focus session from state
+  const activeFocusSession = state.activeFocusSession;
 
   const activeTask = activeFocusSession
     ? state.tasks.find((t) => t.id === activeFocusSession.taskId)
@@ -60,7 +63,8 @@ export default function FocusButton() {
       {showPicker && (
         <FocusPicker
           onClose={() => setShowPicker(false)}
-          currentFocusSession={activeFocusSession}
+          currentFocusSession={activeFocusSession || undefined}
+          onOpenZenMode={onOpenZenMode}
         />
       )}
     </>

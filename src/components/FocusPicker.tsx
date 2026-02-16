@@ -9,11 +9,13 @@ import { format, isAfter, isBefore, startOfDay } from "date-fns";
 interface FocusPickerProps {
   onClose: () => void;
   currentFocusSession?: FocusSession;
+  onOpenZenMode: (task: Task) => void;
 }
 
 export default function FocusPicker({
   onClose,
   currentFocusSession,
+  onOpenZenMode,
 }: FocusPickerProps) {
   const { state, dispatch } = useApp();
   const [searchQuery, setSearchQuery] = useState("");
@@ -146,20 +148,10 @@ export default function FocusPicker({
       });
     }
 
-    // Start new session
-    const newSession: FocusSession = {
-      id: `focus-${Date.now()}`,
-      taskId: task.id,
-      projectId: task.projectId,
-      startTime: new Date(),
-      minutes: 0,
-    };
-
-    dispatch({
-      type: "START_FOCUS",
-      payload: newSession,
-    });
+    // Close picker and open ZenMode with the selected task
+    // ZenMode will handle starting the focus session
     onClose();
+    onOpenZenMode(task);
   };
 
   const getPriorityColor = (priority: Priority) => {

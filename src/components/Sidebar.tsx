@@ -47,8 +47,10 @@ import TagManager from "./TagManager";
 import MiscTasks from "./MiscTasks";
 import PartnerTasks from "./PartnerTasks";
 import FocusButton from "./FocusButton";
+import ZenMode from "./ZenMode";
 import { useKeyboardShortcuts } from "./KeyboardShortcuts";
 import { useTheme } from "./ThemeProvider";
+import { Task } from "@/types";
 
 interface SidebarProps {
   children: React.ReactNode;
@@ -142,6 +144,7 @@ export default function Sidebar({ children }: SidebarProps) {
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [showTagManager, setShowTagManager] = useState(false);
+  const [zenModeTask, setZenModeTask] = useState<Task | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -340,7 +343,16 @@ export default function Sidebar({ children }: SidebarProps) {
       )}
 
       {/* Focus Button - Global */}
-      <FocusButton />
+      <FocusButton onOpenZenMode={setZenModeTask} />
+
+      {/* ZenMode - Global */}
+      {zenModeTask && (
+        <ZenMode
+          task={zenModeTask}
+          onClose={() => setZenModeTask(null)}
+          onSwitchTask={setZenModeTask}
+        />
+      )}
     </div>
   );
 }
