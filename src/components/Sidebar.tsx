@@ -59,7 +59,6 @@ interface SidebarProps {
 const navItems = [
   { href: "/partner-tasks", label: "Partner Tasks", icon: Users },
   { href: "/", label: "Command Center", icon: Command },
-  { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/archive", label: "Work History", icon: Calendar },
   { href: "/notes", label: "Note Catcher", icon: StickyNote },
   { href: "/review", label: "Weekly Review", icon: TrendingUp },
@@ -237,11 +236,6 @@ export default function Sidebar({ children }: SidebarProps) {
               >
                 <Icon size={18} />
                 {item.label}
-                {item.href === "/inbox" && state.inbox.length > 0 && (
-                  <span className="ml-auto bg-indigo-500 text-white text-xs px-2 py-0.5 rounded-full">
-                    {state.inbox.length}
-                  </span>
-                )}
               </button>
             );
           })}

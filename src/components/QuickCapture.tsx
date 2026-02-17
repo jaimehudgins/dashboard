@@ -6,13 +6,13 @@ import { useApp } from "@/store/store";
 import { Priority } from "@/types";
 
 type CaptureTarget =
-  | { type: "inbox" }
+  | { type: "unassigned" }
   | { type: "project"; projectId: string }
   | { type: "misc"; categoryId: string };
 
 export default function QuickCapture() {
   const [input, setInput] = useState("");
-  const [target, setTarget] = useState<CaptureTarget>({ type: "inbox" });
+  const [target, setTarget] = useState<CaptureTarget>({ type: "unassigned" });
   const { state, dispatch } = useApp();
 
   const activeProjects = state.projects.filter((p) => !p.archived);
@@ -22,13 +22,17 @@ export default function QuickCapture() {
     e.preventDefault();
     if (!input.trim()) return;
 
-    if (target.type === "inbox") {
+    if (target.type === "unassigned") {
       dispatch({
-        type: "ADD_INBOX_ITEM",
+        type: "ADD_TASK",
         payload: {
-          id: `inbox-${Date.now()}`,
-          content: input.trim(),
+          id: `task-${Date.now()}`,
+          title: input.trim(),
+          priority: "medium" as Priority,
+          status: "pending",
+          projectId: null,
           createdAt: new Date(),
+          focusMinutes: 0,
         },
       });
     } else if (target.type === "project") {
@@ -64,7 +68,7 @@ export default function QuickCapture() {
   };
 
   const getTargetLabel = () => {
-    if (target.type === "inbox") return "Inbox";
+    if (target.type === "unassigned") return "Unassigned";
     if (target.type === "project") {
       const project = activeProjects.find((p) => p.id === target.projectId);
       return project?.name || "Project";
@@ -73,7 +77,7 @@ export default function QuickCapture() {
       const category = categories.find((c) => c.id === target.categoryId);
       return category?.name || "Misc";
     }
-    return "Inbox";
+    return "Unassigned";
   };
 
   const getTargetColor = () => {
@@ -115,16 +119,16 @@ export default function QuickCapture() {
         <div className="relative">
           <select
             value={
-              target.type === "inbox"
-                ? "inbox"
+              target.type === "unassigned"
+                ? "unassigned"
                 : target.type === "project"
                   ? `project:${target.projectId}`
                   : `misc:${target.categoryId}`
             }
             onChange={(e) => {
               const value = e.target.value;
-              if (value === "inbox") {
-                setTarget({ type: "inbox" });
+              if (value === "unassigned") {
+                setTarget({ type: "unassigned" });
               } else if (value.startsWith("project:")) {
                 setTarget({
                   type: "project",
@@ -139,7 +143,7 @@ export default function QuickCapture() {
             }}
             className="appearance-none bg-slate-100 border border-slate-200 rounded-lg pl-3 pr-8 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
           >
-            <option value="inbox">Inbox</option>
+            <option value="unassigned">Unassigned</option>
 
             {activeProjects.length > 0 && (
               <optgroup label="Projects">
