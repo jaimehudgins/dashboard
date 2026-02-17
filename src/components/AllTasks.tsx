@@ -182,32 +182,6 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
               )}
             </div>
 
-            {/* Work Area Selector */}
-            <div className="mb-2">
-              <select
-                value={task.workAreaId || ""}
-                onChange={(e) =>
-                  handleWorkAreaChange(task, e.target.value || undefined)
-                }
-                className="text-xs px-2 py-1 rounded border border-slate-300 text-slate-700 hover:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-                style={
-                  currentWorkArea
-                    ? {
-                        borderColor: currentWorkArea.color,
-                        color: currentWorkArea.color,
-                      }
-                    : {}
-                }
-              >
-                <option value="">Unassigned</option>
-                {state.workAreas.map((wa) => (
-                  <option key={wa.id} value={wa.id}>
-                    {wa.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             {/* Actions */}
             <div className="flex items-center gap-1">
               <button
@@ -224,6 +198,28 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
                 <Pencil size={10} />
                 Edit
               </button>
+              <select
+                value={task.workAreaId || ""}
+                onChange={(e) =>
+                  handleWorkAreaChange(task, e.target.value || undefined)
+                }
+                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-medium transition-colors cursor-pointer border-0 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                style={
+                  currentWorkArea
+                    ? {
+                        backgroundColor: `${currentWorkArea.color}15`,
+                        color: currentWorkArea.color,
+                      }
+                    : {}
+                }
+              >
+                <option value="">Unassigned</option>
+                {state.workAreas.map((wa) => (
+                  <option key={wa.id} value={wa.id}>
+                    {wa.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
