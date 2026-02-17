@@ -631,7 +631,7 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
                               className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 rounded-lg text-sm font-medium transition-colors"
                             >
                               <CheckCircle2 size={14} />
-                              Complete
+                              Done
                             </button>
                           </div>
                         </div>
@@ -771,7 +771,7 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
                               className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 rounded-lg text-sm font-medium transition-colors"
                             >
                               <CheckCircle2 size={14} />
-                              Complete
+                              Done
                             </button>
                           </div>
                         </div>
