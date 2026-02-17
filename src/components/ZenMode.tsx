@@ -146,7 +146,12 @@ export default function ZenMode({ task, onClose, onSwitchTask }: ZenModeProps) {
 
   // Note handlers
   const handleAddNote = useCallback(() => {
-    if (!newNoteTitle.trim() || !task.projectId) return;
+    if (!newNoteTitle.trim()) return;
+    if (!task.projectId) {
+      // If no project, just save to scratchpad instead
+      alert("Notes require a project. Use the Session tab for quick notes, or assign this task to a project.");
+      return;
+    }
     dispatch({
       type: "ADD_NOTE",
       payload: {
@@ -336,13 +341,25 @@ export default function ZenMode({ task, onClose, onSwitchTask }: ZenModeProps) {
           {/* Project Notes */}
           {activeTab === "notes" && (
             <div className="p-4 space-y-3">
-              <button
-                onClick={() => setAddingNote(true)}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 transition-colors text-sm"
-              >
-                <Plus size={14} />
-                Add Note
-              </button>
+              {!task.projectId ? (
+                <div className="text-center py-8 space-y-2">
+                  <StickyNote size={32} className="mx-auto text-slate-700" />
+                  <p className="text-sm text-slate-500">
+                    Notes require a project
+                  </p>
+                  <p className="text-xs text-slate-600">
+                    Use the <span className="text-white">Session</span> tab for quick notes, or assign this task to a project to use project notes
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setAddingNote(true)}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 transition-colors text-sm"
+                  >
+                    <Plus size={14} />
+                    Add Note
+                  </button>
 
               {addingNote && (
                 <div className="rounded-lg bg-slate-900 p-3 space-y-2">
@@ -456,6 +473,8 @@ export default function ZenMode({ task, onClose, onSwitchTask }: ZenModeProps) {
                 <p className="text-sm text-slate-600 text-center py-8">
                   No notes yet for this project
                 </p>
+              )}
+                </>
               )}
             </div>
           )}
