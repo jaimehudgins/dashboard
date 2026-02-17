@@ -107,9 +107,22 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
     return dueDate < today;
   };
 
+  const handleWorkAreaChange = (task: Task, newWorkAreaId: string | undefined) => {
+    dispatch({
+      type: "UPDATE_TASK",
+      payload: {
+        ...task,
+        workAreaId: newWorkAreaId,
+      },
+    });
+  };
+
   const renderTaskCard = (task: Task) => {
     const project = state.projects.find((p) => p.id === task.projectId);
     const taskIsOverdue = isOverdue(task);
+    const currentWorkArea = task.workAreaId
+      ? state.workAreas.find((w) => w.id === task.workAreaId)
+      : null;
 
     return (
       <div
@@ -167,6 +180,32 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
                   {format(new Date(task.dueDate), "MMM d")}
                 </span>
               )}
+            </div>
+
+            {/* Work Area Selector */}
+            <div className="mb-2">
+              <select
+                value={task.workAreaId || ""}
+                onChange={(e) =>
+                  handleWorkAreaChange(task, e.target.value || undefined)
+                }
+                className="text-xs px-2 py-1 rounded border border-slate-300 text-slate-700 hover:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                style={
+                  currentWorkArea
+                    ? {
+                        borderColor: currentWorkArea.color,
+                        color: currentWorkArea.color,
+                      }
+                    : {}
+                }
+              >
+                <option value="">Unassigned</option>
+                {state.workAreas.map((wa) => (
+                  <option key={wa.id} value={wa.id}>
+                    {wa.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Actions */}
