@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   AlertCircle,
   Clock,
@@ -11,19 +11,41 @@ import {
   Calendar,
   ListTodo,
   Inbox,
+  Users,
+  ExternalLink,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Task, Priority } from "@/types";
 import { format, startOfDay } from "date-fns";
 import TaskEditModal from "./TaskEditModal";
+import {
+  crmSupabase,
+  CrmFollowUpTask,
+  CrmPartner,
+  TaskStatus as CrmTaskStatus,
+} from "@/lib/crm-supabase";
 
 interface AllTasksProps {
   onFocusTask?: (task: Task) => void;
 }
 
+interface PartnerTaskItem {
+  id: string;
+  title: string;
+  dueDate: string | null;
+  completed: boolean;
+  status: CrmTaskStatus;
+  partnerId: string;
+  partnerName: string;
+  notes?: string;
+  type: "task" | "followup" | "onboarding";
+}
+
 export default function AllTasks({ onFocusTask }: AllTasksProps) {
   const { state, dispatch } = useApp();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [partnerTasks, setPartnerTasks] = useState<PartnerTaskItem[]>([]);
+  const [loadingPartnerTasks, setLoadingPartnerTasks] = useState(true);
 
   // Get active tasks (not completed, not subtasks)
   const activeTasks = useMemo(() => {
@@ -73,6 +95,138 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
 
     return groups;
   }, [activeTasks, state.workAreas]);
+
+  // Fetch partner tasks from CRM
+  const fetchPartnerTasks = async () => {
+    try {
+      setLoadingPartnerTasks(true);
+
+      const { data: partnersData, error: partnersError } = await crmSupabase
+        .from("partners")
+        .select("id, name, status")
+        .order("name");
+
+      if (partnersError) throw partnersError;
+
+      const { data: followUpData, error: followUpError } = await crmSupabase
+        .from("follow_up_tasks")
+        .select("*")
+        .eq("completed", false)
+        .order("due_date", { ascending: true, nullsFirst: false });
+
+      if (followUpError) throw followUpError;
+
+      const { data: onboardingData, error: onboardingError } = await crmSupabase
+        .from("onboarding_tasks")
+        .select("*")
+        .not("due_date", "is", null)
+        .not("status", "in", '("complete","completed","na")');
+
+      if (onboardingError) throw onboardingError;
+
+      const taskItems: PartnerTaskItem[] = [];
+
+      (followUpData || []).forEach((task: CrmFollowUpTask) => {
+        const partner = partnersData?.find((p) => p.id === task.partner_id);
+        taskItems.push({
+          id: task.id,
+          type: task.touchpoint_id ? "followup" : "task",
+          title: task.task,
+          dueDate: task.due_date,
+          completed: task.completed,
+          status: (task.status as CrmTaskStatus) || "Not Started",
+          partnerId: task.partner_id || "",
+          partnerName: partner?.name || "Unknown Partner",
+          notes: task.notes,
+        });
+      });
+
+      (onboardingData || []).forEach((task: any) => {
+        const partner = partnersData?.find((p) => p.id === task.partner_id);
+        taskItems.push({
+          id: task.id,
+          type: "onboarding",
+          title: task.title,
+          dueDate: task.due_date,
+          completed: false,
+          status: task.status || "Not Started",
+          partnerId: task.partner_id,
+          partnerName: partner?.name || "Unknown Partner",
+        });
+      });
+
+      // Sort by due date
+      taskItems.sort((a, b) => {
+        if (!a.dueDate && !b.dueDate) return 0;
+        if (!a.dueDate) return 1;
+        if (!b.dueDate) return -1;
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      });
+
+      setPartnerTasks(taskItems);
+    } catch (err) {
+      console.error("Error fetching partner tasks:", err);
+    } finally {
+      setLoadingPartnerTasks(false);
+    }
+  };
+
+  // Fetch partner tasks on mount and set up real-time subscription
+  useEffect(() => {
+    fetchPartnerTasks();
+
+    const subscription = crmSupabase
+      .channel("partner_tasks_changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "follow_up_tasks" },
+        () => {
+          fetchPartnerTasks();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "onboarding_tasks" },
+        () => {
+          fetchPartnerTasks();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Handle partner task status change (two-way sync)
+  const handlePartnerTaskStatusChange = async (
+    taskId: string,
+    newStatus: CrmTaskStatus,
+    taskType: PartnerTaskItem["type"]
+  ) => {
+    try {
+      if (taskType === "onboarding") {
+        const { error } = await crmSupabase
+          .from("onboarding_tasks")
+          .update({ status: newStatus })
+          .eq("id", taskId);
+        if (error) throw error;
+      } else {
+        const { error } = await crmSupabase
+          .from("follow_up_tasks")
+          .update({
+            status: newStatus,
+            completed: newStatus === "Complete",
+          })
+          .eq("id", taskId);
+        if (error) throw error;
+      }
+      // Refresh data
+      fetchPartnerTasks();
+    } catch (err) {
+      console.error("Error updating partner task:", err);
+    }
+  };
 
   const handleComplete = (task: Task) => {
     dispatch({
@@ -227,6 +381,120 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
     );
   };
 
+  const renderPartnerTaskCard = (task: PartnerTaskItem) => {
+    const formatDate = (dateStr: string | null) => {
+      if (!dateStr) return "";
+      return format(new Date(dateStr), "MMM d");
+    };
+
+    const isOverdue = (dateStr: string | null) => {
+      if (!dateStr) return false;
+      const today = startOfDay(new Date());
+      const dueDate = startOfDay(new Date(dateStr));
+      return dueDate < today;
+    };
+
+    const taskIsOverdue = isOverdue(task.dueDate);
+
+    return (
+      <div
+        key={task.id}
+        className="bg-white border border-slate-200 rounded-lg p-3 hover:border-slate-300 hover:shadow-sm transition-all"
+      >
+        <div className="flex items-start gap-2">
+          {/* Complete Button */}
+          <button
+            onClick={() =>
+              handlePartnerTaskStatusChange(task.id, "Complete", task.type)
+            }
+            className="flex-shrink-0 mt-0.5 text-slate-400 hover:text-green-500 transition-colors"
+          >
+            {task.status === "Complete" ? (
+              <CheckCircle2 size={16} className="text-green-500" />
+            ) : (
+              <Circle size={16} />
+            )}
+          </button>
+
+          {/* Task Content */}
+          <div className="flex-1 min-w-0">
+            {/* Title and Status Badge */}
+            <div className="flex items-start gap-2 mb-1">
+              <h4 className="text-sm font-medium text-slate-900 flex-1 line-clamp-2">
+                {task.title}
+              </h4>
+            </div>
+
+            {/* Metadata */}
+            <div className="flex items-center gap-2 text-xs text-slate-500 mb-2 flex-wrap">
+              <span className="text-slate-600">{task.partnerName}</span>
+
+              {task.dueDate && (
+                <span
+                  className={`flex items-center gap-1 ${
+                    taskIsOverdue ? "text-red-500 font-medium" : ""
+                  }`}
+                >
+                  {taskIsOverdue ? (
+                    <AlertCircle size={10} />
+                  ) : (
+                    <Calendar size={10} />
+                  )}
+                  {formatDate(task.dueDate)}
+                </span>
+              )}
+
+              <span
+                className={`px-1.5 py-0.5 rounded text-xs ${
+                  task.status === "Complete"
+                    ? "bg-green-50 text-green-700"
+                    : task.status === "In Progress"
+                      ? "bg-blue-50 text-blue-700"
+                      : task.status === "Waiting"
+                        ? "bg-yellow-50 text-yellow-700"
+                        : "bg-slate-50 text-slate-700"
+                }`}
+              >
+                {task.status}
+              </span>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-1">
+              <a
+                href={`https://partner-management-application.vercel.app/tasks`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-medium transition-colors"
+              >
+                <ExternalLink size={10} />
+                CRM
+              </a>
+              <select
+                value={task.status}
+                onChange={(e) =>
+                  handlePartnerTaskStatusChange(
+                    task.id,
+                    e.target.value as CrmTaskStatus,
+                    task.type
+                  )
+                }
+                onClick={(e) => e.stopPropagation()}
+                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-medium transition-colors cursor-pointer border-0 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="Not Started">Not Started</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Waiting">Waiting</option>
+                <option value="Paused">Paused</option>
+                <option value="Complete">Complete</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderWorkAreaCard = (
     workAreaId: string,
     name: string,
@@ -295,6 +563,53 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
 
       {/* Work Area Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Partner Tasks */}
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+          {/* Header */}
+          <div
+            className="px-4 py-3 border-b border-slate-200"
+            style={{ backgroundColor: "#8b5cf615" }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: "#8b5cf6" }}
+                >
+                  <Users className="text-white" size={16} />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900 text-sm">
+                    Partner Tasks
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {loadingPartnerTasks ? "Loading..." : `${partnerTasks.length} tasks`}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Task List - Fixed Height with Scroll */}
+          <div className="h-96 overflow-y-auto p-3">
+            {loadingPartnerTasks ? (
+              <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                <Clock size={32} className="mb-2 animate-spin" />
+                <p className="text-sm">Loading partner tasks...</p>
+              </div>
+            ) : partnerTasks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                <CheckCircle2 size={32} className="mb-2" />
+                <p className="text-sm">All caught up!</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {partnerTasks.map((task) => renderPartnerTaskCard(task))}
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Render each work area */}
         {state.workAreas.map((workArea) =>
           renderWorkAreaCard(
