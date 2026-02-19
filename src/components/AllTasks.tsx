@@ -13,6 +13,7 @@ import {
   Inbox,
   Users,
   ExternalLink,
+  X,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Task, Priority } from "@/types";
@@ -46,6 +47,11 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [partnerTasks, setPartnerTasks] = useState<PartnerTaskItem[]>([]);
   const [loadingPartnerTasks, setLoadingPartnerTasks] = useState(true);
+  const [editingPartnerTask, setEditingPartnerTask] = useState<PartnerTaskItem | null>(null);
+  const [editPartnerTaskTitle, setEditPartnerTaskTitle] = useState("");
+  const [editPartnerTaskNotes, setEditPartnerTaskNotes] = useState("");
+  const [editPartnerTaskDueDate, setEditPartnerTaskDueDate] = useState("");
+  const [savingPartnerTask, setSavingPartnerTask] = useState(false);
 
   // Get active tasks (not completed, not subtasks)
   const activeTasks = useMemo(() => {
@@ -225,6 +231,42 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
       fetchPartnerTasks();
     } catch (err) {
       console.error("Error updating partner task:", err);
+    }
+  };
+
+  // Handle saving edited partner task
+  const handleSavePartnerTask = async () => {
+    if (!editingPartnerTask || !editPartnerTaskTitle.trim()) return;
+
+    setSavingPartnerTask(true);
+    try {
+      if (editingPartnerTask.type === "onboarding") {
+        const { error } = await crmSupabase
+          .from("onboarding_tasks")
+          .update({
+            title: editPartnerTaskTitle.trim(),
+            due_date: editPartnerTaskDueDate || null,
+          })
+          .eq("id", editingPartnerTask.id);
+        if (error) throw error;
+      } else {
+        const { error } = await crmSupabase
+          .from("follow_up_tasks")
+          .update({
+            task: editPartnerTaskTitle.trim(),
+            notes: editPartnerTaskNotes || null,
+            due_date: editPartnerTaskDueDate || null,
+          })
+          .eq("id", editingPartnerTask.id);
+        if (error) throw error;
+      }
+
+      setEditingPartnerTask(null);
+      fetchPartnerTasks();
+    } catch (err) {
+      console.error("Error saving partner task:", err);
+    } finally {
+      setSavingPartnerTask(false);
     }
   };
 
@@ -461,6 +503,18 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
 
             {/* Actions */}
             <div className="flex items-center gap-1">
+              <button
+                onClick={() => {
+                  setEditingPartnerTask(task);
+                  setEditPartnerTaskTitle(task.title);
+                  setEditPartnerTaskNotes(task.notes || "");
+                  setEditPartnerTaskDueDate(task.dueDate || "");
+                }}
+                className="flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-medium transition-colors"
+              >
+                <Pencil size={10} />
+                Edit
+              </button>
               <a
                 href={`https://partner-management-application.vercel.app/tasks`}
                 target="_blank"
@@ -635,6 +689,81 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
           task={editingTask}
           onClose={() => setEditingTask(null)}
         />
+      )}
+
+      {/* Partner Task Edit Modal */}
+      {editingPartnerTask && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl w-full max-w-lg mx-4 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Edit Partner Task
+              </h3>
+              <button
+                onClick={() => setEditingPartnerTask(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-slate-700 block mb-1">
+                  Task
+                </label>
+                <input
+                  type="text"
+                  value={editPartnerTaskTitle}
+                  onChange={(e) => setEditPartnerTaskTitle(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              {editingPartnerTask.type !== "onboarding" && (
+                <div>
+                  <label className="text-sm font-medium text-slate-700 block mb-1">
+                    Notes
+                  </label>
+                  <textarea
+                    value={editPartnerTaskNotes}
+                    onChange={(e) => setEditPartnerTaskNotes(e.target.value)}
+                    rows={3}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                    placeholder="Add notes..."
+                  />
+                </div>
+              )}
+              <div>
+                <label className="text-sm font-medium text-slate-700 block mb-1">
+                  Due Date
+                </label>
+                <input
+                  type="date"
+                  value={editPartnerTaskDueDate}
+                  onChange={(e) => setEditPartnerTaskDueDate(e.target.value)}
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="text-xs text-slate-400">
+                Partner: {editingPartnerTask.partnerName}
+              </div>
+              <div className="flex justify-end gap-2 pt-4">
+                <button
+                  onClick={() => setEditingPartnerTask(null)}
+                  className="px-4 py-2 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSavePartnerTask}
+                  disabled={!editPartnerTaskTitle.trim() || savingPartnerTask}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {savingPartnerTask ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
