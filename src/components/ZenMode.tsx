@@ -329,13 +329,16 @@ export default function ZenMode({ task, onClose, onSwitchTask }: ZenModeProps) {
         <div className="flex-1 overflow-y-auto">
           {/* Session Notes */}
           {activeTab === "session" && (
-            <textarea
-              value={scratchpad}
-              onChange={(e) => setScratchpad(e.target.value)}
-              placeholder="Capture thoughts, ideas, blockers..."
-              aria-label="Session notes"
-              className="w-full h-full bg-transparent p-4 text-white placeholder-slate-600 resize-none focus:outline-none font-mono text-sm leading-relaxed"
-            />
+            <div className="p-4 h-full">
+              <textarea
+                value={scratchpad}
+                onChange={(e) => setScratchpad(e.target.value)}
+                placeholder="Capture thoughts, ideas, blockers..."
+                aria-label="Session notes"
+                autoFocus
+                className="w-full h-full bg-slate-900 border border-slate-800 rounded-lg p-4 text-white placeholder-slate-600 resize-none focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono text-sm leading-relaxed"
+              />
+            </div>
           )}
 
           {/* Project Notes */}
@@ -556,13 +559,25 @@ export default function ZenMode({ task, onClose, onSwitchTask }: ZenModeProps) {
           {/* Links */}
           {activeTab === "links" && (
             <div className="p-4 space-y-3">
-              <button
-                onClick={() => setAddingLink(true)}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 transition-colors text-sm"
-              >
-                <Plus size={14} />
-                Add Link
-              </button>
+              {!task.projectId ? (
+                <div className="text-center py-8 space-y-2">
+                  <Link2 size={32} className="mx-auto text-slate-700" />
+                  <p className="text-sm text-slate-500">
+                    Links require a project
+                  </p>
+                  <p className="text-xs text-slate-600">
+                    Assign this task to a project to save links
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setAddingLink(true)}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 transition-colors text-sm"
+                  >
+                    <Plus size={14} />
+                    Add Link
+                  </button>
 
               {addingLink && (
                 <div className="rounded-lg bg-slate-900 p-3 space-y-2">
@@ -644,6 +659,8 @@ export default function ZenMode({ task, onClose, onSwitchTask }: ZenModeProps) {
                 <p className="text-sm text-slate-600 text-center py-8">
                   No links yet for this project
                 </p>
+              )}
+                </>
               )}
             </div>
           )}
