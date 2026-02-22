@@ -336,7 +336,7 @@ export default function ZenMode({ task, onClose, onSwitchTask }: ZenModeProps) {
                 placeholder="Capture thoughts, ideas, blockers..."
                 aria-label="Session notes"
                 autoFocus
-                className="w-full h-full bg-slate-900 border border-slate-800 rounded-lg p-4 text-white placeholder-slate-600 resize-none focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono text-sm leading-relaxed"
+                className="w-full h-full bg-slate-800 border border-slate-700 rounded-lg p-4 text-white placeholder-slate-500 resize-none focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono text-sm leading-relaxed"
               />
             </div>
           )}
