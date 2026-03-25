@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 
 // CRM Supabase instance - for two-way task sync
-const crmSupabaseUrl = "https://hianqlrkebrwghkswqcp.supabase.co";
-const crmSupabaseAnonKey = "sb_publishable_4apqjClLEcaedUjg4kG0KQ_jyZk7g61";
+const crmSupabaseUrl = process.env.NEXT_PUBLIC_CRM_SUPABASE_URL!;
+const crmSupabaseAnonKey = process.env.NEXT_PUBLIC_CRM_SUPABASE_ANON_KEY!;
 
 export const crmSupabase = createClient(crmSupabaseUrl, crmSupabaseAnonKey);
 

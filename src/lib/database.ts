@@ -19,6 +19,8 @@ import {
   StickyNote,
   QuickTodoList,
   ProjectCategory,
+  CurriculumLesson,
+  CurriculumLessonStatus,
 } from "@/types";
 
 // Helper to convert snake_case DB rows to camelCase
@@ -1275,4 +1277,59 @@ export async function loadAllData(): Promise<{
     stickyNotes,
     quickTodoLists,
   };
+}
+
+// ============ Curriculum Lessons ============
+
+function toCurriculumLesson(row: Record<string, unknown>): CurriculumLesson {
+  return {
+    id: row.id as string,
+    grade: row.grade as string,
+    format: row.format as string,
+    unitName: row.unit_name as string,
+    unitNumber: row.unit_number as number,
+    phaseName: row.phase_name as string,
+    lessonNumber: row.lesson_number as string,
+    title: row.title as string,
+    description: row.description as string,
+    durableSkill: row.durable_skill as string,
+    studentWorkProduct: row.student_work_product as string,
+    platformAction: row.platform_action as string,
+    almaIntegration: row.alma_integration as string,
+    status: row.status as CurriculumLessonStatus,
+    displayOrder: row.display_order as number,
+    createdAt: new Date(row.created_at as string),
+    updatedAt: new Date(row.updated_at as string),
+  };
+}
+
+export async function fetchCurriculumLessons(): Promise<CurriculumLesson[]> {
+  const { data, error } = await supabase
+    .from("curriculum_lessons")
+    .select("*")
+    .order("display_order", { ascending: true });
+  if (error) throw error;
+  return (data || []).map(toCurriculumLesson);
+}
+
+export async function updateCurriculumLessonStatus(
+  lessonId: string,
+  status: CurriculumLessonStatus,
+): Promise<void> {
+  const { error } = await supabase
+    .from("curriculum_lessons")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", lessonId);
+  if (error) throw error;
+}
+
+export async function bulkUpdateCurriculumStatus(
+  lessonIds: string[],
+  status: CurriculumLessonStatus,
+): Promise<void> {
+  const { error } = await supabase
+    .from("curriculum_lessons")
+    .update({ status, updated_at: new Date().toISOString() })
+    .in("id", lessonIds);
+  if (error) throw error;
 }

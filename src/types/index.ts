@@ -221,3 +221,30 @@ export interface QuickTodoList {
   positionY?: number;
   createdAt: Date;
 }
+
+// Curriculum Tracker types
+export type CurriculumLessonStatus =
+  | "Not Created"
+  | "Needs Updating"
+  | "Generated"
+  | "Complete";
+
+export interface CurriculumLesson {
+  id: string;
+  grade: string;
+  format: string;
+  unitName: string;
+  unitNumber: number;
+  phaseName: string;
+  lessonNumber: string;
+  title: string;
+  description: string;
+  durableSkill: string;
+  studentWorkProduct: string;
+  platformAction: string;
+  almaIntegration: string;
+  status: CurriculumLessonStatus;
+  displayOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+}

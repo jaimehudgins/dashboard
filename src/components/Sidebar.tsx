@@ -37,6 +37,7 @@ import {
   Moon,
   Sun,
   StickyNote,
+  GraduationCap,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Project } from "@/types";
@@ -62,6 +63,7 @@ const navItems = [
   { href: "/archive", label: "Work History", icon: Calendar },
   { href: "/notes", label: "Note Catcher", icon: StickyNote },
   { href: "/review", label: "Weekly Review", icon: TrendingUp },
+  { href: "/curriculum", label: "Curriculum Tracker", icon: GraduationCap },
 ];
 
 interface SortableProjectItemProps {
