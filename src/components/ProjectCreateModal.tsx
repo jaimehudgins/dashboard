@@ -9,16 +9,16 @@ interface ProjectCreateModalProps {
 }
 
 const colorOptions = [
-  { value: "#6366f1", label: "Indigo" },
-  { value: "#8b5cf6", label: "Purple" },
-  { value: "#ec4899", label: "Pink" },
-  { value: "#ef4444", label: "Red" },
-  { value: "#f97316", label: "Orange" },
-  { value: "#eab308", label: "Yellow" },
-  { value: "#22c55e", label: "Green" },
-  { value: "#14b8a6", label: "Teal" },
-  { value: "#0ea5e9", label: "Sky" },
-  { value: "#6b7280", label: "Gray" },
+  { value: "#4a7c59", label: "Forest" },
+  { value: "#7a9b6d", label: "Sage" },
+  { value: "#5a7247", label: "Moss" },
+  { value: "#6b8f5e", label: "Fern" },
+  { value: "#6b96b0", label: "Sky" },
+  { value: "#b07d62", label: "Clay" },
+  { value: "#c4a882", label: "Sand" },
+  { value: "#8b8578", label: "Stone" },
+  { value: "#7a8a6b", label: "Olive" },
+  { value: "#6a8490", label: "Slate" },
 ];
 
 export default function ProjectCreateModal({

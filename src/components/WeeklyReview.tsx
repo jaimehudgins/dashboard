@@ -60,7 +60,7 @@ export default function WeeklyReview() {
         const project = state.projects.find((p) => p.id === projectId);
         grouped[projectId] = {
           projectName: project?.name || "Misc Tasks",
-          projectColor: project?.color || "#6366f1",
+          projectColor: project?.color || "#4a7c59",
           tasks: [],
         };
       }

@@ -133,7 +133,7 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
     const newTag: Tag = {
       id: `tag-${Date.now()}`,
       name: newTagName.trim(),
-      color: "#6366f1",
+      color: "#4a7c59",
       createdAt: new Date(),
     };
 

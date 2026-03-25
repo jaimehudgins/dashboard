@@ -22,16 +22,16 @@ import TaskEditModal from "./TaskEditModal";
 import TagBadge from "./TagBadge";
 
 const categoryColors = [
-  "#6366f1", // indigo
-  "#8b5cf6", // violet
-  "#ec4899", // pink
-  "#f43f5e", // rose
-  "#f97316", // orange
-  "#eab308", // yellow
-  "#22c55e", // green
-  "#14b8a6", // teal
-  "#06b6d4", // cyan
-  "#3b82f6", // blue
+  "#4a7c59", // forest
+  "#7a9b6d", // sage
+  "#6b96b0", // sky
+  "#b07d62", // clay
+  "#c4a882", // sand
+  "#5a7247", // moss
+  "#6b8f5e", // fern
+  "#8b8578", // stone
+  "#7a8a6b", // olive
+  "#6a8490", // slate
 ];
 
 export default function MiscTasks() {

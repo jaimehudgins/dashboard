@@ -1,66 +1,66 @@
 @import "tailwindcss";
 
-/* EXTRA Frida Kahlo - Maximum Color Fiesta! */
+/* Forest Morning — Nature-Inspired Dashboard Theme */
 :root {
-    /* Warm cream background */
-    --background: #fef9f0;
-    --foreground: #2d1810;
+    /* Soft linen background */
+    --background: #f5f3ee;
+    --foreground: #2a3228;
     /* Warm white cards */
-    --card-bg: #fffdf8;
-    --card-border: #e8d5c4;
-    --card-hover-border: #d4b89a;
-    --input-bg: #fefbf5;
-    --input-border: #dcc9b5;
-    /* Warm terracotta muted text */
-    --muted: #8b6b4f;
-    --muted-light: #a68968;
+    --card-bg: #faf9f5;
+    --card-border: #d5d0c4;
+    --card-hover-border: #bfb8a8;
+    --input-bg: #f8f7f2;
+    --input-border: #d0cbbe;
+    /* Sage gray muted text */
+    --muted: #7a8075;
+    --muted-light: #96a08e;
 
-    /* THE FRIDA RAINBOW - all the colors! */
-    --frida-blue: #1565c0; /* Casa Azul cobalt */
-    --frida-pink: #e91e63; /* Hot bougainvillea pink */
-    --frida-yellow: #ffc107; /* Marigold/cempasúchil */
-    --frida-green: #2e7d32; /* Jungle green */
-    --frida-orange: #f57c00; /* Terracotta orange */
-    --frida-turquoise: #00acc1; /* Mexican turquoise */
-    --frida-magenta: #c2185b; /* Deep magenta */
-    --frida-lime: #7cb342; /* Bright lime */
+    /* NATURE PALETTE */
+    --nature-forest: #4a7c59;   /* Deep forest green */
+    --nature-sage: #7a9b6d;     /* Soft sage */
+    --nature-stone: #8b8578;    /* Warm stone */
+    --nature-sky: #6b96b0;      /* Mountain sky blue */
+    --nature-clay: #b07d62;     /* Earth clay */
+    --nature-moss: #5a7247;     /* Dark moss */
+    --nature-fern: #6b8f5e;     /* Fern green */
+    --nature-sand: #c4a882;     /* Warm sand */
 
-    --accent: var(--frida-blue);
-    --accent-light: #1976d2;
-    --scrollbar-track: #f5ebe0;
-    --scrollbar-thumb: #d4b89a;
-    --scrollbar-thumb-hover: #c4a080;
+    --accent: var(--nature-forest);
+    --accent-light: #5a8c68;
+    --scrollbar-track: #edebe5;
+    --scrollbar-thumb: #c4bfb2;
+    --scrollbar-thumb-hover: #a8a295;
 }
 
 .dark {
-    /* Deep cobalt blue background (Casa Azul at night) */
-    --background: #0d253f;
-    --foreground: #fef9f0;
-    /* Rich midnight blue cards */
-    --card-bg: #153354;
-    --card-border: #2a4a6e;
-    --card-hover-border: #3d6089;
-    --input-bg: #153354;
-    --input-border: #2a4a6e;
-    /* Soft cream muted text */
-    --muted: #b8c9dc;
-    --muted-light: #8aa4c0;
+    /* Deep forest night */
+    --background: #1a2520;
+    --foreground: #e8e4dc;
+    /* Forest shadow cards */
+    --card-bg: #243530;
+    --card-border: #3a5045;
+    --card-hover-border: #4a6055;
+    --input-bg: #243530;
+    --input-border: #3a5045;
+    /* Night sage muted text */
+    --muted: #a0b0a5;
+    --muted-light: #7a8f80;
 
-    /* DARK MODE FRIDA RAINBOW - brighter for dark bg */
-    --frida-blue: #42a5f5; /* Bright sky blue */
-    --frida-pink: #f48fb1; /* Soft hot pink */
-    --frida-yellow: #ffca28; /* Bright marigold */
-    --frida-green: #66bb6a; /* Bright jungle green */
-    --frida-orange: #ffa726; /* Bright orange */
-    --frida-turquoise: #26c6da; /* Bright turquoise */
-    --frida-magenta: #f06292; /* Bright magenta */
-    --frida-lime: #9ccc65; /* Bright lime */
+    /* DARK MODE NATURE — brighter for dark bg */
+    --nature-forest: #7ab88a;   /* Bright sage */
+    --nature-sage: #8dc08a;     /* Bright sage */
+    --nature-stone: #b0a898;    /* Light stone */
+    --nature-sky: #8bb8d0;      /* Bright sky */
+    --nature-clay: #d09878;     /* Bright clay */
+    --nature-moss: #88b878;     /* Bright moss */
+    --nature-fern: #80b070;     /* Bright fern */
+    --nature-sand: #d4bb98;     /* Bright sand */
 
-    --accent: var(--frida-yellow);
-    --accent-light: #ffd54f;
-    --scrollbar-track: #0a1929;
-    --scrollbar-thumb: #2a4a6e;
-    --scrollbar-thumb-hover: #3d6089;
+    --accent: var(--nature-forest);
+    --accent-light: #90c898;
+    --scrollbar-track: #152018;
+    --scrollbar-thumb: #3a5045;
+    --scrollbar-thumb-hover: #4a6055;
 }
 
 body {
@@ -69,7 +69,7 @@ body {
     font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-/* Light mode overrides - warm Mexican palette */
+/* Light mode overrides — nature neutrals */
 .bg-white {
     background-color: var(--card-bg) !important;
 }
@@ -79,7 +79,7 @@ body {
 }
 
 .bg-slate-100 {
-    background-color: #faf3e7 !important;
+    background-color: #edeae3 !important;
 }
 
 .border-slate-200 {
@@ -87,7 +87,7 @@ body {
 }
 
 .border-slate-100 {
-    border-color: #f0e5d5 !important;
+    border-color: #e5e2da !important;
 }
 
 .text-slate-900 {
@@ -95,15 +95,15 @@ body {
 }
 
 .text-slate-800 {
-    color: #3d2518 !important;
+    color: #343d36 !important;
 }
 
 .text-slate-700 {
-    color: #4d3020 !important;
+    color: #3e4a40 !important;
 }
 
 .text-slate-600 {
-    color: #5d3c28 !important;
+    color: #50594f !important;
 }
 
 .text-slate-500 {
@@ -115,16 +115,16 @@ body {
 }
 
 .text-slate-300 {
-    color: #c9b59e !important;
+    color: #b8b3a6 !important;
 }
 
-/* Accent color overrides - Cobalt Blue (Casa Azul) */
+/* Accent color overrides — Forest green */
 .bg-indigo-500 {
     background-color: var(--accent) !important;
 }
 
 .bg-indigo-600 {
-    background-color: #0d47a1 !important;
+    background-color: #3d6b4a !important;
 }
 
 .text-indigo-500 {
@@ -132,11 +132,11 @@ body {
 }
 
 .text-indigo-600 {
-    color: #0d47a1 !important;
+    color: #3d6b4a !important;
 }
 
 .bg-indigo-50 {
-    background-color: rgba(21, 101, 192, 0.1) !important;
+    background-color: rgba(74, 124, 89, 0.1) !important;
 }
 
 .hover\:bg-indigo-500:hover {
@@ -144,7 +144,7 @@ body {
 }
 
 .hover\:bg-indigo-600:hover {
-    background-color: #0d47a1 !important;
+    background-color: #3d6b4a !important;
 }
 
 .hover\:text-indigo-500:hover {
@@ -152,31 +152,31 @@ body {
 }
 
 .hover\:text-indigo-600:hover {
-    color: #0d47a1 !important;
+    color: #3d6b4a !important;
 }
 
 .hover\:bg-indigo-50:hover {
-    background-color: rgba(21, 101, 192, 0.1) !important;
+    background-color: rgba(74, 124, 89, 0.1) !important;
 }
 
 .focus\:ring-indigo-500:focus {
     --tw-ring-color: var(--accent) !important;
 }
 
-/* Emerald/Green buttons get Casa Azul blue treatment */
+/* Emerald/Green buttons get forest green treatment */
 .bg-emerald-500 {
     background-color: var(--accent) !important;
 }
 
 .bg-emerald-600 {
-    background-color: #0d47a1 !important;
+    background-color: #3d6b4a !important;
 }
 
 .hover\:bg-emerald-600:hover {
-    background-color: #0d47a1 !important;
+    background-color: #3d6b4a !important;
 }
 
-/* Dark mode overrides - Deep blue Casa Azul night */
+/* Dark mode overrides — Forest night */
 .dark .bg-white {
     background-color: var(--card-bg) !important;
 }
@@ -186,7 +186,7 @@ body {
 }
 
 .dark .bg-slate-100 {
-    background-color: #1c3a5a !important;
+    background-color: #1e302a !important;
 }
 
 .dark .border-slate-200 {
@@ -194,7 +194,7 @@ body {
 }
 
 .dark .border-slate-100 {
-    border-color: #1c3a5a !important;
+    border-color: #1e302a !important;
 }
 
 .dark .text-slate-900 {
@@ -202,15 +202,15 @@ body {
 }
 
 .dark .text-slate-800 {
-    color: #f5f0e6 !important;
+    color: #dcd8d0 !important;
 }
 
 .dark .text-slate-700 {
-    color: #e8e0d2 !important;
+    color: #c8c4bc !important;
 }
 
 .dark .text-slate-600 {
-    color: #c8d5e5 !important;
+    color: #a8b8ae !important;
 }
 
 .dark .text-slate-500 {
@@ -222,15 +222,15 @@ body {
 }
 
 .dark .text-slate-300 {
-    color: #3d6089 !important;
+    color: #4a6055 !important;
 }
 
 .dark .hover\:bg-slate-100:hover {
-    background-color: #1c3a5a !important;
+    background-color: #1e302a !important;
 }
 
 .dark .hover\:bg-slate-50:hover {
-    background-color: #0a1929 !important;
+    background-color: #152018 !important;
 }
 
 .dark .hover\:text-slate-900:hover {
@@ -238,28 +238,28 @@ body {
 }
 
 .dark .hover\:text-slate-700:hover {
-    color: #e8e0d2 !important;
+    color: #c8c4bc !important;
 }
 
 .dark .hover\:text-slate-600:hover {
-    color: #c8d5e5 !important;
+    color: #a8b8ae !important;
 }
 
 .dark .hover\:border-slate-300:hover {
-    border-color: #3d6089 !important;
+    border-color: #4a6055 !important;
 }
 
 .dark .placeholder-slate-400::placeholder {
     color: var(--muted-light) !important;
 }
 
-/* Dark mode accent - bright marigold yellow */
+/* Dark mode accent */
 .dark .bg-indigo-500 {
     background-color: var(--accent) !important;
 }
 
 .dark .bg-indigo-600 {
-    background-color: #e6a800 !important;
+    background-color: #68a878 !important;
 }
 
 .dark .text-indigo-500 {
@@ -271,7 +271,7 @@ body {
 }
 
 .dark .bg-indigo-50 {
-    background-color: rgba(255, 193, 7, 0.15) !important;
+    background-color: rgba(122, 184, 138, 0.15) !important;
 }
 
 .dark .hover\:bg-indigo-500:hover {
@@ -279,7 +279,7 @@ body {
 }
 
 .dark .hover\:bg-indigo-600:hover {
-    background-color: #e6a800 !important;
+    background-color: #68a878 !important;
 }
 
 .dark .hover\:text-indigo-500:hover {
@@ -291,79 +291,79 @@ body {
 }
 
 .dark .hover\:bg-indigo-50:hover {
-    background-color: rgba(255, 193, 7, 0.15) !important;
+    background-color: rgba(122, 184, 138, 0.15) !important;
 }
 
 .dark .focus\:ring-indigo-500:focus {
     --tw-ring-color: var(--accent) !important;
 }
 
-/* Dark mode emerald buttons get marigold treatment */
+/* Dark mode emerald buttons */
 .dark .bg-emerald-500 {
     background-color: var(--accent) !important;
 }
 
 .dark .bg-emerald-600 {
-    background-color: #e6a800 !important;
+    background-color: #68a878 !important;
 }
 
 .dark .hover\:bg-emerald-600:hover {
-    background-color: #e6a800 !important;
+    background-color: #68a878 !important;
 }
 
-/* Dark mode text on yellow buttons needs to be dark */
+/* Dark mode text on green buttons needs to be dark */
 .dark .bg-emerald-500,
 .dark .bg-indigo-500 {
-    color: #0d253f !important;
+    color: #1a2520 !important;
 }
 
 /* Priority badge adjustments for both modes */
 .bg-red-50 {
-    background-color: rgba(220, 38, 38, 0.12) !important;
+    background-color: rgba(180, 80, 60, 0.12) !important;
 }
 
 .bg-orange-50 {
-    background-color: rgba(234, 88, 12, 0.12) !important;
+    background-color: rgba(176, 125, 98, 0.14) !important;
 }
 
 .bg-yellow-50 {
-    background-color: rgba(202, 138, 4, 0.12) !important;
+    background-color: rgba(196, 168, 130, 0.16) !important;
 }
 
 .bg-green-50 {
-    background-color: rgba(22, 163, 74, 0.12) !important;
+    background-color: rgba(74, 124, 89, 0.12) !important;
 }
 
 .bg-amber-50 {
-    background-color: rgba(217, 119, 6, 0.12) !important;
+    background-color: rgba(176, 125, 98, 0.12) !important;
 }
 
 .bg-purple-50 {
-    background-color: rgba(147, 51, 234, 0.12) !important;
+    background-color: rgba(120, 100, 140, 0.12) !important;
 }
 
 .dark .bg-red-50 {
-    background-color: rgba(239, 68, 68, 0.18) !important;
+    background-color: rgba(200, 100, 80, 0.18) !important;
 }
 
 .dark .bg-orange-50 {
-    background-color: rgba(249, 115, 22, 0.18) !important;
+    background-color: rgba(208, 152, 120, 0.18) !important;
 }
 
 .dark .bg-yellow-50 {
-    background-color: rgba(234, 179, 8, 0.18) !important;
+    background-color: rgba(212, 187, 152, 0.18) !important;
 }
 
 .dark .bg-green-50 {
-    background-color: rgba(34, 197, 94, 0.18) !important;
+    background-color: rgba(122, 184, 138, 0.18) !important;
 }
 
 .dark .bg-amber-50 {
-    background-color: rgba(245, 158, 11, 0.18) !important;
+    background-color: rgba(208, 152, 120, 0.18) !important;
 }
 
 .dark .bg-purple-50 {
-    background-color: rgba(168, 85, 247, 0.18) !important;
+    background-color: rgba(150, 130, 170, 0.18) !important;
 }
 
 /* Scrollbar styling */
@@ -387,18 +387,18 @@ body {
 
 /* Prose styling for markdown */
 .prose {
-    color: #334155;
+    color: #3e4a40;
 }
 
 .dark .prose {
-    color: #cbd5e1;
+    color: #a0b0a5;
 }
 
 .prose h1,
 .prose h2,
 .prose h3,
 .prose h4 {
-    color: #0f172a;
+    color: #2a3228;
     margin-top: 1.5em;
     margin-bottom: 0.5em;
 }
@@ -407,7 +407,7 @@ body {
 .dark .prose h2,
 .dark .prose h3,
 .dark .prose h4 {
-    color: #f1f5f9;
+    color: #e8e4dc;
 }
 
 .prose h1 {
@@ -440,54 +440,54 @@ body {
 }
 
 .prose code {
-    background: #f1f5f9;
+    background: #edeae3;
     padding: 0.125em 0.375em;
     border-radius: 4px;
     font-size: 0.875em;
 }
 
 .dark .prose code {
-    background: #334155;
+    background: #2e4038;
 }
 
 .prose pre {
-    background: #f1f5f9;
+    background: #edeae3;
     padding: 1em;
     border-radius: 8px;
     overflow-x: auto;
 }
 
 .dark .prose pre {
-    background: #334155;
+    background: #2e4038;
 }
 
 .prose blockquote {
-    border-left: 3px solid #6366f1;
+    border-left: 3px solid var(--nature-forest);
     padding-left: 1em;
-    color: #64748b;
+    color: #7a8075;
     font-style: italic;
 }
 
 .dark .prose blockquote {
-    color: #94a3b8;
+    color: #a0b0a5;
 }
 
 .prose a {
-    color: #4f46e5;
+    color: var(--nature-forest);
     text-decoration: underline;
 }
 
 .dark .prose a {
-    color: #818cf8;
+    color: var(--nature-sage);
 }
 
 .prose hr {
-    border-color: #e2e8f0;
+    border-color: #d5d0c4;
     margin: 2em 0;
 }
 
 .dark .prose hr {
-    border-color: #334155;
+    border-color: #3a5045;
 }
 
 /* Reminder toast animation */
@@ -507,435 +507,407 @@ body {
 }
 
 /* ========================================
-   FRIDA'S COLORFUL FIESTA - MAXIMUM EXTRA!
+   NATURE THEME — Calm & Focused
    ======================================== */
 
-/* Sidebar - colorful left border that's always visible */
+/* Sidebar — subtle earth-toned left border */
 aside {
-    border-right: 4px solid var(--frida-pink) !important;
+    border-right: 3px solid var(--nature-sage) !important;
     background: linear-gradient(
         180deg,
-        rgba(233, 30, 99, 0.03) 0%,
-        rgba(255, 193, 7, 0.03) 50%,
-        rgba(0, 172, 193, 0.03) 100%
+        rgba(74, 124, 89, 0.03) 0%,
+        rgba(196, 168, 130, 0.02) 50%,
+        rgba(107, 150, 176, 0.03) 100%
     ) !important;
 }
 
 .dark aside {
-    border-right: 4px solid var(--frida-yellow) !important;
+    border-right: 3px solid var(--nature-moss) !important;
     background: linear-gradient(
         180deg,
-        rgba(255, 202, 40, 0.05) 0%,
-        rgba(244, 143, 177, 0.05) 50%,
-        rgba(38, 198, 218, 0.05) 100%
+        rgba(122, 184, 138, 0.04) 0%,
+        rgba(212, 187, 152, 0.03) 50%,
+        rgba(139, 184, 208, 0.04) 100%
     ) !important;
 }
 
-/* ===== BUTTONS - THE STAR OF THE SHOW ===== */
-
-/* Light mode: Start Focus / primary buttons - VIBRANT BLUE TO TURQUOISE */
+/* ===== BUTTONS — Forest green gradient ===== */
 button[class*="bg-indigo-500"],
 .bg-indigo-500,
 button[class*="bg-emerald-500"],
 .bg-emerald-500 {
-    background: linear-gradient(135deg, #1565c0, #00acc1) !important;
+    background: linear-gradient(135deg, #4a7c59, #5a8c68) !important;
     border: none !important;
     color: white !important;
 }
 
 button[class*="bg-indigo-500"]:hover,
 button[class*="bg-emerald-500"]:hover {
-    background: linear-gradient(135deg, #0d47a1, #00838f) !important;
+    background: linear-gradient(135deg, #3d6b4a, #4a7c59) !important;
 }
 
-/* Dark mode: Start Focus buttons - GOLDEN YELLOW TO ORANGE */
+/* Dark mode buttons — Bright sage */
 .dark button[class*="bg-indigo-500"],
 .dark .bg-indigo-500,
 .dark button[class*="bg-emerald-500"],
 .dark .bg-emerald-500 {
-    background: linear-gradient(135deg, #ffc107, #ff9800) !important;
-    color: #1a1a2e !important;
+    background: linear-gradient(135deg, #7ab88a, #90c898) !important;
+    color: #1a2520 !important;
 }
 
 .dark button[class*="bg-indigo-500"]:hover,
 .dark button[class*="bg-emerald-500"]:hover {
-    background: linear-gradient(135deg, #ffca28, #ffa726) !important;
+    background: linear-gradient(135deg, #68a878, #7ab88a) !important;
 }
 
-/* Quick Capture text - HOT PINK */
+/* Rose/accent text — clay earth tone */
 .text-rose-500,
 .text-rose-600 {
-    color: #e91e63 !important;
+    color: var(--nature-clay) !important;
 }
 
 .dark .text-rose-500,
 .dark .text-rose-600 {
-    color: #f48fb1 !important;
+    color: var(--nature-clay) !important;
 }
 
-/* ===== FOCUS 3 TASK CARDS - EACH GETS A DIFFERENT COLOR ===== */
+/* ===== FOCUS 3 TASK CARDS — Nature color borders ===== */
 
-/* Card 1 - Pink top border */
+/* Card 1 — Forest green */
 .grid > div:first-child .rounded-xl,
 .space-y-4 > div:first-child {
-    border-top: 4px solid #e91e63 !important;
+    border-top: 3px solid var(--nature-forest) !important;
 }
 
-/* Card 2 - Blue top border */
+/* Card 2 — Sky blue */
 .grid > div:nth-child(2) .rounded-xl,
 .space-y-4 > div:nth-child(2) {
-    border-top: 4px solid #1565c0 !important;
+    border-top: 3px solid var(--nature-sky) !important;
 }
 
-/* Card 3 - Green top border */
+/* Card 3 — Clay earth */
 .grid > div:nth-child(3) .rounded-xl,
 .space-y-4 > div:nth-child(3) {
-    border-top: 4px solid #2e7d32 !important;
+    border-top: 3px solid var(--nature-clay) !important;
 }
 
-/* ===== PROJECT SUMMARY CARDS - RAINBOW TOP BORDERS ===== */
+/* ===== PROJECT SUMMARY CARDS — Earth tone borders ===== */
 .grid.grid-cols-2 > div:nth-child(1),
 .grid.grid-cols-3 > div:nth-child(1) {
-    border-top: 4px solid #e91e63 !important;
+    border-top: 3px solid var(--nature-forest) !important;
     border-left: none !important;
 }
 
 .grid.grid-cols-2 > div:nth-child(2),
 .grid.grid-cols-3 > div:nth-child(2) {
-    border-top: 4px solid #1565c0 !important;
+    border-top: 3px solid var(--nature-sky) !important;
     border-left: none !important;
 }
 
 .grid.grid-cols-2 > div:nth-child(3),
 .grid.grid-cols-3 > div:nth-child(3) {
-    border-top: 4px solid #ffc107 !important;
+    border-top: 3px solid var(--nature-sand) !important;
     border-left: none !important;
 }
 
 .grid.grid-cols-2 > div:nth-child(4),
 .grid.grid-cols-3 > div:nth-child(4) {
-    border-top: 4px solid #2e7d32 !important;
+    border-top: 3px solid var(--nature-clay) !important;
     border-left: none !important;
 }
 
 .grid.grid-cols-2 > div:nth-child(5),
 .grid.grid-cols-3 > div:nth-child(5) {
-    border-top: 4px solid #00acc1 !important;
+    border-top: 3px solid var(--nature-sage) !important;
     border-left: none !important;
 }
 
 .grid.grid-cols-2 > div:nth-child(6),
 .grid.grid-cols-3 > div:nth-child(6) {
-    border-top: 4px solid #c2185b !important;
+    border-top: 3px solid var(--nature-moss) !important;
     border-left: none !important;
 }
 
-/* ===== ENERGY TRACKER - VIBRANT COLORS ===== */
+/* ===== ENERGY TRACKER — Nature tones ===== */
 .bg-emerald-100 {
-    background-color: rgba(46, 125, 50, 0.25) !important;
+    background-color: rgba(74, 124, 89, 0.2) !important;
 }
 .bg-lime-100 {
-    background-color: rgba(124, 179, 66, 0.25) !important;
+    background-color: rgba(122, 155, 109, 0.2) !important;
 }
 .bg-yellow-100 {
-    background-color: rgba(255, 193, 7, 0.3) !important;
+    background-color: rgba(196, 168, 130, 0.25) !important;
 }
 .bg-orange-100 {
-    background-color: rgba(245, 124, 0, 0.25) !important;
+    background-color: rgba(176, 125, 98, 0.2) !important;
 }
 .bg-red-100 {
-    background-color: rgba(233, 30, 99, 0.25) !important;
+    background-color: rgba(160, 80, 60, 0.2) !important;
 }
 
-/* Energy bar colors - more saturated */
+/* Energy bar colors — earthy */
 .bg-emerald-400,
 .bg-emerald-500 {
-    background-color: #2e7d32 !important;
+    background-color: var(--nature-forest) !important;
 }
 .bg-lime-400,
 .bg-lime-500 {
-    background-color: #7cb342 !important;
+    background-color: var(--nature-sage) !important;
 }
 .bg-yellow-400,
 .bg-yellow-500 {
-    background-color: #ffc107 !important;
+    background-color: var(--nature-sand) !important;
 }
 .bg-orange-400,
 .bg-orange-500 {
-    background-color: #f57c00 !important;
+    background-color: var(--nature-clay) !important;
 }
 
-/* ===== SIDEBAR ACTIVE STATE ===== */
+/* ===== SIDEBAR ACTIVE STATE — Forest green ===== */
 aside button[class*="bg-indigo-50"],
 aside a[class*="bg-indigo-50"] {
     background: linear-gradient(
         90deg,
-        rgba(233, 30, 99, 0.2),
-        rgba(21, 101, 192, 0.1)
+        rgba(74, 124, 89, 0.15),
+        rgba(107, 150, 176, 0.05)
     ) !important;
-    border-left: 4px solid #e91e63 !important;
-    margin-left: -4px;
-    padding-left: calc(0.75rem + 4px);
+    border-left: 3px solid var(--nature-forest) !important;
+    margin-left: -3px;
+    padding-left: calc(0.75rem + 3px);
 }
 
 .dark aside button[class*="bg-indigo-50"],
 .dark aside a[class*="bg-indigo-50"] {
     background: linear-gradient(
         90deg,
-        rgba(255, 202, 40, 0.25),
-        rgba(38, 198, 218, 0.1)
+        rgba(122, 184, 138, 0.2),
+        rgba(139, 184, 208, 0.05)
     ) !important;
-    border-left: 4px solid #ffc107 !important;
+    border-left: 3px solid var(--nature-forest) !important;
 }
 
-/* ===== PROJECT COLOR DOTS - BIGGER & GLOWING ===== */
+/* ===== PROJECT COLOR DOTS ===== */
 .w-2.h-2.rounded-full,
 .w-2\.5.h-2\.5.rounded-full {
-    width: 12px !important;
-    height: 12px !important;
-    box-shadow: 0 0 8px currentColor !important;
+    width: 10px !important;
+    height: 10px !important;
 }
 
-/* ===== INBOX BADGE - HOT PINK ===== */
+/* ===== INBOX BADGE ===== */
 .bg-indigo-500.text-white.text-xs {
-    background: #e91e63 !important;
+    background: var(--nature-forest) !important;
 }
 
 .dark .bg-indigo-500.text-white.text-xs {
-    background: #ffc107 !important;
-    color: #1a1a2e !important;
+    background: var(--nature-forest) !important;
+    color: #1a2520 !important;
 }
 
-/* ===== SECTION HEADERS - GRADIENT TEXT ===== */
+/* ===== SECTION HEADERS — Solid forest green ===== */
 h2 {
-    background: linear-gradient(
-        90deg,
-        var(--frida-blue),
-        var(--frida-pink)
-    ) !important;
-    -webkit-background-clip: text !important;
-    -webkit-text-fill-color: transparent !important;
-    background-clip: text !important;
+    color: var(--nature-forest) !important;
 }
 
 .dark h2 {
-    background: linear-gradient(
-        90deg,
-        var(--frida-yellow),
-        var(--frida-pink)
-    ) !important;
-    -webkit-background-clip: text !important;
-    -webkit-text-fill-color: transparent !important;
-    background-clip: text !important;
+    color: var(--nature-forest) !important;
 }
 
 /* ===== FOCUS TIME & MOMENTUM STATS ===== */
 .text-indigo-600 {
-    color: #1565c0 !important;
+    color: var(--nature-forest) !important;
 }
 
 .text-emerald-600 {
-    color: #2e7d32 !important;
+    color: var(--nature-moss) !important;
 }
 
 .dark .text-indigo-600 {
-    color: #42a5f5 !important;
+    color: var(--nature-forest) !important;
 }
 
 .dark .text-emerald-600 {
-    color: #66bb6a !important;
+    color: var(--nature-sage) !important;
 }
 
 /* ===== MISC TASKS CATEGORY HEADERS ===== */
 .font-medium.text-slate-700 {
-    color: var(--frida-blue) !important;
+    color: var(--nature-forest) !important;
 }
 
 .dark .font-medium.text-slate-700 {
-    color: var(--frida-yellow) !important;
+    color: var(--nature-forest) !important;
 }
 
-/* ===== PRIORITY BADGES - MORE VIBRANT ===== */
+/* ===== PRIORITY BADGES — Earthy tones ===== */
 .bg-red-50 {
-    background-color: rgba(233, 30, 99, 0.15) !important;
+    background-color: rgba(160, 80, 60, 0.12) !important;
 }
 .text-red-700,
 .text-red-600 {
-    color: #c2185b !important;
+    color: #8b4a38 !important;
 }
 
 .bg-orange-50 {
-    background-color: rgba(245, 124, 0, 0.15) !important;
+    background-color: rgba(176, 125, 98, 0.14) !important;
 }
 .text-orange-700,
 .text-orange-600 {
-    color: #e65100 !important;
+    color: #8b5a3a !important;
 }
 
 .bg-yellow-50 {
-    background-color: rgba(255, 193, 7, 0.2) !important;
+    background-color: rgba(196, 168, 130, 0.18) !important;
 }
 .text-yellow-700,
 .text-yellow-600 {
-    color: #f57c00 !important;
+    color: #8b7040 !important;
 }
 
 .bg-green-50 {
-    background-color: rgba(46, 125, 50, 0.15) !important;
+    background-color: rgba(74, 124, 89, 0.12) !important;
 }
 .text-green-700,
 .text-green-600 {
-    color: #2e7d32 !important;
+    color: #3d6b4a !important;
 }
 
-/* ===== SCROLLBAR - RAINBOW ===== */
+/* ===== SCROLLBAR — Subtle sage ===== */
 ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #e91e63, #1565c0, #2e7d32) !important;
+    background: var(--nature-sage) !important;
     border-radius: 4px !important;
 }
 
 .dark ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #ffc107, #f48fb1, #26c6da) !important;
+    background: var(--nature-moss) !important;
 }
 
-/* ===== INPUT FOCUS RINGS ===== */
+/* ===== INPUT FOCUS RINGS — Soft sage glow ===== */
 input:focus,
 textarea:focus,
 select:focus {
     outline: none !important;
-    box-shadow: 0 0 0 3px rgba(0, 172, 193, 0.4) !important;
+    box-shadow: 0 0 0 3px rgba(74, 124, 89, 0.3) !important;
 }
 
 .dark input:focus,
 .dark textarea:focus,
 .dark select:focus {
-    box-shadow: 0 0 0 3px rgba(244, 143, 177, 0.4) !important;
+    box-shadow: 0 0 0 3px rgba(122, 184, 138, 0.3) !important;
 }
 
 /* ===== TEXT SELECTION ===== */
 ::selection {
-    background-color: rgba(233, 30, 99, 0.3);
+    background-color: rgba(74, 124, 89, 0.2);
 }
 
 .dark ::selection {
-    background-color: rgba(255, 202, 40, 0.3);
+    background-color: rgba(122, 184, 138, 0.25);
 }
 
 /* ===== CHECKBOXES ===== */
 input[type="checkbox"]:checked {
-    background-color: #e91e63 !important;
-    border-color: #e91e63 !important;
+    background-color: var(--nature-forest) !important;
+    border-color: var(--nature-forest) !important;
 }
 
 .dark input[type="checkbox"]:checked {
-    background-color: #ffc107 !important;
-    border-color: #ffc107 !important;
+    background-color: var(--nature-forest) !important;
+    border-color: var(--nature-forest) !important;
 }
 
 /* ===== LINKS ===== */
 a:not([class]) {
-    color: #1565c0;
+    color: var(--nature-forest);
 }
 a:not([class]):hover {
-    color: #e91e63;
+    color: var(--nature-sky);
 }
 
 .dark a:not([class]) {
-    color: #26c6da;
+    color: var(--nature-sage);
 }
 .dark a:not([class]):hover {
-    color: #ffc107;
+    color: var(--nature-sky);
 }
 
 /* ========================================
-   MAXIMUM EXTRA - TURN IT UP TO 11!
+   SUBTLE POLISH — No glow, just calm
    ======================================== */
 
-/* ===== GLOWING BUTTONS ===== */
+/* ===== BUTTONS — Gentle shadow ===== */
 button[class*="bg-indigo-500"],
 button[class*="bg-emerald-500"] {
-    box-shadow:
-        0 4px 15px rgba(21, 101, 192, 0.4),
-        0 0 20px rgba(0, 172, 193, 0.2) !important;
-    transition: all 0.3s ease !important;
+    box-shadow: 0 2px 8px rgba(74, 124, 89, 0.25) !important;
+    transition: all 0.2s ease !important;
 }
 
 button[class*="bg-indigo-500"]:hover,
 button[class*="bg-emerald-500"]:hover {
-    box-shadow:
-        0 6px 25px rgba(21, 101, 192, 0.5),
-        0 0 30px rgba(0, 172, 193, 0.3) !important;
-    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 12px rgba(74, 124, 89, 0.35) !important;
+    transform: translateY(-1px) !important;
 }
 
 .dark button[class*="bg-indigo-500"],
 .dark button[class*="bg-emerald-500"] {
-    box-shadow:
-        0 4px 15px rgba(255, 193, 7, 0.4),
-        0 0 20px rgba(255, 152, 0, 0.2) !important;
+    box-shadow: 0 2px 8px rgba(122, 184, 138, 0.2) !important;
 }
 
 .dark button[class*="bg-indigo-500"]:hover,
 .dark button[class*="bg-emerald-500"]:hover {
-    box-shadow:
-        0 6px 25px rgba(255, 193, 7, 0.5),
-        0 0 30px rgba(255, 152, 0, 0.3) !important;
+    box-shadow: 0 4px 12px rgba(122, 184, 138, 0.3) !important;
 }
 
-/* ===== NUMBERED BADGES (1, 2, 3) - RAINBOW! ===== */
+/* ===== NUMBERED BADGES — Earth tones ===== */
 .bg-indigo-500.text-white.rounded-full,
 .rounded-full.bg-indigo-500 {
     font-weight: bold !important;
 }
 
-/* First badge - Hot Pink */
+/* First badge — Forest */
 .flex.items-start.gap-3:nth-child(1) .bg-indigo-500.rounded-full,
 div:nth-child(1) > .bg-indigo-500.rounded-full {
-    background: linear-gradient(135deg, #e91e63, #c2185b) !important;
-    box-shadow: 0 2px 10px rgba(233, 30, 99, 0.5) !important;
+    background: var(--nature-forest) !important;
 }
 
-/* Second badge - Cobalt Blue */
+/* Second badge — Sky */
 .flex.items-start.gap-3:nth-child(2) .bg-indigo-500.rounded-full,
 div:nth-child(2) > .bg-indigo-500.rounded-full {
-    background: linear-gradient(135deg, #1565c0, #0d47a1) !important;
-    box-shadow: 0 2px 10px rgba(21, 101, 192, 0.5) !important;
+    background: var(--nature-sky) !important;
 }
 
-/* Third badge - Jungle Green */
+/* Third badge — Clay */
 .flex.items-start.gap-3:nth-child(3) .bg-indigo-500.rounded-full,
 div:nth-child(3) > .bg-indigo-500.rounded-full {
-    background: linear-gradient(135deg, #2e7d32, #1b5e20) !important;
-    box-shadow: 0 2px 10px rgba(46, 125, 50, 0.5) !important;
+    background: var(--nature-clay) !important;
 }
 
-/* ===== FOCUS 3 TASK CARDS - COLORFUL LEFT BORDERS ===== */
+/* ===== FOCUS 3 TASK CARDS — Subtle nature backgrounds ===== */
 .border.rounded-xl:nth-child(1),
 .flex.items-start.gap-3:nth-child(1) {
-    border-left: 5px solid #e91e63 !important;
+    border-left: 4px solid var(--nature-forest) !important;
     background: linear-gradient(
         135deg,
-        rgba(233, 30, 99, 0.03),
+        rgba(74, 124, 89, 0.04),
         transparent
     ) !important;
 }
 
 .border.rounded-xl:nth-child(2),
 .flex.items-start.gap-3:nth-child(2) {
-    border-left: 5px solid #1565c0 !important;
+    border-left: 4px solid var(--nature-sky) !important;
     background: linear-gradient(
         135deg,
-        rgba(21, 101, 192, 0.03),
+        rgba(107, 150, 176, 0.04),
         transparent
     ) !important;
 }
 
 .border.rounded-xl:nth-child(3),
 .flex.items-start.gap-3:nth-child(3) {
-    border-left: 5px solid #2e7d32 !important;
+    border-left: 4px solid var(--nature-clay) !important;
     background: linear-gradient(
         135deg,
-        rgba(46, 125, 50, 0.03),
+        rgba(176, 125, 98, 0.04),
         transparent
     ) !important;
 }
@@ -944,7 +916,7 @@ div:nth-child(3) > .bg-indigo-500.rounded-full {
 .dark .flex.items-start.gap-3:nth-child(1) {
     background: linear-gradient(
         135deg,
-        rgba(233, 30, 99, 0.08),
+        rgba(74, 124, 89, 0.08),
         transparent
     ) !important;
 }
@@ -953,7 +925,7 @@ div:nth-child(3) > .bg-indigo-500.rounded-full {
 .dark .flex.items-start.gap-3:nth-child(2) {
     background: linear-gradient(
         135deg,
-        rgba(21, 101, 192, 0.08),
+        rgba(107, 150, 176, 0.08),
         transparent
     ) !important;
 }
@@ -962,18 +934,18 @@ div:nth-child(3) > .bg-indigo-500.rounded-full {
 .dark .flex.items-start.gap-3:nth-child(3) {
     background: linear-gradient(
         135deg,
-        rgba(46, 125, 50, 0.08),
+        rgba(176, 125, 98, 0.08),
         transparent
     ) !important;
 }
 
-/* ===== PROJECT SUMMARY CARDS - GRADIENT BACKGROUNDS ===== */
+/* ===== PROJECT SUMMARY CARDS — Soft nature tints ===== */
 .grid.grid-cols-2 > div:nth-child(1),
 .grid.grid-cols-3 > div:nth-child(1) {
     background: linear-gradient(
         135deg,
-        rgba(233, 30, 99, 0.08),
-        rgba(255, 255, 255, 0.9)
+        rgba(74, 124, 89, 0.06),
+        var(--card-bg)
     ) !important;
 }
 
@@ -981,8 +953,8 @@ div:nth-child(3) > .bg-indigo-500.rounded-full {
 .grid.grid-cols-3 > div:nth-child(2) {
     background: linear-gradient(
         135deg,
-        rgba(21, 101, 192, 0.08),
-        rgba(255, 255, 255, 0.9)
+        rgba(107, 150, 176, 0.06),
+        var(--card-bg)
     ) !important;
 }
 
@@ -990,8 +962,8 @@ div:nth-child(3) > .bg-indigo-500.rounded-full {
 .grid.grid-cols-3 > div:nth-child(3) {
     background: linear-gradient(
         135deg,
-        rgba(255, 193, 7, 0.12),
-        rgba(255, 255, 255, 0.9)
+        rgba(196, 168, 130, 0.08),
+        var(--card-bg)
     ) !important;
 }
 
@@ -999,8 +971,8 @@ div:nth-child(3) > .bg-indigo-500.rounded-full {
 .grid.grid-cols-3 > div:nth-child(4) {
     background: linear-gradient(
         135deg,
-        rgba(46, 125, 50, 0.08),
-        rgba(255, 255, 255, 0.9)
+        rgba(176, 125, 98, 0.06),
+        var(--card-bg)
     ) !important;
 }
 
@@ -1008,8 +980,8 @@ div:nth-child(3) > .bg-indigo-500.rounded-full {
 .grid.grid-cols-3 > div:nth-child(5) {
     background: linear-gradient(
         135deg,
-        rgba(0, 172, 193, 0.08),
-        rgba(255, 255, 255, 0.9)
+        rgba(122, 155, 109, 0.06),
+        var(--card-bg)
     ) !important;
 }
 
@@ -1017,8 +989,8 @@ div:nth-child(3) > .bg-indigo-500.rounded-full {
 .grid.grid-cols-3 > div:nth-child(6) {
     background: linear-gradient(
         135deg,
-        rgba(194, 24, 91, 0.08),
-        rgba(255, 255, 255, 0.9)
+        rgba(90, 114, 71, 0.06),
+        var(--card-bg)
     ) !important;
 }
 
@@ -1027,8 +999,8 @@ div:nth-child(3) > .bg-indigo-500.rounded-full {
 .dark .grid.grid-cols-3 > div:nth-child(1) {
     background: linear-gradient(
         135deg,
-        rgba(233, 30, 99, 0.15),
-        rgba(21, 51, 84, 0.9)
+        rgba(122, 184, 138, 0.1),
+        var(--card-bg)
     ) !important;
 }
 
@@ -1036,8 +1008,8 @@ div:nth-child(3) > .bg-indigo-500.rounded-full {
 .dark .grid.grid-cols-3 > div:nth-child(2) {
     background: linear-gradient(
         135deg,
-        rgba(66, 165, 245, 0.15),
-        rgba(21, 51, 84, 0.9)
+        rgba(139, 184, 208, 0.1),
+        var(--card-bg)
     ) !important;
 }
 
@@ -1045,8 +1017,8 @@ div:nth-child(3) > .bg-indigo-500.rounded-full {
 .dark .grid.grid-cols-3 > div:nth-child(3) {
     background: linear-gradient(
         135deg,
-        rgba(255, 193, 7, 0.2),
-        rgba(21, 51, 84, 0.9)
+        rgba(212, 187, 152, 0.12),
+        var(--card-bg)
     ) !important;
 }
 
@@ -1054,8 +1026,8 @@ div:nth-child(3) > .bg-indigo-500.rounded-full {
 .dark .grid.grid-cols-3 > div:nth-child(4) {
     background: linear-gradient(
         135deg,
-        rgba(102, 187, 106, 0.15),
-        rgba(21, 51, 84, 0.9)
+        rgba(208, 152, 120, 0.1),
+        var(--card-bg)
     ) !important;
 }
 
@@ -1063,8 +1035,8 @@ div:nth-child(3) > .bg-indigo-500.rounded-full {
 .dark .grid.grid-cols-3 > div:nth-child(5) {
     background: linear-gradient(
         135deg,
-        rgba(38, 198, 218, 0.15),
-        rgba(21, 51, 84, 0.9)
+        rgba(141, 192, 138, 0.1),
+        var(--card-bg)
     ) !important;
 }
 
@@ -1072,229 +1044,167 @@ div:nth-child(3) > .bg-indigo-500.rounded-full {
 .dark .grid.grid-cols-3 > div:nth-child(6) {
     background: linear-gradient(
         135deg,
-        rgba(240, 98, 146, 0.15),
-        rgba(21, 51, 84, 0.9)
+        rgba(136, 184, 120, 0.1),
+        var(--card-bg)
     ) !important;
 }
 
-/* ===== ENERGY TRACKER - RAINBOW GRADIENT BAR ===== */
+/* ===== ENERGY TRACKER — Earth gradient ===== */
 .bg-gradient-to-r {
     background: linear-gradient(
         90deg,
-        #e91e63,
-        #ffc107,
-        #2e7d32,
-        #00acc1,
-        #1565c0
+        var(--nature-clay),
+        var(--nature-sand),
+        var(--nature-sage),
+        var(--nature-forest)
     ) !important;
 }
 
-/* ===== CAPTURE BUTTON - EXTRA GLOW ===== */
-button:has(svg):has(span):last-child {
-    box-shadow: 0 4px 15px rgba(233, 30, 99, 0.4) !important;
-}
-
-.dark button:has(svg):has(span):last-child {
-    box-shadow: 0 4px 15px rgba(255, 193, 7, 0.4) !important;
-}
-
-/* ===== SIDEBAR NAV ITEMS - COLORFUL HOVER ===== */
+/* ===== SIDEBAR NAV ITEMS — Gentle hover ===== */
 aside button:hover,
 aside a:hover {
-    background: linear-gradient(
-        90deg,
-        rgba(233, 30, 99, 0.1),
-        rgba(21, 101, 192, 0.05)
-    ) !important;
-    border-left: 3px solid #e91e63 !important;
+    background: rgba(74, 124, 89, 0.08) !important;
+    border-left: 3px solid var(--nature-sage) !important;
     margin-left: -3px;
     padding-left: calc(0.75rem + 3px);
 }
 
 .dark aside button:hover,
 .dark aside a:hover {
-    background: linear-gradient(
-        90deg,
-        rgba(255, 193, 7, 0.15),
-        rgba(38, 198, 218, 0.05)
-    ) !important;
-    border-left: 3px solid #ffc107 !important;
+    background: rgba(122, 184, 138, 0.1) !important;
+    border-left: 3px solid var(--nature-sage) !important;
 }
 
-/* ===== MISC TASKS CATEGORIES - COLORFUL HEADERS ===== */
-.text-sm.font-medium:nth-of-type(1) {
-    color: #e91e63 !important;
-}
-
-.text-sm.font-medium:nth-of-type(2) {
-    color: #1565c0 !important;
-}
-
-.text-sm.font-medium:nth-of-type(3) {
-    color: #2e7d32 !important;
-}
-
-/* ===== FOCUS TIME & MOMENTUM - COLORFUL STATS ===== */
+/* ===== FOCUS TIME & MOMENTUM — Solid forest green ===== */
 .text-2xl.font-bold {
-    background: linear-gradient(135deg, #1565c0, #00acc1) !important;
-    -webkit-background-clip: text !important;
-    -webkit-text-fill-color: transparent !important;
-    background-clip: text !important;
+    color: var(--nature-forest) !important;
 }
 
 .dark .text-2xl.font-bold {
-    background: linear-gradient(135deg, #ffc107, #ff9800) !important;
-    -webkit-background-clip: text !important;
-    -webkit-text-fill-color: transparent !important;
-    background-clip: text !important;
+    color: var(--nature-forest) !important;
 }
 
-/* ===== MAIN CONTENT AREA - SUBTLE GRADIENT ===== */
+/* ===== MAIN CONTENT AREA — Very subtle nature wash ===== */
 main {
     background: linear-gradient(
         180deg,
-        rgba(233, 30, 99, 0.02) 0%,
-        rgba(255, 193, 7, 0.02) 25%,
-        rgba(46, 125, 50, 0.02) 50%,
-        rgba(21, 101, 192, 0.02) 75%,
-        rgba(0, 172, 193, 0.02) 100%
+        rgba(74, 124, 89, 0.02) 0%,
+        rgba(196, 168, 130, 0.01) 50%,
+        rgba(107, 150, 176, 0.02) 100%
     ) !important;
 }
 
 .dark main {
     background: linear-gradient(
         180deg,
-        rgba(255, 193, 7, 0.03) 0%,
-        rgba(244, 143, 177, 0.03) 25%,
-        rgba(102, 187, 106, 0.03) 50%,
-        rgba(66, 165, 245, 0.03) 75%,
-        rgba(38, 198, 218, 0.03) 100%
+        rgba(74, 124, 89, 0.03) 0%,
+        rgba(176, 125, 98, 0.02) 50%,
+        rgba(107, 150, 176, 0.03) 100%
     ) !important;
 }
 
-/* ===== DASHBOARD TITLE - RAINBOW GRADIENT ===== */
+/* ===== DASHBOARD TITLE — Forest green, no rainbow ===== */
 h1 {
-    background: linear-gradient(
-        90deg,
-        #e91e63,
-        #ffc107,
-        #2e7d32,
-        #1565c0
-    ) !important;
-    -webkit-background-clip: text !important;
-    -webkit-text-fill-color: transparent !important;
-    background-clip: text !important;
-    font-weight: 800 !important;
+    color: var(--nature-forest) !important;
+    font-weight: 700 !important;
 }
 
 .dark h1 {
-    background: linear-gradient(
-        90deg,
-        #ffc107,
-        #f48fb1,
-        #66bb6a,
-        #42a5f5
-    ) !important;
-    -webkit-background-clip: text !important;
-    -webkit-text-fill-color: transparent !important;
-    background-clip: text !important;
+    color: var(--nature-forest) !important;
 }
 
-/* ===== CARD HOVER EFFECTS ===== */
+/* ===== CARD HOVER EFFECTS — Subtle ===== */
 .rounded-xl {
-    transition: all 0.3s ease !important;
+    transition: all 0.2s ease !important;
 }
 
 .rounded-xl:hover {
-    transform: translateY(-2px) !important;
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06) !important;
 }
 
 .dark .rounded-xl:hover {
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
 }
 
-/* ===== QUICK CAPTURE - RAINBOW BORDER ===== */
+/* ===== QUICK CAPTURE — Subtle forest border ===== */
 input[placeholder*="Brain dump"],
 input[placeholder*="capture"] {
-    border: 2px solid transparent !important;
-    border-image: linear-gradient(90deg, #e91e63, #ffc107, #2e7d32, #1565c0) 1 !important;
+    border: 2px solid var(--card-border) !important;
     border-radius: 8px !important;
+}
+
+input[placeholder*="Brain dump"]:focus,
+input[placeholder*="capture"]:focus {
+    border-color: var(--nature-sage) !important;
 }
 
 /* ===== TODAY HIGHLIGHT IN CALENDAR ===== */
 .text-indigo-600.font-bold,
 .font-bold.text-indigo-600 {
-    color: #e91e63 !important;
-    text-shadow: 0 0 10px rgba(233, 30, 99, 0.3) !important;
+    color: var(--nature-forest) !important;
 }
 
 .dark .text-indigo-600.font-bold,
 .dark .font-bold.text-indigo-600 {
-    color: #ffc107 !important;
-    text-shadow: 0 0 10px rgba(255, 193, 7, 0.3) !important;
+    color: var(--nature-forest) !important;
 }
 
-/* ===== LOG YOUR ENERGY TOAST - COLORFUL ===== */
+/* ===== TOAST NOTIFICATIONS ===== */
 .fixed.bottom-4,
 [class*="animate-slide-in"] {
-    border-left: 4px solid #ffc107 !important;
-    box-shadow: 0 4px 20px rgba(255, 193, 7, 0.3) !important;
+    border-left: 3px solid var(--nature-sage) !important;
+    box-shadow: 0 4px 12px rgba(74, 124, 89, 0.15) !important;
 }
 
 .dark .fixed.bottom-4,
 .dark [class*="animate-slide-in"] {
-    border-left: 4px solid #e91e63 !important;
-    box-shadow: 0 4px 20px rgba(233, 30, 99, 0.3) !important;
+    border-left: 3px solid var(--nature-sage) !important;
+    box-shadow: 0 4px 12px rgba(122, 184, 138, 0.15) !important;
 }
 
-/* ===== MODALS - SOLID BACKGROUNDS ===== */
-/* Modal backdrop - darker for better contrast */
+/* ===== MODALS — Clean nature styling ===== */
 .fixed.inset-0.bg-black\/30,
 .fixed.inset-0[class*="bg-black"] {
-    background-color: rgba(0, 0, 0, 0.6) !important;
+    background-color: rgba(0, 0, 0, 0.5) !important;
     backdrop-filter: blur(4px) !important;
 }
 
 .dark .fixed.inset-0.bg-black\/30,
 .dark .fixed.inset-0[class*="bg-black"] {
-    background-color: rgba(0, 0, 0, 0.75) !important;
+    background-color: rgba(0, 0, 0, 0.65) !important;
 }
 
-/* Modal content - solid opaque background */
+/* Modal content */
 .fixed.inset-0 > div.bg-white,
 .fixed.inset-0 > div[class*="bg-white"] {
-    background-color: #fffdf8 !important;
+    background-color: var(--card-bg) !important;
     opacity: 1 !important;
-    border: 2px solid var(--frida-pink) !important;
-    box-shadow:
-        0 25px 50px -12px rgba(0, 0, 0, 0.25),
-        0 0 30px rgba(233, 30, 99, 0.15) !important;
+    border: 1px solid var(--nature-sage) !important;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15) !important;
 }
 
 .dark .fixed.inset-0 > div.bg-white,
 .dark .fixed.inset-0 > div[class*="bg-white"] {
-    background-color: #153354 !important;
-    border: 2px solid var(--frida-yellow) !important;
-    box-shadow:
-        0 25px 50px -12px rgba(0, 0, 0, 0.5),
-        0 0 30px rgba(255, 193, 7, 0.15) !important;
+    background-color: var(--card-bg) !important;
+    border: 1px solid var(--nature-moss) !important;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4) !important;
 }
 
-/* Modal inputs - ensure they're readable */
+/* Modal inputs */
 .fixed.inset-0 input,
 .fixed.inset-0 textarea,
 .fixed.inset-0 select {
-    background-color: #fef9f0 !important;
-    border-color: #e8d5c4 !important;
+    background-color: var(--input-bg) !important;
+    border-color: var(--input-border) !important;
 }
 
 .dark .fixed.inset-0 input,
 .dark .fixed.inset-0 textarea,
 .dark .fixed.inset-0 select {
-    background-color: #0d253f !important;
-    border-color: #2a4a6e !important;
-    color: #fef9f0 !important;
+    background-color: var(--input-bg) !important;
+    border-color: var(--input-border) !important;
+    color: var(--foreground) !important;
 }
 
 /* Modal headings */

@@ -10,16 +10,16 @@ interface TagManagerProps {
 }
 
 const colorOptions = [
-  "#6366f1", // Indigo
-  "#8b5cf6", // Purple
-  "#ec4899", // Pink
-  "#ef4444", // Red
-  "#f97316", // Orange
-  "#eab308", // Yellow
-  "#22c55e", // Green
-  "#14b8a6", // Teal
-  "#0ea5e9", // Sky
-  "#6b7280", // Gray
+  "#4a7c59", // Forest
+  "#7a9b6d", // Sage
+  "#5a7247", // Moss
+  "#6b8f5e", // Fern
+  "#6b96b0", // Sky
+  "#b07d62", // Clay
+  "#c4a882", // Sand
+  "#8b8578", // Stone
+  "#7a8a6b", // Olive
+  "#6a8490", // Slate
 ];
 
 export default function TagManager({ onClose }: TagManagerProps) {

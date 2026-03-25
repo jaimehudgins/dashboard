@@ -13,7 +13,7 @@ import {
 import { useApp } from "@/store/store";
 import { Task } from "@/types";
 import SmartInsights from "./SmartInsights";
-import EnergyTracker from "./EnergyTracker";
+
 import AllTasks from "./AllTasks";
 
 interface AnalyticsDashboardProps {
@@ -173,8 +173,6 @@ export default function AnalyticsDashboard({
       {/* Smart Insights */}
       <SmartInsights onFocusTask={onOpenZenMode} />
 
-      {/* Energy Tracker */}
-      <EnergyTracker />
 
       {/* All Tasks */}
       <AllTasks onFocusTask={onOpenZenMode} />

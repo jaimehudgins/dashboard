@@ -628,7 +628,7 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
               <div className="flex items-center gap-2">
                 <div
                   className="w-8 h-8 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: "#8b5cf6" }}
+                  style={{ backgroundColor: "#6b96b0" }}
                 >
                   <Users className="text-white" size={16} />
                 </div>
