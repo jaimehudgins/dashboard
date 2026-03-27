@@ -12,7 +12,7 @@ import {
   Pencil,
   X,
 } from "lucide-react";
-import { crmSupabase } from "@/lib/crm-supabase";
+import { crmSupabase, isCrmConfigured } from "@/lib/crm-supabase";
 
 interface PartnerTask {
   id: string;
@@ -42,6 +42,11 @@ export default function PartnerTasks() {
   useEffect(() => {
     async function fetchTasks() {
       try {
+        if (!isCrmConfigured) {
+          setIsLoading(false);
+          return;
+        }
+
         // Fetch partners first (including status for filtering)
         const { data: partnersData } = await crmSupabase
           .from("partners")

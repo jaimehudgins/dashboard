@@ -223,19 +223,30 @@ export default function SubtaskList({
         </DndContext>
       )}
 
-      {/* Add subtask form */}
+      {/* Add subtask - using div instead of form to avoid nested form issues inside TaskEditModal */}
       {isAdding ? (
-        <form onSubmit={handleAddSubtask} className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
           <input
             type="text"
             value={newSubtaskTitle}
             onChange={(e) => setNewSubtaskTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleAddSubtask(e as unknown as React.FormEvent);
+              }
+              if (e.key === "Escape") {
+                setIsAdding(false);
+                setNewSubtaskTitle("");
+              }
+            }}
             placeholder="Subtask title..."
             autoFocus
             className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <button
-            type="submit"
+            type="button"
+            onClick={(e) => handleAddSubtask(e as unknown as React.FormEvent)}
             disabled={!newSubtaskTitle.trim()}
             className="bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
           >
@@ -251,7 +262,7 @@ export default function SubtaskList({
           >
             Cancel
           </button>
-        </form>
+        </div>
       ) : (
         <button
           onClick={() => setIsAdding(true)}

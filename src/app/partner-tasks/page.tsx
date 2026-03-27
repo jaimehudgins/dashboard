@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import {
   crmSupabase,
+  isCrmConfigured,
   CrmFollowUpTask,
   CrmPartner,
   TaskStatus,
@@ -71,6 +72,12 @@ export default function PartnerTasksPage() {
     try {
       setLoading(true);
       setError(null);
+
+      if (!isCrmConfigured) {
+        throw new Error(
+          "CRM Supabase is not configured. Set NEXT_PUBLIC_CRM_SUPABASE_URL and NEXT_PUBLIC_CRM_SUPABASE_ANON_KEY environment variables.",
+        );
+      }
 
       const { data: partnersData, error: partnersError } = await crmSupabase
         .from("partners")

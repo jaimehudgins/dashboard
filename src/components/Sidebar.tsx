@@ -316,8 +316,15 @@ export default function Sidebar({ children }: SidebarProps) {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden bg-slate-50">
-        {/* Quick Capture Header */}
-        <QuickCapture />
+        {/* Quick Capture Header + Focus Button */}
+        <div className="flex items-center border-b border-slate-200 bg-white">
+          <div className="flex-1">
+            <QuickCapture />
+          </div>
+          <div className="pr-4">
+            <FocusButton onOpenZenMode={setZenModeTask} />
+          </div>
+        </div>
 
         {/* Content Area */}
         <div className="flex-1 overflow-auto p-8">
@@ -343,9 +350,6 @@ export default function Sidebar({ children }: SidebarProps) {
       {showTagManager && (
         <TagManager onClose={() => setShowTagManager(false)} />
       )}
-
-      {/* Focus Button - Global */}
-      <FocusButton onOpenZenMode={setZenModeTask} />
 
       {/* ZenMode - Global */}
       {zenModeTask && (

@@ -4,6 +4,12 @@ import { createClient } from "@supabase/supabase-js";
 const crmSupabaseUrl = process.env.NEXT_PUBLIC_CRM_SUPABASE_URL || "https://placeholder.supabase.co";
 const crmSupabaseAnonKey = process.env.NEXT_PUBLIC_CRM_SUPABASE_ANON_KEY || "placeholder";
 
+export const isCrmConfigured =
+  crmSupabaseUrl !== "https://placeholder.supabase.co" &&
+  crmSupabaseAnonKey !== "placeholder" &&
+  !!process.env.NEXT_PUBLIC_CRM_SUPABASE_URL &&
+  !!process.env.NEXT_PUBLIC_CRM_SUPABASE_ANON_KEY;
+
 export const crmSupabase = createClient(crmSupabaseUrl, crmSupabaseAnonKey);
 
 // CRM Database types

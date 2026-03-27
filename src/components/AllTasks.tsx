@@ -21,6 +21,7 @@ import { format, startOfDay } from "date-fns";
 import TaskEditModal from "./TaskEditModal";
 import {
   crmSupabase,
+  isCrmConfigured,
   CrmFollowUpTask,
   CrmPartner,
   TaskStatus as CrmTaskStatus,
@@ -106,6 +107,11 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
   const fetchPartnerTasks = async () => {
     try {
       setLoadingPartnerTasks(true);
+
+      if (!isCrmConfigured) {
+        setLoadingPartnerTasks(false);
+        return;
+      }
 
       const { data: partnersData, error: partnersError } = await crmSupabase
         .from("partners")
