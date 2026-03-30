@@ -138,11 +138,12 @@ export default function PartnerTasks() {
   const formatDueDate = (dateStr: string | null) => {
     if (!dateStr) return null;
 
-    const date = new Date(dateStr);
+    // Parse YYYY-MM-DD as local date to avoid UTC off-by-one
+    const parts = dateStr.split("T")[0].split("-").map(Number);
+    const taskDate = new Date(parts[0], parts[1] - 1, parts[2]);
+    taskDate.setHours(0, 0, 0, 0);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const taskDate = new Date(date);
-    taskDate.setHours(0, 0, 0, 0);
 
     const diffDays = Math.ceil(
       (taskDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
@@ -154,7 +155,7 @@ export default function PartnerTasks() {
     if (diffDays <= 7)
       return { text: `${diffDays}d`, className: "text-slate-500" };
     return {
-      text: date.toLocaleDateString("en-US", {
+      text: taskDate.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
       }),
