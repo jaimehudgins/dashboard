@@ -325,6 +325,9 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
     const currentWorkArea = task.workAreaId
       ? state.workAreas.find((w) => w.id === task.workAreaId)
       : null;
+    const subtasks = state.tasks.filter((t) => t.parentTaskId === task.id);
+    const completedSubtasks = subtasks.filter((t) => t.status === "completed");
+    const hasSubtasks = subtasks.length > 0;
 
     return (
       <div
@@ -380,6 +383,13 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
                     <Calendar size={10} />
                   )}
                   {format(new Date(task.dueDate), "MMM d")}
+                </span>
+              )}
+
+              {hasSubtasks && (
+                <span className="flex items-center gap-1 text-indigo-500">
+                  <ListTodo size={10} />
+                  {completedSubtasks.length}/{subtasks.length}
                 </span>
               )}
             </div>
