@@ -140,9 +140,11 @@ export default function PartnerTasksPage() {
       });
 
       setTasks(taskItems);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching data:", err);
-      setError(err instanceof Error ? err.message : "Failed to load tasks");
+      const message =
+        err?.message || err?.details || err?.hint || JSON.stringify(err);
+      setError(message || "Failed to load tasks");
     } finally {
       setLoading(false);
     }
