@@ -6,12 +6,18 @@ import {
   ChevronDown,
   ChevronRight,
   GraduationCap,
-  BarChart3,
+  Plus,
+  Trash2,
+  X,
+  Check,
 } from "lucide-react";
 import { CurriculumLesson, CurriculumLessonStatus } from "@/types";
 import {
   fetchCurriculumLessons,
   updateCurriculumLessonStatus,
+  updateCurriculumLesson,
+  createCurriculumLesson,
+  deleteCurriculumLesson,
 } from "@/lib/database";
 
 const STATUS_OPTIONS: CurriculumLessonStatus[] = [
@@ -28,13 +34,6 @@ const STATUS_COLORS: Record<CurriculumLessonStatus, string> = {
   Complete: "bg-emerald-50 text-emerald-700 border-emerald-200",
 };
 
-const STATUS_DOT_COLORS: Record<CurriculumLessonStatus, string> = {
-  "Not Created": "bg-gray-400",
-  "Needs Updating": "bg-amber-400",
-  Generated: "bg-blue-400",
-  Complete: "bg-emerald-400",
-};
-
 const GRADES = ["9th", "10th", "11th", "12th"];
 
 interface UnitGroup {
@@ -44,12 +43,112 @@ interface UnitGroup {
   lessons: CurriculumLesson[];
 }
 
+// Inline editable cell component
+function EditableCell({
+  value,
+  onSave,
+  className = "",
+  multiline = false,
+}: {
+  value: string;
+  onSave: (newValue: string) => void;
+  className?: string;
+  multiline?: boolean;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value);
+
+  const handleSave = () => {
+    if (editValue !== value) {
+      onSave(editValue);
+    }
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !multiline) {
+      handleSave();
+    }
+    if (e.key === "Escape") {
+      setEditValue(value);
+      setIsEditing(false);
+    }
+  };
+
+  if (isEditing) {
+    return multiline ? (
+      <div className="flex flex-col gap-1">
+        <textarea
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setEditValue(value);
+              setIsEditing(false);
+            }
+          }}
+          autoFocus
+          rows={3}
+          className="w-full bg-white border border-indigo-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+        />
+      </div>
+    ) : (
+      <input
+        type="text"
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        onBlur={handleSave}
+        onKeyDown={handleKeyDown}
+        autoFocus
+        className="w-full bg-white border border-indigo-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      />
+    );
+  }
+
+  return (
+    <div
+      onClick={() => {
+        setEditValue(value);
+        setIsEditing(true);
+      }}
+      className={`cursor-pointer hover:bg-indigo-50 rounded px-1 py-0.5 -mx-1 transition-colors ${className}`}
+      title="Click to edit"
+    >
+      {value || <span className="text-slate-300 italic">—</span>}
+    </div>
+  );
+}
+
 export default function CurriculumTracker() {
   const [lessons, setLessons] = useState<CurriculumLesson[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeGrade, setActiveGrade] = useState("9th");
   const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
+  const [showAddLesson, setShowAddLesson] = useState(false);
+  const [addingToUnit, setAddingToUnit] = useState<{
+    grade: string;
+    format: string;
+    unitNumber: number;
+    unitName: string;
+  } | null>(null);
+
+  // New lesson form state
+  const [newLessonNumber, setNewLessonNumber] = useState("");
+  const [newTitle, setNewTitle] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newDurableSkill, setNewDurableSkill] = useState("");
+  const [newWorkProduct, setNewWorkProduct] = useState("");
+  const [newPlatformAction, setNewPlatformAction] = useState("");
+  const [newAlmaIntegration, setNewAlmaIntegration] = useState("");
+  const [newPhaseName, setNewPhaseName] = useState("");
+
+  // Standalone new lesson form (for brand new lesson not in existing unit)
+  const [newLessonGrade, setNewLessonGrade] = useState("9th");
+  const [newLessonFormat, setNewLessonFormat] = useState("");
+  const [newLessonUnitNumber, setNewLessonUnitNumber] = useState("");
+  const [newLessonUnitName, setNewLessonUnitName] = useState("");
 
   useEffect(() => {
     loadLessons();
@@ -61,7 +160,9 @@ export default function CurriculumTracker() {
       const data = await fetchCurriculumLessons();
       setLessons(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load curriculum data");
+      setError(
+        err instanceof Error ? err.message : "Failed to load curriculum data",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -70,7 +171,9 @@ export default function CurriculumTracker() {
   const handleStatusChange = useCallback(
     async (lessonId: string, newStatus: CurriculumLessonStatus) => {
       setLessons((prev) =>
-        prev.map((l) => (l.id === lessonId ? { ...l, status: newStatus } : l)),
+        prev.map((l) =>
+          l.id === lessonId ? { ...l, status: newStatus } : l,
+        ),
       );
       try {
         await updateCurriculumLessonStatus(lessonId, newStatus);
@@ -80,6 +183,134 @@ export default function CurriculumTracker() {
     },
     [],
   );
+
+  const handleCellEdit = useCallback(
+    async (
+      lessonId: string,
+      field: keyof CurriculumLesson,
+      newValue: string,
+    ) => {
+      setLessons((prev) =>
+        prev.map((l) =>
+          l.id === lessonId ? { ...l, [field]: newValue } : l,
+        ),
+      );
+      try {
+        const lesson = lessons.find((l) => l.id === lessonId);
+        if (!lesson) return;
+        await updateCurriculumLesson({ ...lesson, [field]: newValue });
+      } catch {
+        loadLessons();
+      }
+    },
+    [lessons],
+  );
+
+  const handleDeleteLesson = useCallback(
+    async (lessonId: string) => {
+      if (!confirm("Delete this lesson?")) return;
+      setLessons((prev) => prev.filter((l) => l.id !== lessonId));
+      try {
+        await deleteCurriculumLesson(lessonId);
+      } catch {
+        loadLessons();
+      }
+    },
+    [],
+  );
+
+  const handleAddLessonToUnit = async () => {
+    if (!addingToUnit || !newTitle.trim()) return;
+
+    const unitLessons = lessons.filter(
+      (l) =>
+        l.grade === addingToUnit.grade &&
+        l.format === addingToUnit.format &&
+        l.unitNumber === addingToUnit.unitNumber,
+    );
+    const maxOrder = Math.max(...unitLessons.map((l) => l.displayOrder), 0);
+
+    const newLesson: CurriculumLesson = {
+      id: `lesson-${Date.now()}`,
+      grade: addingToUnit.grade,
+      format: addingToUnit.format,
+      unitName: addingToUnit.unitName,
+      unitNumber: addingToUnit.unitNumber,
+      phaseName: newPhaseName || "",
+      lessonNumber: newLessonNumber || `${unitLessons.length + 1}`,
+      title: newTitle.trim(),
+      description: newDescription,
+      durableSkill: newDurableSkill,
+      studentWorkProduct: newWorkProduct,
+      platformAction: newPlatformAction,
+      almaIntegration: newAlmaIntegration,
+      status: "Not Created",
+      displayOrder: maxOrder + 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    setLessons((prev) => [...prev, newLesson]);
+    resetAddForm();
+
+    try {
+      await createCurriculumLesson(newLesson);
+    } catch {
+      loadLessons();
+    }
+  };
+
+  const handleAddStandaloneLesson = async () => {
+    if (!newTitle.trim() || !newLessonFormat || !newLessonUnitNumber) return;
+
+    const unitNum = parseInt(newLessonUnitNumber);
+    const maxOrder = Math.max(...lessons.map((l) => l.displayOrder), 0);
+
+    const newLesson: CurriculumLesson = {
+      id: `lesson-${Date.now()}`,
+      grade: newLessonGrade,
+      format: newLessonFormat,
+      unitName: newLessonUnitName || `Unit ${unitNum}`,
+      unitNumber: unitNum,
+      phaseName: newPhaseName || "",
+      lessonNumber: newLessonNumber || "1",
+      title: newTitle.trim(),
+      description: newDescription,
+      durableSkill: newDurableSkill,
+      studentWorkProduct: newWorkProduct,
+      platformAction: newPlatformAction,
+      almaIntegration: newAlmaIntegration,
+      status: "Not Created",
+      displayOrder: maxOrder + 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    setLessons((prev) => [...prev, newLesson]);
+    resetAddForm();
+    setShowAddLesson(false);
+
+    try {
+      await createCurriculumLesson(newLesson);
+    } catch {
+      loadLessons();
+    }
+  };
+
+  const resetAddForm = () => {
+    setAddingToUnit(null);
+    setNewLessonNumber("");
+    setNewTitle("");
+    setNewDescription("");
+    setNewDurableSkill("");
+    setNewWorkProduct("");
+    setNewPlatformAction("");
+    setNewAlmaIntegration("");
+    setNewPhaseName("");
+    setNewLessonFormat("");
+    setNewLessonUnitNumber("");
+    setNewLessonUnitName("");
+  };
 
   const toggleUnit = useCallback((unitKey: string) => {
     setExpandedUnits((prev) => {
@@ -130,8 +361,12 @@ export default function CurriculumTracker() {
   const stats = useMemo(() => {
     const gradeLessons = lessons.filter((l) => l.grade === activeGrade);
     const total = gradeLessons.length;
-    const complete = gradeLessons.filter((l) => l.status === "Complete").length;
-    const generated = gradeLessons.filter((l) => l.status === "Generated").length;
+    const complete = gradeLessons.filter(
+      (l) => l.status === "Complete",
+    ).length;
+    const generated = gradeLessons.filter(
+      (l) => l.status === "Generated",
+    ).length;
     const needsUpdating = gradeLessons.filter(
       (l) => l.status === "Needs Updating",
     ).length;
@@ -174,15 +409,350 @@ export default function CurriculumTracker() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <GraduationCap className="h-6 w-6" />
-          Curriculum Tracker
-        </h1>
-        <p className="mt-1 text-slate-500">
-          Track lesson creation progress across all grades and formats
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <GraduationCap className="h-6 w-6" />
+            Curriculum Tracker
+          </h1>
+          <p className="mt-1 text-slate-500">
+            Track lesson creation progress across all grades and formats
+          </p>
+        </div>
+        <button
+          onClick={() => setShowAddLesson(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+        >
+          <Plus size={16} />
+          Add Lesson
+        </button>
       </div>
+
+      {/* Add Lesson Modal */}
+      {showAddLesson && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white border border-slate-200 rounded-xl w-full max-w-lg p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-900">
+                Add New Lesson
+              </h2>
+              <button
+                onClick={() => {
+                  setShowAddLesson(false);
+                  resetAddForm();
+                }}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1">
+                    Grade *
+                  </label>
+                  <select
+                    value={newLessonGrade}
+                    onChange={(e) => setNewLessonGrade(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    {GRADES.map((g) => (
+                      <option key={g} value={g}>
+                        {g} Grade
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1">
+                    Format *
+                  </label>
+                  <select
+                    value={newLessonFormat}
+                    onChange={(e) => setNewLessonFormat(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">Select format...</option>
+                    <option value="50-Minute Seminar">50-Minute Seminar</option>
+                    <option value="30-Minute Advisory">
+                      30-Minute Advisory
+                    </option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1">
+                    Unit Number *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={newLessonUnitNumber}
+                    onChange={(e) => setNewLessonUnitNumber(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1">
+                    Lesson Number
+                  </label>
+                  <input
+                    type="text"
+                    value={newLessonNumber}
+                    onChange={(e) => setNewLessonNumber(e.target.value)}
+                    placeholder="e.g. 1, 2a, 3"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  Unit Name
+                </label>
+                <input
+                  type="text"
+                  value={newLessonUnitName}
+                  onChange={(e) => setNewLessonUnitName(e.target.value)}
+                  placeholder="e.g. Financial Literacy"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  Phase Name
+                </label>
+                <input
+                  type="text"
+                  value={newPhaseName}
+                  onChange={(e) => setNewPhaseName(e.target.value)}
+                  placeholder="e.g. Phase 1: Introduction"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  Title *
+                </label>
+                <input
+                  type="text"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  placeholder="Lesson title"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  rows={2}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  Durable Skill
+                </label>
+                <input
+                  type="text"
+                  value={newDurableSkill}
+                  onChange={(e) => setNewDurableSkill(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  Student Work Product
+                </label>
+                <input
+                  type="text"
+                  value={newWorkProduct}
+                  onChange={(e) => setNewWorkProduct(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  Platform Action
+                </label>
+                <input
+                  type="text"
+                  value={newPlatformAction}
+                  onChange={(e) => setNewPlatformAction(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  Alma Integration
+                </label>
+                <input
+                  type="text"
+                  value={newAlmaIntegration}
+                  onChange={(e) => setNewAlmaIntegration(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <button
+                  onClick={() => {
+                    setShowAddLesson(false);
+                    resetAddForm();
+                  }}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddStandaloneLesson}
+                  disabled={
+                    !newTitle.trim() ||
+                    !newLessonFormat ||
+                    !newLessonUnitNumber
+                  }
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium"
+                >
+                  Add Lesson
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Lesson to Unit Modal */}
+      {addingToUnit && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white border border-slate-200 rounded-xl w-full max-w-lg p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-900">
+                Add Lesson to {addingToUnit.unitName.split("|")[0].trim()}
+              </h2>
+              <button
+                onClick={resetAddForm}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1">
+                    Lesson Number
+                  </label>
+                  <input
+                    type="text"
+                    value={newLessonNumber}
+                    onChange={(e) => setNewLessonNumber(e.target.value)}
+                    placeholder="e.g. 5, 3a"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1">
+                    Phase Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newPhaseName}
+                    onChange={(e) => setNewPhaseName(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  Title *
+                </label>
+                <input
+                  type="text"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  placeholder="Lesson title"
+                  autoFocus
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  rows={2}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  Durable Skill
+                </label>
+                <input
+                  type="text"
+                  value={newDurableSkill}
+                  onChange={(e) => setNewDurableSkill(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  Student Work Product
+                </label>
+                <input
+                  type="text"
+                  value={newWorkProduct}
+                  onChange={(e) => setNewWorkProduct(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  Platform Action
+                </label>
+                <input
+                  type="text"
+                  value={newPlatformAction}
+                  onChange={(e) => setNewPlatformAction(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  Alma Integration
+                </label>
+                <input
+                  type="text"
+                  value={newAlmaIntegration}
+                  onChange={(e) => setNewAlmaIntegration(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <button
+                  onClick={resetAddForm}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddLessonToUnit}
+                  disabled={!newTitle.trim()}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium"
+                >
+                  Add Lesson
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Overall Progress Bar */}
       <div className="bg-white border border-slate-200 rounded-lg p-5">
@@ -221,10 +791,26 @@ export default function CurriculumTracker() {
           )}
         </div>
         <div className="flex gap-6 mt-3">
-          <StatusBadge label="Complete" count={overallStats.complete} color="emerald" />
-          <StatusBadge label="Generated" count={overallStats.generated} color="blue" />
-          <StatusBadge label="Needs Updating" count={overallStats.needsUpdating} color="amber" />
-          <StatusBadge label="Not Created" count={overallStats.notCreated} color="gray" />
+          <StatusBadge
+            label="Complete"
+            count={overallStats.complete}
+            color="emerald"
+          />
+          <StatusBadge
+            label="Generated"
+            count={overallStats.generated}
+            color="blue"
+          />
+          <StatusBadge
+            label="Needs Updating"
+            count={overallStats.needsUpdating}
+            color="amber"
+          />
+          <StatusBadge
+            label="Not Created"
+            count={overallStats.notCreated}
+            color="gray"
+          />
         </div>
       </div>
 
@@ -311,11 +897,20 @@ export default function CurriculumTracker() {
                 className="w-full flex items-center gap-3 px-5 py-4 hover:bg-slate-50 transition-colors text-left"
               >
                 {isExpanded ? (
-                  <ChevronDown size={18} className="text-slate-400 flex-shrink-0" />
+                  <ChevronDown
+                    size={18}
+                    className="text-slate-400 flex-shrink-0"
+                  />
                 ) : (
-                  <ChevronRight size={18} className="text-slate-400 flex-shrink-0" />
+                  <ChevronRight
+                    size={18}
+                    className="text-slate-400 flex-shrink-0"
+                  />
                 )}
-                <BookOpen size={18} className="text-indigo-500 flex-shrink-0" />
+                <BookOpen
+                  size={18}
+                  className="text-indigo-500 flex-shrink-0"
+                />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-slate-900 truncate">
@@ -356,7 +951,7 @@ export default function CurriculumTracker() {
               {isExpanded && (
                 <div className="border-t border-slate-100">
                   {/* Table Header */}
-                  <div className="grid grid-cols-[60px_1fr_1fr_1fr_1fr_1fr_1fr_140px] gap-2 px-5 py-2.5 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  <div className="grid grid-cols-[60px_1fr_1fr_1fr_1fr_1fr_1fr_140px_36px] gap-2 px-5 py-2.5 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     <div>Lesson</div>
                     <div>Title</div>
                     <div>Description</div>
@@ -365,36 +960,80 @@ export default function CurriculumTracker() {
                     <div>Platform Action</div>
                     <div>Alma Integration</div>
                     <div>Status</div>
+                    <div></div>
                   </div>
 
                   {/* Lesson Rows */}
                   {unit.lessons.map((lesson, idx) => (
                     <div
                       key={lesson.id}
-                      className={`grid grid-cols-[60px_1fr_1fr_1fr_1fr_1fr_1fr_140px] gap-2 px-5 py-3 text-sm border-t border-slate-50 hover:bg-slate-50/50 transition-colors ${
+                      className={`group grid grid-cols-[60px_1fr_1fr_1fr_1fr_1fr_1fr_140px_36px] gap-2 px-5 py-3 text-sm border-t border-slate-50 hover:bg-slate-50/50 transition-colors ${
                         idx % 2 === 0 ? "" : "bg-slate-25"
                       }`}
                     >
-                      <div className="font-medium text-indigo-600">
-                        {lesson.lessonNumber}
+                      <div>
+                        <EditableCell
+                          value={lesson.lessonNumber}
+                          onSave={(v) =>
+                            handleCellEdit(lesson.id, "lessonNumber", v)
+                          }
+                          className="font-medium text-indigo-600"
+                        />
                       </div>
-                      <div className="font-medium text-slate-900 line-clamp-2">
-                        {lesson.title}
+                      <div>
+                        <EditableCell
+                          value={lesson.title}
+                          onSave={(v) =>
+                            handleCellEdit(lesson.id, "title", v)
+                          }
+                          className="font-medium text-slate-900"
+                        />
                       </div>
-                      <div className="text-slate-600 text-xs line-clamp-3">
-                        {lesson.description}
+                      <div>
+                        <EditableCell
+                          value={lesson.description}
+                          onSave={(v) =>
+                            handleCellEdit(lesson.id, "description", v)
+                          }
+                          className="text-slate-600 text-xs"
+                          multiline
+                        />
                       </div>
-                      <div className="text-slate-600 text-xs">
-                        {lesson.durableSkill || "—"}
+                      <div>
+                        <EditableCell
+                          value={lesson.durableSkill || ""}
+                          onSave={(v) =>
+                            handleCellEdit(lesson.id, "durableSkill", v)
+                          }
+                          className="text-slate-600 text-xs"
+                        />
                       </div>
-                      <div className="text-slate-600 text-xs line-clamp-2">
-                        {lesson.studentWorkProduct || "—"}
+                      <div>
+                        <EditableCell
+                          value={lesson.studentWorkProduct || ""}
+                          onSave={(v) =>
+                            handleCellEdit(lesson.id, "studentWorkProduct", v)
+                          }
+                          className="text-slate-600 text-xs"
+                        />
                       </div>
-                      <div className="text-slate-600 text-xs">
-                        {lesson.platformAction || "—"}
+                      <div>
+                        <EditableCell
+                          value={lesson.platformAction || ""}
+                          onSave={(v) =>
+                            handleCellEdit(lesson.id, "platformAction", v)
+                          }
+                          className="text-slate-600 text-xs"
+                        />
                       </div>
-                      <div className="text-slate-600 text-xs line-clamp-2">
-                        {lesson.almaIntegration || "—"}
+                      <div>
+                        <EditableCell
+                          value={lesson.almaIntegration || ""}
+                          onSave={(v) =>
+                            handleCellEdit(lesson.id, "almaIntegration", v)
+                          }
+                          className="text-slate-600 text-xs"
+                        />
                       </div>
                       <div>
                         <select
@@ -414,8 +1053,35 @@ export default function CurriculumTracker() {
                           ))}
                         </select>
                       </div>
+                      <div className="flex items-center justify-center">
+                        <button
+                          onClick={() => handleDeleteLesson(lesson.id)}
+                          className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                          title="Delete lesson"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
                   ))}
+
+                  {/* Add lesson to unit button */}
+                  <div className="px-5 py-3 border-t border-slate-100">
+                    <button
+                      onClick={() =>
+                        setAddingToUnit({
+                          grade: activeGrade,
+                          format: unit.format,
+                          unitNumber: unit.unitNumber,
+                          unitName: unit.unitName,
+                        })
+                      }
+                      className="flex items-center gap-2 text-sm text-slate-500 hover:text-indigo-500 transition-colors"
+                    >
+                      <Plus size={14} />
+                      Add lesson to this unit
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

@@ -1333,3 +1333,64 @@ export async function bulkUpdateCurriculumStatus(
     .in("id", lessonIds);
   if (error) throw error;
 }
+
+export async function updateCurriculumLesson(
+  lesson: CurriculumLesson,
+): Promise<void> {
+  const { error } = await supabase
+    .from("curriculum_lessons")
+    .update({
+      grade: lesson.grade,
+      format: lesson.format,
+      unit_name: lesson.unitName,
+      unit_number: lesson.unitNumber,
+      phase_name: lesson.phaseName,
+      lesson_number: lesson.lessonNumber,
+      title: lesson.title,
+      description: lesson.description,
+      durable_skill: lesson.durableSkill,
+      student_work_product: lesson.studentWorkProduct,
+      platform_action: lesson.platformAction,
+      alma_integration: lesson.almaIntegration,
+      status: lesson.status,
+      display_order: lesson.displayOrder,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", lesson.id);
+  if (error) throw error;
+}
+
+export async function createCurriculumLesson(
+  lesson: CurriculumLesson,
+): Promise<void> {
+  const { error } = await supabase.from("curriculum_lessons").insert({
+    id: lesson.id,
+    grade: lesson.grade,
+    format: lesson.format,
+    unit_name: lesson.unitName,
+    unit_number: lesson.unitNumber,
+    phase_name: lesson.phaseName,
+    lesson_number: lesson.lessonNumber,
+    title: lesson.title,
+    description: lesson.description,
+    durable_skill: lesson.durableSkill,
+    student_work_product: lesson.studentWorkProduct,
+    platform_action: lesson.platformAction,
+    alma_integration: lesson.almaIntegration,
+    status: lesson.status,
+    display_order: lesson.displayOrder,
+    created_at: lesson.createdAt.toISOString(),
+    updated_at: lesson.updatedAt.toISOString(),
+  });
+  if (error) throw error;
+}
+
+export async function deleteCurriculumLesson(
+  lessonId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("curriculum_lessons")
+    .delete()
+    .eq("id", lessonId);
+  if (error) throw error;
+}
