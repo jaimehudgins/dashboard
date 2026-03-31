@@ -949,9 +949,9 @@ export default function CurriculumTracker() {
 
               {/* Expanded Lessons */}
               {isExpanded && (
-                <div className="border-t border-slate-100">
+                <div className="border-t border-slate-100 overflow-x-auto">
                   {/* Table Header */}
-                  <div className="grid grid-cols-[60px_1fr_1fr_1fr_1fr_1fr_1fr_140px_36px] gap-2 px-5 py-2.5 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  <div className="grid grid-cols-[50px_minmax(140px,1.5fr)_minmax(120px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_130px_36px] gap-2 px-5 py-2.5 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider min-w-[960px]">
                     <div>Lesson</div>
                     <div>Title</div>
                     <div>Description</div>
@@ -967,7 +967,7 @@ export default function CurriculumTracker() {
                   {unit.lessons.map((lesson, idx) => (
                     <div
                       key={lesson.id}
-                      className={`group grid grid-cols-[60px_1fr_1fr_1fr_1fr_1fr_1fr_140px_36px] gap-2 px-5 py-3 text-sm border-t border-slate-50 hover:bg-slate-50/50 transition-colors ${
+                      className={`group grid grid-cols-[50px_minmax(140px,1.5fr)_minmax(120px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_130px_36px] gap-2 px-5 py-3 text-sm border-t border-slate-50 hover:bg-slate-50/50 transition-colors min-w-[960px] ${
                         idx % 2 === 0 ? "" : "bg-slate-25"
                       }`}
                     >
@@ -989,15 +989,20 @@ export default function CurriculumTracker() {
                           className="font-medium text-slate-900"
                         />
                       </div>
-                      <div>
+                      <div className="relative group/desc">
                         <EditableCell
                           value={lesson.description}
                           onSave={(v) =>
                             handleCellEdit(lesson.id, "description", v)
                           }
-                          className="text-slate-600 text-xs"
+                          className="text-slate-600 text-xs line-clamp-2"
                           multiline
                         />
+                        {lesson.description && lesson.description.length > 60 && (
+                          <div className="hidden group-hover/desc:block absolute left-0 top-full z-20 mt-1 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-lg max-w-sm whitespace-pre-wrap">
+                            {lesson.description}
+                          </div>
+                        )}
                       </div>
                       <div>
                         <EditableCell
