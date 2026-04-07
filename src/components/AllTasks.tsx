@@ -132,7 +132,7 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
         .from("onboarding_tasks")
         .select("*")
         .not("due_date", "is", null)
-        .not("status", "in", '("complete","completed","na")');
+        .not("status", "in", '("complete","completed","na","Complete")');
 
       if (onboardingError) throw onboardingError;
 
@@ -217,6 +217,10 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
     taskType: PartnerTaskItem["type"]
   ) => {
     try {
+      if (newStatus === "Complete") {
+        // Optimistically remove completed task from list immediately
+        setPartnerTasks((prev) => prev.filter((t) => t.id !== taskId));
+      }
       if (taskType === "onboarding") {
         const { error } = await crmSupabase
           .from("onboarding_tasks")
