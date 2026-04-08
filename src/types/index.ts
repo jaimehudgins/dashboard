@@ -226,6 +226,7 @@ export interface QuickTodoList {
 export type CurriculumLessonStatus =
   | "Not Created"
   | "Needs Updating"
+  | "In Progress"
   | "Generated"
   | "Complete";
 
