@@ -222,6 +222,20 @@ export interface QuickTodoList {
   createdAt: Date;
 }
 
+// Quick Tasks types
+export type QuickTaskStatus = "not_started" | "in_progress" | "complete";
+
+export interface QuickTask {
+  id: string;
+  task: string;
+  dueDate?: Date;
+  notes?: string;
+  status: QuickTaskStatus;
+  displayOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // Curriculum Tracker types
 export type CurriculumLessonStatus =
   | "Not Created"

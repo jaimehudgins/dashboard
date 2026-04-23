@@ -12,9 +12,8 @@ import {
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Task } from "@/types";
-import SmartInsights from "./SmartInsights";
-
-import AllTasks from "./AllTasks";
+import UnifiedTaskTable from "./UnifiedTaskTable";
+import QuickTasks from "./QuickTasks";
 
 interface AnalyticsDashboardProps {
   onOpenZenMode?: (task: Task) => void;
@@ -170,12 +169,15 @@ export default function AnalyticsDashboard({
         </div>
       </div>
 
-      {/* Smart Insights */}
-      <SmartInsights onFocusTask={onOpenZenMode} />
-
-
-      {/* All Tasks */}
-      <AllTasks onFocusTask={onOpenZenMode} />
+      {/* Tasks: unified table + quick tasks */}
+      <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
+        <div className="lg:col-span-7">
+          <UnifiedTaskTable onFocusTask={onOpenZenMode} />
+        </div>
+        <div className="lg:col-span-3">
+          <QuickTasks />
+        </div>
+      </div>
 
       {/* Summary Stats */}
       <div className="grid grid-cols-3 gap-6">

@@ -21,6 +21,7 @@ import {
   ProjectCategory,
   CurriculumLesson,
   CurriculumLessonStatus,
+  QuickTask,
 } from "@/types";
 
 // Helper to convert snake_case DB rows to camelCase
@@ -1196,6 +1197,71 @@ export async function deleteQuickTodoList(listId: string): Promise<void> {
   if (error) throw error;
 }
 
+// ============ Quick Tasks ============
+
+function toQuickTask(row: Record<string, unknown>): QuickTask {
+  return {
+    id: row.id as string,
+    task: row.task as string,
+    dueDate: row.due_date ? new Date(row.due_date as string) : undefined,
+    notes: (row.notes as string | null) ?? undefined,
+    status: row.status as QuickTask["status"],
+    displayOrder: (row.display_order as number) ?? 0,
+    createdAt: new Date(row.created_at as string),
+    updatedAt: new Date(row.updated_at as string),
+  };
+}
+
+export async function fetchQuickTasks(): Promise<QuickTask[]> {
+  const { data, error } = await supabase
+    .from("quick_tasks")
+    .select("*")
+    .order("display_order", { ascending: true });
+  if (error) throw error;
+  return (data || []).map(toQuickTask);
+}
+
+export async function createQuickTask(task: QuickTask): Promise<void> {
+  const { error } = await supabase.from("quick_tasks").insert({
+    id: task.id,
+    task: task.task,
+    due_date: task.dueDate
+      ? task.dueDate.toISOString().split("T")[0]
+      : null,
+    notes: task.notes ?? null,
+    status: task.status,
+    display_order: task.displayOrder,
+    created_at: task.createdAt.toISOString(),
+    updated_at: task.updatedAt.toISOString(),
+  });
+  if (error) throw error;
+}
+
+export async function updateQuickTask(task: QuickTask): Promise<void> {
+  const { error } = await supabase
+    .from("quick_tasks")
+    .update({
+      task: task.task,
+      due_date: task.dueDate
+        ? task.dueDate.toISOString().split("T")[0]
+        : null,
+      notes: task.notes ?? null,
+      status: task.status,
+      display_order: task.displayOrder,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", task.id);
+  if (error) throw error;
+}
+
+export async function deleteQuickTask(taskId: string): Promise<void> {
+  const { error } = await supabase
+    .from("quick_tasks")
+    .delete()
+    .eq("id", taskId);
+  if (error) throw error;
+}
+
 // Load all data
 export async function loadAllData(): Promise<{
   projects: Project[];
@@ -1216,6 +1282,7 @@ export async function loadAllData(): Promise<{
   energyLogs: EnergyLog[];
   stickyNotes: StickyNote[];
   quickTodoLists: QuickTodoList[];
+  quickTasks: QuickTask[];
 }> {
   const [
     projects,
@@ -1236,6 +1303,7 @@ export async function loadAllData(): Promise<{
     energyLogs,
     stickyNotes,
     quickTodoLists,
+    quickTasks,
   ] = await Promise.all([
     fetchProjects(),
     fetchTasks(),
@@ -1255,6 +1323,10 @@ export async function loadAllData(): Promise<{
     fetchEnergyLogs(),
     fetchStickyNotes(),
     fetchQuickTodoLists(),
+    fetchQuickTasks().catch((e) => {
+      console.warn("quick_tasks fetch failed (table may not exist yet):", e);
+      return [] as QuickTask[];
+    }),
   ]);
 
   return {
@@ -1276,6 +1348,7 @@ export async function loadAllData(): Promise<{
     energyLogs,
     stickyNotes,
     quickTodoLists,
+    quickTasks,
   };
 }
 

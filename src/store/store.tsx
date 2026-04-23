@@ -30,6 +30,7 @@ import {
   StickyNote,
   QuickTodoList,
   ProjectCategory,
+  QuickTask,
 } from "@/types";
 import * as db from "@/lib/database";
 
@@ -54,6 +55,7 @@ interface AppState {
   energyLogs: EnergyLog[];
   stickyNotes: StickyNote[];
   quickTodoLists: QuickTodoList[];
+  quickTasks: QuickTask[];
   isLoading: boolean;
   error: string | null;
 }
@@ -135,6 +137,10 @@ type Action =
   | { type: "ADD_QUICK_TODO_LIST"; payload: QuickTodoList }
   | { type: "UPDATE_QUICK_TODO_LIST"; payload: QuickTodoList }
   | { type: "DELETE_QUICK_TODO_LIST"; payload: string }
+  // Quick Tasks
+  | { type: "ADD_QUICK_TASK"; payload: QuickTask }
+  | { type: "UPDATE_QUICK_TASK"; payload: QuickTask }
+  | { type: "DELETE_QUICK_TASK"; payload: string }
   // System
   | { type: "LOAD_STATE"; payload: Partial<AppState> }
   | { type: "SET_LOADING"; payload: boolean }
@@ -161,6 +167,7 @@ const emptyState: AppState = {
   energyLogs: [],
   stickyNotes: [],
   quickTodoLists: [],
+  quickTasks: [],
   isLoading: true,
   error: null,
 };
@@ -770,6 +777,27 @@ function appReducer(state: AppState, action: Action): AppState {
         ),
       };
 
+    // Quick Tasks
+    case "ADD_QUICK_TASK":
+      return {
+        ...state,
+        quickTasks: [...state.quickTasks, action.payload],
+      };
+
+    case "UPDATE_QUICK_TASK":
+      return {
+        ...state,
+        quickTasks: state.quickTasks.map((t) =>
+          t.id === action.payload.id ? action.payload : t,
+        ),
+      };
+
+    case "DELETE_QUICK_TASK":
+      return {
+        ...state,
+        quickTasks: state.quickTasks.filter((t) => t.id !== action.payload),
+      };
+
     case "LOAD_STATE":
       return {
         ...state,
@@ -842,6 +870,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             energyLogs: data.energyLogs,
             stickyNotes: data.stickyNotes || [],
             quickTodoLists: data.quickTodoLists || [],
+            quickTasks: data.quickTasks || [],
           },
         });
       } catch (error) {
@@ -1127,6 +1156,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             break;
           case "DELETE_QUICK_TODO_LIST":
             await db.deleteQuickTodoList(action.payload);
+            break;
+          // Quick Tasks
+          case "ADD_QUICK_TASK":
+            await db.createQuickTask(action.payload);
+            break;
+          case "UPDATE_QUICK_TASK":
+            await db.updateQuickTask(action.payload);
+            break;
+          case "DELETE_QUICK_TASK":
+            await db.deleteQuickTask(action.payload);
             break;
         }
       } catch (error) {
