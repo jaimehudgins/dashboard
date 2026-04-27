@@ -10,12 +10,14 @@ import {
   Trash2,
   X,
   Check,
+  MessageSquare,
 } from "lucide-react";
 import { CurriculumLesson, CurriculumLessonStatus } from "@/types";
 import {
   fetchCurriculumLessons,
   updateCurriculumLessonStatus,
   updateCurriculumLesson,
+  updateCurriculumLessonNotes,
   createCurriculumLesson,
   deleteCurriculumLesson,
 } from "@/lib/database";
@@ -122,6 +124,62 @@ function EditableCell({
   );
 }
 
+function NotesPopover({
+  initial,
+  onSave,
+  onClose,
+}: {
+  initial: string;
+  onSave: (value: string | undefined) => void;
+  onClose: () => void;
+}) {
+  const [value, setValue] = useState(initial);
+
+  const commit = () => {
+    if (value !== initial) onSave(value);
+    onClose();
+  };
+
+  return (
+    <div
+      className="absolute right-0 top-full z-30 mt-1 w-72 bg-white border border-slate-200 rounded-lg shadow-lg p-2"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <textarea
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setValue(initial);
+            onClose();
+          }
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) commit();
+        }}
+        placeholder="Add a note for this lesson..."
+        autoFocus
+        rows={4}
+        className="w-full text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+      />
+      <div className="flex justify-between items-center mt-1 px-1">
+        <span className="text-[10px] text-slate-400">⌘↵ to save · Esc to cancel</span>
+        {value && (
+          <button
+            onClick={() => {
+              setValue("");
+              onSave(undefined);
+              onClose();
+            }}
+            className="text-[10px] text-slate-400 hover:text-red-500"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function CurriculumTracker() {
   const [lessons, setLessons] = useState<CurriculumLesson[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -129,6 +187,7 @@ export default function CurriculumTracker() {
   const [activeGrade, setActiveGrade] = useState("9th");
   const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
   const [showAddLesson, setShowAddLesson] = useState(false);
+  const [notesOpenId, setNotesOpenId] = useState<string | null>(null);
   const [addingToUnit, setAddingToUnit] = useState<{
     grade: string;
     format: string;
@@ -206,6 +265,23 @@ export default function CurriculumTracker() {
       }
     },
     [lessons],
+  );
+
+  const handleNotesSave = useCallback(
+    async (lessonId: string, notes: string | undefined) => {
+      const cleaned = notes && notes.trim() ? notes : undefined;
+      setLessons((prev) =>
+        prev.map((l) =>
+          l.id === lessonId ? { ...l, notes: cleaned } : l,
+        ),
+      );
+      try {
+        await updateCurriculumLessonNotes(lessonId, cleaned);
+      } catch {
+        loadLessons();
+      }
+    },
+    [],
   );
 
   const handleDeleteLesson = useCallback(
@@ -953,7 +1029,7 @@ export default function CurriculumTracker() {
               {isExpanded && (
                 <div className="border-t border-slate-100 overflow-x-auto">
                   {/* Table Header */}
-                  <div className="grid grid-cols-[50px_minmax(140px,1.5fr)_minmax(120px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_130px_36px] gap-2 px-5 py-2.5 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider min-w-[960px]">
+                  <div className="grid grid-cols-[50px_minmax(140px,1.5fr)_minmax(120px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_130px_36px_36px] gap-2 px-5 py-2.5 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider min-w-[1000px]">
                     <div>Lesson</div>
                     <div>Title</div>
                     <div>Description</div>
@@ -963,13 +1039,14 @@ export default function CurriculumTracker() {
                     <div>Alma Integration</div>
                     <div>Status</div>
                     <div></div>
+                    <div></div>
                   </div>
 
                   {/* Lesson Rows */}
                   {unit.lessons.map((lesson, idx) => (
                     <div
                       key={lesson.id}
-                      className={`group grid grid-cols-[50px_minmax(140px,1.5fr)_minmax(120px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_130px_36px] gap-2 px-5 py-3 text-sm border-t border-slate-50 hover:bg-slate-50/50 transition-colors min-w-[960px] ${
+                      className={`group grid grid-cols-[50px_minmax(140px,1.5fr)_minmax(120px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_130px_36px_36px] gap-2 px-5 py-3 text-sm border-t border-slate-50 hover:bg-slate-50/50 transition-colors min-w-[1000px] ${
                         idx % 2 === 0 ? "" : "bg-slate-25"
                       }`}
                     >
@@ -1059,6 +1136,33 @@ export default function CurriculumTracker() {
                             </option>
                           ))}
                         </select>
+                      </div>
+                      <div className="relative flex items-center justify-center">
+                        <button
+                          onClick={() =>
+                            setNotesOpenId(
+                              notesOpenId === lesson.id ? null : lesson.id,
+                            )
+                          }
+                          className={`transition-all ${
+                            lesson.notes
+                              ? "text-indigo-500"
+                              : "text-slate-300 hover:text-indigo-500 opacity-0 group-hover:opacity-100"
+                          }`}
+                          title={lesson.notes ? "View / edit note" : "Add note"}
+                        >
+                          <MessageSquare
+                            size={14}
+                            fill={lesson.notes ? "currentColor" : "none"}
+                          />
+                        </button>
+                        {notesOpenId === lesson.id && (
+                          <NotesPopover
+                            initial={lesson.notes || ""}
+                            onSave={(v) => handleNotesSave(lesson.id, v)}
+                            onClose={() => setNotesOpenId(null)}
+                          />
+                        )}
                       </div>
                       <div className="flex items-center justify-center">
                         <button
