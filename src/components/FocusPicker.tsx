@@ -24,7 +24,7 @@ export default function FocusPicker({
   // Filter states
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [selectedWorkAreas, setSelectedWorkAreas] = useState<string[]>([]);
+  const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
   const [selectedPriorities, setSelectedPriorities] = useState<Priority[]>([]);
   const [dueDateFilter, setDueDateFilter] = useState<"all" | "today" | "week" | "overdue">("all");
 
@@ -65,9 +65,9 @@ export default function FocusPicker({
     }
 
     // Work area filter
-    if (selectedWorkAreas.length > 0) {
+    if (selectedAreas.length > 0) {
       tasks = tasks.filter((task) =>
-        task.workAreaId ? selectedWorkAreas.includes(task.workAreaId) : false
+        task.areaId ? selectedAreas.includes(task.areaId) : false
       );
     }
 
@@ -104,7 +104,7 @@ export default function FocusPicker({
     searchQuery,
     selectedProjects,
     selectedTags,
-    selectedWorkAreas,
+    selectedAreas,
     selectedPriorities,
     dueDateFilter,
   ]);
@@ -172,9 +172,9 @@ export default function FocusPicker({
     return state.projects.find((p) => p.id === projectId);
   };
 
-  const getWorkArea = (workAreaId: string | undefined) => {
-    if (!workAreaId) return null;
-    return state.workAreas.find((w) => w.id === workAreaId);
+  const getArea = (areaId: string | undefined) => {
+    if (!areaId) return null;
+    return state.areas.find((a) => a.id === areaId);
   };
 
   const toggleArrayFilter = <T,>(
@@ -237,14 +237,14 @@ export default function FocusPicker({
             </button>
             {(selectedProjects.length > 0 ||
               selectedTags.length > 0 ||
-              selectedWorkAreas.length > 0 ||
+              selectedAreas.length > 0 ||
               selectedPriorities.length > 0 ||
               dueDateFilter !== "all") && (
               <button
                 onClick={() => {
                   setSelectedProjects([]);
                   setSelectedTags([]);
-                  setSelectedWorkAreas([]);
+                  setSelectedAreas([]);
                   setSelectedPriorities([]);
                   setDueDateFilter("all");
                 }}
@@ -292,34 +292,34 @@ export default function FocusPicker({
                 </div>
               </div>
 
-              {/* Work Areas */}
-              {state.workAreas.length > 0 && (
+              {/* Areas */}
+              {state.areas.length > 0 && (
                 <div>
                   <label className="text-sm font-medium text-slate-700 mb-2 block">
-                    Work Areas
+                    Areas
                   </label>
                   <div className="flex flex-wrap gap-2">
-                    {state.workAreas.map((workArea) => (
+                    {state.areas.map((area) => (
                       <button
-                        key={workArea.id}
+                        key={area.id}
                         onClick={() =>
                           toggleArrayFilter(
-                            workArea.id,
-                            selectedWorkAreas,
-                            setSelectedWorkAreas
+                            area.id,
+                            selectedAreas,
+                            setSelectedAreas
                           )
                         }
                         className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                          selectedWorkAreas.includes(workArea.id)
+                          selectedAreas.includes(area.id)
                             ? "bg-indigo-600 text-white"
                             : "bg-white border border-slate-300 text-slate-700 hover:border-indigo-300"
                         }`}
                       >
                         <span
                           className="inline-block w-2 h-2 rounded-full mr-2"
-                          style={{ backgroundColor: workArea.color }}
+                          style={{ backgroundColor: area.color }}
                         />
-                        {workArea.name}
+                        {area.name}
                       </button>
                     ))}
                   </div>
@@ -397,7 +397,7 @@ export default function FocusPicker({
             smartSuggestions.length > 0 &&
             selectedProjects.length === 0 &&
             selectedTags.length === 0 &&
-            selectedWorkAreas.length === 0 &&
+            selectedAreas.length === 0 &&
             selectedPriorities.length === 0 &&
             dueDateFilter === "all" && (
               <div className="mb-6">
@@ -410,7 +410,7 @@ export default function FocusPicker({
                 <div className="space-y-2">
                   {smartSuggestions.map((task) => {
                     const project = getProject(task.projectId);
-                    const workArea = getWorkArea(task.workAreaId);
+                    const area = getArea(task.areaId);
                     return (
                       <button
                         key={task.id}
@@ -446,10 +446,10 @@ export default function FocusPicker({
                                   {project.name}
                                 </span>
                               )}
-                              {workArea && (
+                              {area && (
                                 <span className="flex items-center gap-1">
                                   <Briefcase size={12} />
-                                  {workArea.name}
+                                  {area.name}
                                 </span>
                               )}
                             </div>
@@ -479,7 +479,7 @@ export default function FocusPicker({
               <div className="space-y-2">
                 {filteredTasks.map((task) => {
                   const project = getProject(task.projectId);
-                  const workArea = getWorkArea(task.workAreaId);
+                  const area = getArea(task.areaId);
                   const isCurrentFocus =
                     currentFocusSession?.taskId === task.id;
 
@@ -534,10 +534,10 @@ export default function FocusPicker({
                                 {project.name}
                               </span>
                             )}
-                            {workArea && (
+                            {area && (
                               <span className="flex items-center gap-1">
                                 <Briefcase size={12} />
-                                {workArea.name}
+                                {area.name}
                               </span>
                             )}
                             {task.tagIds && task.tagIds.length > 0 && (

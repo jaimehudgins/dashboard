@@ -32,35 +32,34 @@ export default function AnalyticsDashboard({
   const focusMinutes = getTodayFocusMinutes();
   const momentum = getMomentumScore();
 
-  // Calculate work area breakdown
-  const workAreaStats = useMemo(() => {
+  // Calculate area breakdown (time tracked per Area)
+  const areaStats = useMemo(() => {
     const stats = new Map<
       string,
       { name: string; minutes: number; color: string }
     >();
 
-    // Get all focus sessions
     state.focusSessions.forEach((session) => {
       const task = state.tasks.find((t) => t.id === session.taskId);
-      if (!task || !task.workAreaId) return;
+      if (!task || !task.areaId) return;
 
-      const workArea = state.workAreas.find((w) => w.id === task.workAreaId);
-      if (!workArea) return;
+      const area = state.areas.find((a) => a.id === task.areaId);
+      if (!area) return;
 
-      const existing = stats.get(workArea.id);
+      const existing = stats.get(area.id);
       if (existing) {
         existing.minutes += session.minutes;
       } else {
-        stats.set(workArea.id, {
-          name: workArea.name,
+        stats.set(area.id, {
+          name: area.name,
           minutes: session.minutes,
-          color: workArea.color,
+          color: area.color,
         });
       }
     });
 
     return Array.from(stats.values()).sort((a, b) => b.minutes - a.minutes);
-  }, [state.focusSessions, state.tasks, state.workAreas]);
+  }, [state.focusSessions, state.tasks, state.areas]);
 
   // Calculate project breakdown
   const projectStats = useMemo(() => {
@@ -83,11 +82,11 @@ export default function AnalyticsDashboard({
   const totalSessions = state.focusSessions.length;
   const avgSessionLength = totalSessions > 0 ? Math.round(totalFocusMinutes / totalSessions) : 0;
 
-  // Generate pie chart for work areas
+  // Generate pie chart for areas
   const generatePieChart = () => {
-    if (workAreaStats.length === 0) return null;
+    if (areaStats.length === 0) return null;
 
-    const total = workAreaStats.reduce((sum, item) => sum + item.minutes, 0);
+    const total = areaStats.reduce((sum, item) => sum + item.minutes, 0);
     if (total === 0) return null;
 
     let currentAngle = -90; // Start at top
@@ -95,7 +94,7 @@ export default function AnalyticsDashboard({
     const centerX = 100;
     const centerY = 100;
 
-    return workAreaStats.map((item, index) => {
+    return areaStats.map((item, index) => {
       const percentage = (item.minutes / total) * 100;
       const angle = (percentage / 100) * 360;
       const startAngle = currentAngle;
@@ -233,8 +232,8 @@ export default function AnalyticsDashboard({
         </div>
       </div>
 
-      {/* Work Area Breakdown */}
-      {workAreaStats.length > 0 && (
+      {/* Area Breakdown */}
+      {areaStats.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
@@ -242,7 +241,7 @@ export default function AnalyticsDashboard({
             </div>
             <div>
               <h2 className="text-lg font-semibold text-slate-900">
-                Time by Work Area
+                Time by Area
               </h2>
               <p className="text-sm text-slate-500">
                 All-time focus distribution
@@ -260,8 +259,8 @@ export default function AnalyticsDashboard({
 
             {/* Legend */}
             <div className="flex-1 space-y-3">
-              {workAreaStats.map((item) => {
-                const total = workAreaStats.reduce(
+              {areaStats.map((item) => {
+                const total = areaStats.reduce(
                   (sum, i) => sum + i.minutes,
                   0
                 );
@@ -356,7 +355,7 @@ export default function AnalyticsDashboard({
       )}
 
       {/* Empty State */}
-      {workAreaStats.length === 0 && projectStats.length === 0 && (
+      {areaStats.length === 0 && projectStats.length === 0 && (
         <div className="bg-slate-50 border border-slate-200 border-dashed rounded-xl p-12 text-center">
           <BarChart3 className="mx-auto text-slate-300 mb-4" size={48} />
           <h3 className="text-slate-900 font-medium mb-2">

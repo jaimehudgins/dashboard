@@ -61,22 +61,19 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
     );
   }, [state.tasks]);
 
-  // Group tasks by work area
-  const tasksByWorkArea = useMemo(() => {
+  // Group tasks by Area
+  const tasksByArea = useMemo(() => {
     const groups = new Map<string, Task[]>();
 
-    // Initialize groups for all work areas
-    state.workAreas.forEach((wa) => {
-      groups.set(wa.id, []);
+    state.areas.forEach((a) => {
+      groups.set(a.id, []);
     });
 
-    // Add "unassigned" group
     groups.set("unassigned", []);
 
-    // Distribute tasks
     activeTasks.forEach((task) => {
-      if (task.workAreaId && groups.has(task.workAreaId)) {
-        groups.get(task.workAreaId)!.push(task);
+      if (task.areaId && groups.has(task.areaId)) {
+        groups.get(task.areaId)!.push(task);
       } else {
         groups.get("unassigned")!.push(task);
       }
@@ -101,7 +98,7 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
     });
 
     return groups;
-  }, [activeTasks, state.workAreas]);
+  }, [activeTasks, state.areas]);
 
   // Fetch partner tasks from CRM
   const fetchPartnerTasks = async () => {
@@ -313,12 +310,12 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
     return dueDate < today;
   };
 
-  const handleWorkAreaChange = (task: Task, newWorkAreaId: string | undefined) => {
+  const handleAreaChange = (task: Task, newAreaId: string | undefined) => {
     dispatch({
       type: "UPDATE_TASK",
       payload: {
         ...task,
-        workAreaId: newWorkAreaId,
+        areaId: newAreaId,
       },
     });
   };
@@ -326,8 +323,8 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
   const renderTaskCard = (task: Task) => {
     const project = state.projects.find((p) => p.id === task.projectId);
     const taskIsOverdue = isOverdue(task);
-    const currentWorkArea = task.workAreaId
-      ? state.workAreas.find((w) => w.id === task.workAreaId)
+    const currentArea = task.areaId
+      ? state.areas.find((a) => a.id === task.areaId)
       : null;
     const subtasks = state.tasks.filter((t) => t.parentTaskId === task.id);
     const completedSubtasks = subtasks.filter((t) => t.status === "completed");
@@ -415,24 +412,24 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
                 Edit
               </button>
               <select
-                value={task.workAreaId || ""}
+                value={task.areaId || ""}
                 onChange={(e) =>
-                  handleWorkAreaChange(task, e.target.value || undefined)
+                  handleAreaChange(task, e.target.value || undefined)
                 }
                 className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-medium transition-colors cursor-pointer border-0 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 style={
-                  currentWorkArea
+                  currentArea
                     ? {
-                        backgroundColor: `${currentWorkArea.color}15`,
-                        color: currentWorkArea.color,
+                        backgroundColor: `${currentArea.color}15`,
+                        color: currentArea.color,
                       }
                     : {}
                 }
               >
                 <option value="">Unassigned</option>
-                {state.workAreas.map((wa) => (
-                  <option key={wa.id} value={wa.id}>
-                    {wa.name}
+                {state.areas.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
                   </option>
                 ))}
               </select>
@@ -569,17 +566,17 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
     );
   };
 
-  const renderWorkAreaCard = (
-    workAreaId: string,
+  const renderAreaCard = (
+    areaId: string,
     name: string,
     color: string,
     icon: React.ReactNode
   ) => {
-    const tasks = tasksByWorkArea.get(workAreaId) || [];
+    const tasks = tasksByArea.get(areaId) || [];
 
     return (
       <div
-        key={workAreaId}
+        key={areaId}
         className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm"
       >
         {/* Header */}
@@ -630,12 +627,12 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
         <div>
           <h2 className="text-lg font-semibold text-slate-900">All Tasks</h2>
           <p className="text-sm text-slate-500">
-            {activeTasks.length} active task{activeTasks.length !== 1 ? "s" : ""} across all work areas
+            {activeTasks.length} active task{activeTasks.length !== 1 ? "s" : ""} across all areas
           </p>
         </div>
       </div>
 
-      {/* Work Area Grid */}
+      {/* Area Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Partner Tasks */}
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
@@ -684,18 +681,18 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
           </div>
         </div>
 
-        {/* Render each work area */}
-        {state.workAreas.map((workArea) =>
-          renderWorkAreaCard(
-            workArea.id,
-            workArea.name,
-            workArea.color,
+        {/* Render each Area */}
+        {state.areas.map((area) =>
+          renderAreaCard(
+            area.id,
+            area.name,
+            area.color,
             <div className="w-full h-full" />
           )
         )}
 
         {/* Unassigned Tasks */}
-        {renderWorkAreaCard(
+        {renderAreaCard(
           "unassigned",
           "Unassigned",
           "#94a3b8",

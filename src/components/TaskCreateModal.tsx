@@ -20,15 +20,13 @@ const reminderOptions = [
 interface TaskCreateModalProps {
   onClose: () => void;
   defaultProjectId?: string | null;
-  defaultWorkAreaId?: string;
-  defaultCategoryId?: string;
+  defaultAreaId?: string;
 }
 
 export default function TaskCreateModal({
   onClose,
   defaultProjectId,
-  defaultWorkAreaId,
-  defaultCategoryId,
+  defaultAreaId,
 }: TaskCreateModalProps) {
   const { state, dispatch } = useApp();
   const [title, setTitle] = useState("");
@@ -49,22 +47,35 @@ export default function TaskCreateModal({
   const [newTagName, setNewTagName] = useState("");
   const [milestoneId, setMilestoneId] = useState<string | undefined>();
   const [link, setLink] = useState("");
-  const [categoryId, setCategoryId] = useState<string | undefined>(
-    defaultCategoryId,
-  );
   const [estimatedMinutes, setEstimatedMinutes] = useState<
     number | undefined
   >();
-  const [workAreaId, setWorkAreaId] = useState<string | undefined>(
-    defaultWorkAreaId,
+  // Resolve initial area: explicit prop wins, else inherit from default project.
+  const initialProject = state.projects.find((p) => p.id === defaultProjectId);
+  const [areaId, setAreaId] = useState<string | undefined>(
+    defaultAreaId ?? initialProject?.defaultAreaId,
+  );
+  // Track whether the user has manually picked an area, so project changes
+  // don't override an explicit choice.
+  const [areaUserSet, setAreaUserSet] = useState<boolean>(
+    Boolean(defaultAreaId),
   );
 
-  const isMiscTask = projectId === null;
   const activeProjects = state.projects.filter((p) => !p.archived);
   const projectMilestones = state.milestones.filter(
     (m) => m.projectId === projectId,
   );
-  const miscCategories = state.miscCategories || [];
+  const areas = state.areas || [];
+
+  const handleProjectChange = (newProjectId: string | null) => {
+    setProjectId(newProjectId);
+    if (!areaUserSet) {
+      const project = newProjectId
+        ? state.projects.find((p) => p.id === newProjectId)
+        : null;
+      setAreaId(project?.defaultAreaId);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,11 +95,10 @@ export default function TaskCreateModal({
       reminders,
       recurrenceRule,
       recurrenceEndDate,
-      milestoneId: isMiscTask ? undefined : milestoneId,
-      categoryId: isMiscTask ? categoryId : undefined,
+      milestoneId: projectId ? milestoneId : undefined,
       link: link.trim() || undefined,
       estimatedMinutes,
-      workAreaId,
+      areaId,
     };
 
     dispatch({ type: "ADD_TASK", payload: newTask });
@@ -193,55 +203,50 @@ export default function TaskCreateModal({
             />
           </div>
 
-          {/* Assignment: Project or Category */}
+          {/* Project assignment */}
           <div>
             <label className="block text-sm text-slate-600 mb-1">
-              Assign to
+              Project
             </label>
             <select
-              value={
-                projectId
-                  ? `project:${projectId}`
-                  : categoryId
-                    ? `misc:${categoryId}`
-                    : "unassigned"
+              value={projectId ?? ""}
+              onChange={(e) =>
+                handleProjectChange(e.target.value || null)
               }
-              onChange={(e) => {
-                const value = e.target.value;
-                if (value === "unassigned") {
-                  setProjectId(null);
-                  setCategoryId(undefined);
-                } else if (value.startsWith("project:")) {
-                  setProjectId(value.replace("project:", ""));
-                  setCategoryId(undefined);
-                } else if (value.startsWith("misc:")) {
-                  setProjectId(null);
-                  setCategoryId(value.replace("misc:", ""));
-                }
-              }}
               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
-              <option value="unassigned">Unassigned</option>
-              {activeProjects.length > 0 && (
-                <optgroup label="Projects">
-                  {activeProjects.map((project) => (
-                    <option key={project.id} value={`project:${project.id}`}>
-                      {project.name}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-              {miscCategories.length > 0 && (
-                <optgroup label="Misc Categories">
-                  {miscCategories.map((category) => (
-                    <option key={category.id} value={`misc:${category.id}`}>
-                      {category.name}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
+              <option value="">No project</option>
+              {activeProjects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
             </select>
           </div>
+
+          {/* Area (unified taxonomy: replaces Misc Category + Work Area) */}
+          {areas.length > 0 && (
+            <div>
+              <label className="block text-sm text-slate-600 mb-1">
+                Area
+              </label>
+              <select
+                value={areaId || ""}
+                onChange={(e) => {
+                  setAreaId(e.target.value || undefined);
+                  setAreaUserSet(true);
+                }}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">Unassigned</option>
+                {areas.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Milestone Selector */}
           {projectId && projectMilestones.length > 0 && (
@@ -259,27 +264,6 @@ export default function TaskCreateModal({
                 {projectMilestones.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Work Area Selector */}
-          {state.workAreas.length > 0 && (
-            <div>
-              <label className="block text-sm text-slate-600 mb-1">
-                Work Area
-              </label>
-              <select
-                value={workAreaId || ""}
-                onChange={(e) => setWorkAreaId(e.target.value || undefined)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">No work area</option>
-                {state.workAreas.map((wa) => (
-                  <option key={wa.id} value={wa.id}>
-                    {wa.name}
                   </option>
                 ))}
               </select>

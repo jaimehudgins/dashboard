@@ -13,8 +13,7 @@ import {
   Attachment,
   ProjectNote,
   ProjectLink,
-  MiscCategory,
-  WorkArea,
+  Area,
   EnergyLog,
   StickyNote,
   QuickTodoList,
@@ -51,29 +50,18 @@ function toTask(row: Record<string, unknown>): Task {
       : undefined,
     recurringParentId: row.recurring_parent_id as string | undefined,
     milestoneId: row.milestone_id as string | undefined,
-    categoryId: row.category_id as string | undefined,
     link: row.link as string | undefined,
-    workAreaId: row.work_area_id as string | undefined,
+    areaId: row.area_id as string | undefined,
   };
 }
 
-function toMiscCategory(row: Record<string, unknown>): MiscCategory {
+function toArea(row: Record<string, unknown>): Area {
   return {
     id: row.id as string,
     name: row.name as string,
     color: row.color as string,
     displayOrder: row.display_order as number | undefined,
     isCollapsed: row.is_collapsed as boolean | undefined,
-    createdAt: new Date(row.created_at as string),
-  };
-}
-
-function toWorkArea(row: Record<string, unknown>): WorkArea {
-  return {
-    id: row.id as string,
-    name: row.name as string,
-    color: row.color as string,
-    displayOrder: row.display_order as number | undefined,
     createdAt: new Date(row.created_at as string),
   };
 }
@@ -90,6 +78,7 @@ function toProject(row: Record<string, unknown>): Project {
     displayOrder: row.display_order as number | undefined,
     archived: row.archived as boolean | undefined,
     category: (row.category as ProjectCategory | undefined) || "work",
+    defaultAreaId: row.default_area_id as string | undefined,
   };
 }
 
@@ -237,6 +226,7 @@ export async function createProject(project: Project): Promise<void> {
     display_order: project.displayOrder,
     archived: project.archived || false,
     category: project.category || "work",
+    default_area_id: project.defaultAreaId,
   });
 
   if (error) throw error;
@@ -254,6 +244,7 @@ export async function updateProject(project: Project): Promise<void> {
       display_order: project.displayOrder,
       archived: project.archived,
       category: project.category || "work",
+      default_area_id: project.defaultAreaId,
     })
     .eq("id", project.id);
 
@@ -294,9 +285,8 @@ export async function createTask(task: Task): Promise<void> {
     recurrence_end_date: task.recurrenceEndDate?.toISOString(),
     recurring_parent_id: task.recurringParentId,
     milestone_id: task.milestoneId,
-    category_id: task.categoryId,
     link: task.link,
-    work_area_id: task.workAreaId,
+    area_id: task.areaId,
   });
 
   if (error) throw error;
@@ -324,9 +314,8 @@ export async function updateTask(task: Task): Promise<void> {
       recurrence_end_date: task.recurrenceEndDate?.toISOString(),
       recurring_parent_id: task.recurringParentId,
       milestone_id: task.milestoneId,
-      category_id: task.categoryId,
       link: task.link,
-      work_area_id: task.workAreaId,
+      area_id: task.areaId,
     })
     .eq("id", task.id);
 
@@ -775,103 +764,50 @@ export async function updateLinkOrders(
   );
 }
 
-// Misc Categories
-export async function fetchMiscCategories(): Promise<MiscCategory[]> {
+// Areas (replaces former misc_categories + work_areas tables)
+export async function fetchAreas(): Promise<Area[]> {
   const { data, error } = await supabase
-    .from("misc_categories")
-    .select("*")
-    .order("display_order", { ascending: true, nullsFirst: false })
-    .order("created_at", { ascending: true });
-
-  if (error) throw error;
-  return (data || []).map(toMiscCategory);
-}
-
-export async function createMiscCategory(
-  category: MiscCategory,
-): Promise<void> {
-  const { error } = await supabase.from("misc_categories").insert({
-    id: category.id,
-    name: category.name,
-    color: category.color,
-    display_order: category.displayOrder,
-    is_collapsed: category.isCollapsed,
-    created_at: category.createdAt.toISOString(),
-  });
-
-  if (error) throw error;
-}
-
-export async function updateMiscCategory(
-  category: MiscCategory,
-): Promise<void> {
-  const { error } = await supabase
-    .from("misc_categories")
-    .update({
-      name: category.name,
-      color: category.color,
-      display_order: category.displayOrder,
-      is_collapsed: category.isCollapsed,
-    })
-    .eq("id", category.id);
-
-  if (error) throw error;
-}
-
-export async function deleteMiscCategory(categoryId: string): Promise<void> {
-  const { error } = await supabase
-    .from("misc_categories")
-    .delete()
-    .eq("id", categoryId);
-
-  if (error) throw error;
-}
-
-// Work Areas
-export async function fetchWorkAreas(): Promise<WorkArea[]> {
-  const { data, error } = await supabase
-    .from("work_areas")
+    .from("areas")
     .select("*")
     .order("display_order", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: true });
 
   if (error) {
-    console.warn("work_areas table not found or error:", error.message);
+    console.warn("areas table not found or error:", error.message);
     return [];
   }
-  return (data || []).map(toWorkArea);
+  return (data || []).map(toArea);
 }
 
-export async function createWorkArea(workArea: WorkArea): Promise<void> {
-  const { error } = await supabase.from("work_areas").insert({
-    id: workArea.id,
-    name: workArea.name,
-    color: workArea.color,
-    display_order: workArea.displayOrder,
-    created_at: workArea.createdAt.toISOString(),
+export async function createArea(area: Area): Promise<void> {
+  const { error } = await supabase.from("areas").insert({
+    id: area.id,
+    name: area.name,
+    color: area.color,
+    display_order: area.displayOrder,
+    is_collapsed: area.isCollapsed,
+    created_at: area.createdAt.toISOString(),
   });
 
   if (error) throw error;
 }
 
-export async function updateWorkArea(workArea: WorkArea): Promise<void> {
+export async function updateArea(area: Area): Promise<void> {
   const { error } = await supabase
-    .from("work_areas")
+    .from("areas")
     .update({
-      name: workArea.name,
-      color: workArea.color,
-      display_order: workArea.displayOrder,
+      name: area.name,
+      color: area.color,
+      display_order: area.displayOrder,
+      is_collapsed: area.isCollapsed,
     })
-    .eq("id", workArea.id);
+    .eq("id", area.id);
 
   if (error) throw error;
 }
 
-export async function deleteWorkArea(workAreaId: string): Promise<void> {
-  const { error } = await supabase
-    .from("work_areas")
-    .delete()
-    .eq("id", workAreaId);
+export async function deleteArea(areaId: string): Promise<void> {
+  const { error } = await supabase.from("areas").delete().eq("id", areaId);
 
   if (error) throw error;
 }
@@ -1277,8 +1213,7 @@ export async function loadAllData(): Promise<{
   attachments: Attachment[];
   projectNotes: ProjectNote[];
   projectLinks: ProjectLink[];
-  miscCategories: MiscCategory[];
-  workAreas: WorkArea[];
+  areas: Area[];
   energyLogs: EnergyLog[];
   stickyNotes: StickyNote[];
   quickTodoLists: QuickTodoList[];
@@ -1298,8 +1233,7 @@ export async function loadAllData(): Promise<{
     attachments,
     projectNotes,
     projectLinks,
-    miscCategories,
-    workAreas,
+    areas,
     energyLogs,
     stickyNotes,
     quickTodoLists,
@@ -1318,8 +1252,7 @@ export async function loadAllData(): Promise<{
     fetchAttachments(),
     fetchProjectNotes(),
     fetchProjectLinks(),
-    fetchMiscCategories(),
-    fetchWorkAreas(),
+    fetchAreas(),
     fetchEnergyLogs(),
     fetchStickyNotes(),
     fetchQuickTodoLists(),
@@ -1343,8 +1276,7 @@ export async function loadAllData(): Promise<{
     attachments,
     projectNotes,
     projectLinks,
-    miscCategories,
-    workAreas,
+    areas,
     energyLogs,
     stickyNotes,
     quickTodoLists,
@@ -1370,6 +1302,7 @@ function toCurriculumLesson(row: Record<string, unknown>): CurriculumLesson {
     platformAction: row.platform_action as string,
     almaIntegration: row.alma_integration as string,
     status: row.status as CurriculumLessonStatus,
+    notes: (row.notes as string | undefined) || undefined,
     displayOrder: row.display_order as number,
     createdAt: new Date(row.created_at as string),
     updatedAt: new Date(row.updated_at as string),
@@ -1392,6 +1325,17 @@ export async function updateCurriculumLessonStatus(
   const { error } = await supabase
     .from("curriculum_lessons")
     .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", lessonId);
+  if (error) throw error;
+}
+
+export async function updateCurriculumLessonNotes(
+  lessonId: string,
+  notes: string | undefined,
+): Promise<void> {
+  const { error } = await supabase
+    .from("curriculum_lessons")
+    .update({ notes: notes || null, updated_at: new Date().toISOString() })
     .eq("id", lessonId);
   if (error) throw error;
 }
@@ -1426,6 +1370,7 @@ export async function updateCurriculumLesson(
       platform_action: lesson.platformAction,
       alma_integration: lesson.almaIntegration,
       status: lesson.status,
+      notes: lesson.notes,
       display_order: lesson.displayOrder,
       updated_at: new Date().toISOString(),
     })
@@ -1451,6 +1396,7 @@ export async function createCurriculumLesson(
     platform_action: lesson.platformAction,
     alma_integration: lesson.almaIntegration,
     status: lesson.status,
+    notes: lesson.notes,
     display_order: lesson.displayOrder,
     created_at: lesson.createdAt.toISOString(),
     updated_at: lesson.updatedAt.toISOString(),

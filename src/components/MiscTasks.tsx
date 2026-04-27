@@ -17,11 +17,11 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useApp } from "@/store/store";
-import { MiscCategory, Task, Priority } from "@/types";
+import { Area, Task, Priority } from "@/types";
 import TaskEditModal from "./TaskEditModal";
 import TagBadge from "./TagBadge";
 
-const categoryColors = [
+const areaColors = [
   "#4a7c59", // forest
   "#7a9b6d", // sage
   "#6b96b0", // sky
@@ -36,19 +36,15 @@ const categoryColors = [
 
 export default function MiscTasks() {
   const { state, dispatch } = useApp();
-  const [showAddCategory, setShowAddCategory] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState("");
-  const [newCategoryColor, setNewCategoryColor] = useState(categoryColors[0]);
-  const [editingCategory, setEditingCategory] = useState<MiscCategory | null>(
-    null,
-  );
-  const [editingCategoryName, setEditingCategoryName] = useState("");
-  const [editingCategoryColor, setEditingCategoryColor] = useState("");
+  const [showAddArea, setShowAddArea] = useState(false);
+  const [newAreaName, setNewAreaName] = useState("");
+  const [newAreaColor, setNewAreaColor] = useState(areaColors[0]);
+  const [editingArea, setEditingArea] = useState<Area | null>(null);
+  const [editingAreaName, setEditingAreaName] = useState("");
+  const [editingAreaColor, setEditingAreaColor] = useState("");
   const [addingTaskTo, setAddingTaskTo] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
-    new Set(),
-  );
+  const [expandedAreas, setExpandedAreas] = useState<Set<string>>(new Set());
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -56,71 +52,64 @@ export default function MiscTasks() {
     setIsMounted(true);
   }, []);
 
-  // Get misc categories and tasks
-  const categories = [...state.miscCategories].sort(
+  // Areas + projectless tasks (this view shows tasks with no project, grouped by Area).
+  const areas = [...state.areas].sort(
     (a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0),
   );
 
-  const miscTasks = state.tasks.filter(
-    (t) => (t.projectId === "misc" || t.projectId === null) && !t.parentTaskId,
+  const projectlessTasks = state.tasks.filter(
+    (t) => t.projectId === null && !t.parentTaskId,
   );
 
-  const getTasksForCategory = (categoryId: string) =>
-    miscTasks.filter(
-      (t) => t.categoryId === categoryId && t.status !== "completed",
+  const getTasksForArea = (areaId: string) =>
+    projectlessTasks.filter(
+      (t) => t.areaId === areaId && t.status !== "completed",
     );
 
-  const getCompletedTasksForCategory = (categoryId: string) =>
-    miscTasks.filter(
-      (t) => t.categoryId === categoryId && t.status === "completed",
-    );
-
-  const uncategorizedTasks = miscTasks.filter(
-    (t) => !t.categoryId && t.status !== "completed",
+  const unassignedTasks = projectlessTasks.filter(
+    (t) => !t.areaId && t.status !== "completed",
   );
 
-  const handleAddCategory = () => {
-    if (!newCategoryName.trim()) return;
+  const handleAddArea = () => {
+    if (!newAreaName.trim()) return;
 
-    const newCategory: MiscCategory = {
+    const newArea: Area = {
       id: crypto.randomUUID(),
-      name: newCategoryName.trim(),
-      color: newCategoryColor,
-      displayOrder: categories.length,
+      name: newAreaName.trim(),
+      color: newAreaColor,
+      displayOrder: areas.length,
       isCollapsed: false,
       createdAt: new Date(),
     };
 
-    dispatch({ type: "ADD_CATEGORY", payload: newCategory });
-    setNewCategoryName("");
-    setNewCategoryColor(
-      categoryColors[(categories.length + 1) % categoryColors.length],
-    );
-    setShowAddCategory(false);
+    dispatch({ type: "ADD_AREA", payload: newArea });
+    setNewAreaName("");
+    setNewAreaColor(areaColors[(areas.length + 1) % areaColors.length]);
+    setShowAddArea(false);
   };
 
-  const handleUpdateCategory = () => {
-    if (!editingCategoryName.trim() || !editingCategory) {
-      setEditingCategory(null);
+  const handleUpdateArea = () => {
+    if (!editingAreaName.trim() || !editingArea) {
+      setEditingArea(null);
       return;
     }
 
     dispatch({
-      type: "UPDATE_CATEGORY",
+      type: "UPDATE_AREA",
       payload: {
-        ...editingCategory,
-        name: editingCategoryName.trim(),
-        color: editingCategoryColor,
+        ...editingArea,
+        name: editingAreaName.trim(),
+        color: editingAreaColor,
       },
     });
-    setEditingCategory(null);
+    setEditingArea(null);
   };
 
-  const handleDeleteCategory = (categoryId: string) => {
-    dispatch({ type: "DELETE_CATEGORY", payload: categoryId });
+  const handleDeleteArea = (areaId: string) => {
+    dispatch({ type: "DELETE_AREA", payload: areaId });
   };
 
-  const handleAddTask = (categoryId: string) => {
+  const handleAddTask = (areaId: string) => {
     if (!newTaskTitle.trim()) return;
 
     const newTask: Task = {
@@ -129,10 +118,10 @@ export default function MiscTasks() {
       priority: "medium" as Priority,
       status: "pending",
       projectId: null,
-      categoryId,
+      areaId,
       createdAt: new Date(),
       focusMinutes: 0,
-      displayOrder: getTasksForCategory(categoryId).length,
+      displayOrder: getTasksForArea(areaId).length,
     };
 
     dispatch({ type: "ADD_TASK", payload: newTask });
@@ -154,14 +143,14 @@ export default function MiscTasks() {
     dispatch({ type: "DELETE_TASK", payload: taskId });
   };
 
-  const toggleCategory = (categoryId: string) => {
-    const newCollapsed = new Set(expandedCategories);
-    if (newCollapsed.has(categoryId)) {
-      newCollapsed.delete(categoryId);
+  const toggleArea = (areaId: string) => {
+    const newCollapsed = new Set(expandedAreas);
+    if (newCollapsed.has(areaId)) {
+      newCollapsed.delete(areaId);
     } else {
-      newCollapsed.add(categoryId);
+      newCollapsed.add(areaId);
     }
-    setExpandedCategories(newCollapsed);
+    setExpandedAreas(newCollapsed);
   };
 
   const getPriorityColor = (priority: Priority) => {
@@ -305,18 +294,17 @@ export default function MiscTasks() {
     );
   };
 
-  const renderCategory = (category: MiscCategory) => {
-    const tasks = getTasksForCategory(category.id);
-    const completedTasks = getCompletedTasksForCategory(category.id);
-    const isCollapsed = !expandedCategories.has(category.id);
-    const isAddingTask = addingTaskTo === category.id;
+  const renderArea = (area: Area) => {
+    const tasks = getTasksForArea(area.id);
+    const isCollapsed = !expandedAreas.has(area.id);
+    const isAddingTask = addingTaskTo === area.id;
 
     return (
-      <div key={category.id} className="mb-2">
-        {/* Category Header */}
+      <div key={area.id} className="mb-2">
+        {/* Area Header */}
         <div className="group flex items-center gap-1 py-1.5 px-2 rounded hover:bg-slate-100 transition-colors">
           <button
-            onClick={() => toggleCategory(category.id)}
+            onClick={() => toggleArea(area.id)}
             className="text-slate-400"
           >
             {isCollapsed ? (
@@ -327,15 +315,15 @@ export default function MiscTasks() {
           </button>
           <div
             className="w-2 h-2 rounded-full flex-shrink-0"
-            style={{ backgroundColor: category.color }}
+            style={{ backgroundColor: area.color }}
           />
           <span className="flex-1 text-sm font-medium text-slate-700 truncate">
-            {category.name}
+            {area.name}
           </span>
           <span className="text-xs text-slate-400">{tasks.length}</span>
           <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
             <button
-              onClick={() => setAddingTaskTo(category.id)}
+              onClick={() => setAddingTaskTo(area.id)}
               className="p-0.5 text-slate-400 hover:text-indigo-500"
               title="Add task"
             >
@@ -343,19 +331,19 @@ export default function MiscTasks() {
             </button>
             <button
               onClick={() => {
-                setEditingCategory(category);
-                setEditingCategoryName(category.name);
-                setEditingCategoryColor(category.color);
+                setEditingArea(area);
+                setEditingAreaName(area.name);
+                setEditingAreaColor(area.color);
               }}
               className="p-0.5 text-slate-400 hover:text-slate-600"
-              title="Edit category"
+              title="Edit area"
             >
               <Pencil size={12} />
             </button>
             <button
-              onClick={() => handleDeleteCategory(category.id)}
+              onClick={() => handleDeleteArea(area.id)}
               className="p-0.5 text-slate-400 hover:text-red-500"
-              title="Delete category"
+              title="Delete area"
             >
               <Trash2 size={12} />
             </button>
@@ -373,7 +361,7 @@ export default function MiscTasks() {
                   value={newTaskTitle}
                   onChange={(e) => setNewTaskTitle(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") handleAddTask(category.id);
+                    if (e.key === "Enter") handleAddTask(area.id);
                     if (e.key === "Escape") {
                       setAddingTaskTo(null);
                       setNewTaskTitle("");
@@ -412,7 +400,7 @@ export default function MiscTasks() {
       <div className="pt-4">
         <div className="flex items-center justify-between px-3 mb-2">
           <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Misc Tasks
+            By Area
           </h3>
         </div>
       </div>
@@ -423,40 +411,40 @@ export default function MiscTasks() {
     <div className="pt-4">
       <div className="flex items-center justify-between px-3 mb-2">
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-          Misc Tasks
+          By Area
         </h3>
         <button
-          onClick={() => setShowAddCategory(true)}
+          onClick={() => setShowAddArea(true)}
           className="text-slate-400 hover:text-indigo-500 transition-colors"
-          title="Add category"
+          title="Add area"
         >
           <Plus size={16} />
         </button>
       </div>
 
-      {/* Add Category Form */}
-      {showAddCategory && (
+      {/* Add Area Form */}
+      {showAddArea && (
         <div className="mx-3 mb-2 space-y-2">
           <div className="flex items-center gap-2">
             <input
               type="text"
-              value={newCategoryName}
-              onChange={(e) => setNewCategoryName(e.target.value)}
+              value={newAreaName}
+              onChange={(e) => setNewAreaName(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleAddCategory();
+                if (e.key === "Enter") handleAddArea();
                 if (e.key === "Escape") {
-                  setShowAddCategory(false);
-                  setNewCategoryName("");
+                  setShowAddArea(false);
+                  setNewAreaName("");
                 }
               }}
-              placeholder="Category name..."
+              placeholder="Area name..."
               autoFocus
               className="flex-1 text-sm bg-white border border-slate-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
             <button
               onClick={() => {
-                setShowAddCategory(false);
-                setNewCategoryName("");
+                setShowAddArea(false);
+                setNewAreaName("");
               }}
               className="text-slate-400 hover:text-slate-600"
             >
@@ -464,12 +452,12 @@ export default function MiscTasks() {
             </button>
           </div>
           <div className="flex items-center gap-1 flex-wrap">
-            {categoryColors.map((color) => (
+            {areaColors.map((color) => (
               <button
                 key={color}
-                onClick={() => setNewCategoryColor(color)}
+                onClick={() => setNewAreaColor(color)}
                 className={`w-5 h-5 rounded-full border-2 transition-all ${
-                  newCategoryColor === color
+                  newAreaColor === color
                     ? "border-slate-600 scale-110"
                     : "border-transparent hover:scale-105"
                 }`}
@@ -479,50 +467,50 @@ export default function MiscTasks() {
             ))}
           </div>
           <button
-            onClick={handleAddCategory}
-            disabled={!newCategoryName.trim()}
+            onClick={handleAddArea}
+            disabled={!newAreaName.trim()}
             className="w-full text-sm bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-300 text-white px-3 py-1.5 rounded transition-colors"
           >
-            Add Category
+            Add Area
           </button>
         </div>
       )}
 
-      {/* Categories */}
+      {/* Areas */}
       <div className="px-1">
-        {categories.map(renderCategory)}
+        {areas.map(renderArea)}
 
-        {/* Uncategorized Tasks */}
-        {uncategorizedTasks.length > 0 && (
+        {/* Unassigned (projectless tasks with no Area) */}
+        {unassignedTasks.length > 0 && (
           <div className="mt-2 pt-2 border-t border-slate-200">
             <div className="px-2 py-1 text-xs text-slate-400 font-medium">
-              Uncategorized
+              Unassigned
             </div>
-            <div className="ml-2">{uncategorizedTasks.map(renderTask)}</div>
+            <div className="ml-2">{unassignedTasks.map(renderTask)}</div>
           </div>
         )}
 
-        {categories.length === 0 &&
-          uncategorizedTasks.length === 0 &&
-          !showAddCategory && (
+        {areas.length === 0 &&
+          unassignedTasks.length === 0 &&
+          !showAddArea && (
             <p className="text-xs text-slate-400 px-3 py-2 italic">
-              No categories yet. Click + to add one.
+              No areas yet. Click + to add one.
             </p>
           )}
       </div>
 
-      {/* Category Edit Modal - rendered via portal */}
-      {editingCategory &&
+      {/* Area Edit Modal - rendered via portal */}
+      {editingArea &&
         isMounted &&
         createPortal(
           <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
             <div className="bg-white border border-slate-200 rounded-xl w-full max-w-sm p-5 shadow-xl">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-base font-semibold text-slate-900">
-                  Edit Category
+                  Edit Area
                 </h3>
                 <button
-                  onClick={() => setEditingCategory(null)}
+                  onClick={() => setEditingArea(null)}
                   className="text-slate-400 hover:text-slate-600"
                 >
                   <X size={18} />
@@ -535,8 +523,8 @@ export default function MiscTasks() {
                   </label>
                   <input
                     type="text"
-                    value={editingCategoryName}
-                    onChange={(e) => setEditingCategoryName(e.target.value)}
+                    value={editingAreaName}
+                    onChange={(e) => setEditingAreaName(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     autoFocus
                   />
@@ -546,12 +534,12 @@ export default function MiscTasks() {
                     Color
                   </label>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {categoryColors.map((color) => (
+                    {areaColors.map((color) => (
                       <button
                         key={color}
-                        onClick={() => setEditingCategoryColor(color)}
+                        onClick={() => setEditingAreaColor(color)}
                         className={`w-7 h-7 rounded-full border-2 transition-all ${
-                          editingCategoryColor === color
+                          editingAreaColor === color
                             ? "border-slate-600 scale-110"
                             : "border-transparent hover:scale-105"
                         }`}
@@ -562,13 +550,13 @@ export default function MiscTasks() {
                 </div>
                 <div className="flex gap-2 pt-2">
                   <button
-                    onClick={() => setEditingCategory(null)}
+                    onClick={() => setEditingArea(null)}
                     className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium transition-colors"
                   >
                     Cancel
                   </button>
                   <button
-                    onClick={handleUpdateCategory}
+                    onClick={handleUpdateArea}
                     className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                   >
                     Save

@@ -55,32 +55,19 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
     task.milestoneId,
   );
   const [link, setLink] = useState(task.link || "");
-  const [categoryId, setCategoryId] = useState<string | undefined>(
-    task.categoryId,
-  );
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | undefined>(
     task.estimatedMinutes,
   );
   const [actualMinutes, setActualMinutes] = useState<number | undefined>(
     task.actualMinutes,
   );
-  const [workAreaId, setWorkAreaId] = useState<string | undefined>(
-    task.workAreaId,
-  );
+  const [areaId, setAreaId] = useState<string | undefined>(task.areaId);
 
-  // Check if this is a misc task
-  const isMiscTask = projectId === "misc" || projectId === null;
-
-  // Filter to only show active (non-archived) projects
   const activeProjects = state.projects.filter((p) => !p.archived);
-
-  // Get milestones for the current project
   const projectMilestones = state.milestones.filter(
     (m) => m.projectId === projectId,
   );
-
-  // Get misc categories
-  const miscCategories = state.miscCategories || [];
+  const areas = state.areas || [];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,12 +87,11 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
         reminders,
         recurrenceRule,
         recurrenceEndDate,
-        milestoneId: isMiscTask ? undefined : milestoneId,
-        categoryId: isMiscTask ? categoryId : undefined,
+        milestoneId: projectId ? milestoneId : undefined,
         link: link.trim() || undefined,
         estimatedMinutes,
         actualMinutes,
-        workAreaId,
+        areaId,
       },
     });
 
@@ -240,42 +226,21 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
             <DependencyPicker taskId={task.id} projectId={task.projectId} />
           )}
 
-          {isMiscTask ? (
-            <div>
-              <label className="block text-sm text-slate-600 mb-1">
-                Category
-              </label>
-              <select
-                value={categoryId || ""}
-                onChange={(e) => setCategoryId(e.target.value || undefined)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">Uncategorized</option>
-                {miscCategories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <div>
-              <label className="block text-sm text-slate-600 mb-1">
-                Project
-              </label>
-              <select
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                {activeProjects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div>
+            <label className="block text-sm text-slate-600 mb-1">Project</label>
+            <select
+              value={projectId ?? ""}
+              onChange={(e) => setProjectId(e.target.value || null)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">No project</option>
+              {activeProjects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
           {/* Milestone Selector - only show for non-subtasks and if milestones exist */}
           {!task.parentTaskId && projectMilestones.length > 0 && (
@@ -299,21 +264,19 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
             </div>
           )}
 
-          {/* Work Area Selector */}
-          {state.workAreas.length > 0 && (
+          {/* Area (unified taxonomy) */}
+          {areas.length > 0 && (
             <div>
-              <label className="block text-sm text-slate-600 mb-1">
-                Work Area
-              </label>
+              <label className="block text-sm text-slate-600 mb-1">Area</label>
               <select
-                value={workAreaId || ""}
-                onChange={(e) => setWorkAreaId(e.target.value || undefined)}
+                value={areaId || ""}
+                onChange={(e) => setAreaId(e.target.value || undefined)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                <option value="">No work area</option>
-                {state.workAreas.map((wa) => (
-                  <option key={wa.id} value={wa.id}>
-                    {wa.name}
+                <option value="">Unassigned</option>
+                {areas.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
                   </option>
                 ))}
               </select>

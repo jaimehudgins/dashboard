@@ -43,12 +43,11 @@ export interface Task {
   recurringParentId?: string;
   // Milestones
   milestoneId?: string;
-  // Misc category (for tasks with projectId = "misc")
-  categoryId?: string;
   // External link
   link?: string;
-  // Work area for time tracking analytics
-  workAreaId?: string;
+  // Area: unified taxonomy (replaces former categoryId + workAreaId).
+  // Independent of projectId; used for "By Area" grouping and time analytics.
+  areaId?: string;
 }
 
 export interface TaskDependency {
@@ -137,6 +136,8 @@ export interface Project {
   displayOrder?: number;
   archived?: boolean;
   category?: ProjectCategory;
+  // Optional default Area for tasks created within this project.
+  defaultAreaId?: string;
 }
 
 export interface InboxItem {
@@ -163,20 +164,15 @@ export interface DailySummary {
   momentumScore: number;
 }
 
-export interface MiscCategory {
+// Area: unified taxonomy that replaces the former MiscCategory and WorkArea
+// types. Used both for grouping projectless tasks ("By Area" view) and for
+// time-tracking analytics rollups.
+export interface Area {
   id: string;
   name: string;
   color: string;
   displayOrder?: number;
   isCollapsed?: boolean;
-  createdAt: Date;
-}
-
-export interface WorkArea {
-  id: string;
-  name: string;
-  color: string;
-  displayOrder?: number;
   createdAt: Date;
 }
 
@@ -259,6 +255,7 @@ export interface CurriculumLesson {
   platformAction: string;
   almaIntegration: string;
   status: CurriculumLessonStatus;
+  notes?: string;
   displayOrder: number;
   createdAt: Date;
   updatedAt: Date;

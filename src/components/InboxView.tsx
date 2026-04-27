@@ -20,7 +20,7 @@ interface ProcessModalProps {
 
 type TaskTarget =
   | { type: "project"; projectId: string }
-  | { type: "misc"; categoryId: string };
+  | { type: "area"; areaId: string };
 
 function ProcessModal({ item, onClose }: ProcessModalProps) {
   const { state, dispatch } = useApp();
@@ -28,20 +28,21 @@ function ProcessModal({ item, onClose }: ProcessModalProps) {
   const [target, setTarget] = useState<TaskTarget>(
     state.projects[0]?.id
       ? { type: "project", projectId: state.projects[0].id }
-      : state.miscCategories[0]?.id
-        ? { type: "misc", categoryId: state.miscCategories[0].id }
+      : state.areas[0]?.id
+        ? { type: "area", areaId: state.areas[0].id }
         : { type: "project", projectId: "" },
   );
   const [priority, setPriority] = useState<Priority>("medium");
   const [dueDate, setDueDate] = useState("");
 
   const activeProjects = state.projects.filter((p) => !p.archived);
-  const categories = state.miscCategories;
+  const areas = state.areas;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (target.type === "project") {
+      const project = activeProjects.find((p) => p.id === target.projectId);
       dispatch({
         type: "ADD_TASK",
         payload: {
@@ -50,6 +51,7 @@ function ProcessModal({ item, onClose }: ProcessModalProps) {
           priority,
           status: "pending",
           projectId: target.projectId,
+          areaId: project?.defaultAreaId,
           dueDate: dueDate ? new Date(dueDate) : undefined,
           createdAt: new Date(),
           focusMinutes: 0,
@@ -64,7 +66,7 @@ function ProcessModal({ item, onClose }: ProcessModalProps) {
           priority,
           status: "pending",
           projectId: null,
-          categoryId: target.categoryId,
+          areaId: target.areaId,
           dueDate: dueDate ? new Date(dueDate) : undefined,
           createdAt: new Date(),
           focusMinutes: 0,
@@ -108,7 +110,7 @@ function ProcessModal({ item, onClose }: ProcessModalProps) {
               value={
                 target.type === "project"
                   ? `project:${target.projectId}`
-                  : `misc:${target.categoryId}`
+                  : `area:${target.areaId}`
               }
               onChange={(e) => {
                 const value = e.target.value;
@@ -117,10 +119,10 @@ function ProcessModal({ item, onClose }: ProcessModalProps) {
                     type: "project",
                     projectId: value.replace("project:", ""),
                   });
-                } else if (value.startsWith("misc:")) {
+                } else if (value.startsWith("area:")) {
                   setTarget({
-                    type: "misc",
-                    categoryId: value.replace("misc:", ""),
+                    type: "area",
+                    areaId: value.replace("area:", ""),
                   });
                 }
               }}
@@ -135,11 +137,11 @@ function ProcessModal({ item, onClose }: ProcessModalProps) {
                   ))}
                 </optgroup>
               )}
-              {categories.length > 0 && (
-                <optgroup label="Misc Tasks">
-                  {categories.map((c) => (
-                    <option key={c.id} value={`misc:${c.id}`}>
-                      {c.name}
+              {areas.length > 0 && (
+                <optgroup label="Areas (no project)">
+                  {areas.map((a) => (
+                    <option key={a.id} value={`area:${a.id}`}>
+                      {a.name}
                     </option>
                   ))}
                 </optgroup>

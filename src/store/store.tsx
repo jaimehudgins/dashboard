@@ -24,8 +24,7 @@ import {
   Attachment,
   ProjectNote,
   ProjectLink,
-  MiscCategory,
-  WorkArea,
+  Area,
   EnergyLog,
   StickyNote,
   QuickTodoList,
@@ -50,8 +49,7 @@ interface AppState {
   attachments: Attachment[];
   projectNotes: ProjectNote[];
   projectLinks: ProjectLink[];
-  miscCategories: MiscCategory[];
-  workAreas: WorkArea[];
+  areas: Area[];
   energyLogs: EnergyLog[];
   stickyNotes: StickyNote[];
   quickTodoLists: QuickTodoList[];
@@ -116,14 +114,10 @@ type Action =
   | { type: "UPDATE_LINK"; payload: ProjectLink }
   | { type: "DELETE_LINK"; payload: string }
   | { type: "REORDER_LINKS"; payload: string[] }
-  // Misc Categories
-  | { type: "ADD_CATEGORY"; payload: MiscCategory }
-  | { type: "UPDATE_CATEGORY"; payload: MiscCategory }
-  | { type: "DELETE_CATEGORY"; payload: string }
-  // Work Areas
-  | { type: "ADD_WORK_AREA"; payload: WorkArea }
-  | { type: "UPDATE_WORK_AREA"; payload: WorkArea }
-  | { type: "DELETE_WORK_AREA"; payload: string }
+  // Areas (unified taxonomy: replaces former Misc Categories + Work Areas)
+  | { type: "ADD_AREA"; payload: Area }
+  | { type: "UPDATE_AREA"; payload: Area }
+  | { type: "DELETE_AREA"; payload: string }
   // Energy Logs
   | { type: "ADD_ENERGY_LOG"; payload: EnergyLog }
   | { type: "UPDATE_ENERGY_LOG"; payload: EnergyLog }
@@ -162,8 +156,7 @@ const emptyState: AppState = {
   attachments: [],
   projectNotes: [],
   projectLinks: [],
-  miscCategories: [],
-  workAreas: [],
+  areas: [],
   energyLogs: [],
   stickyNotes: [],
   quickTodoLists: [],
@@ -646,57 +639,27 @@ function appReducer(state: AppState, action: Action): AppState {
       return { ...state, projectLinks: updatedLinks };
     }
 
-    // Misc Categories
-    case "ADD_CATEGORY":
+    // Areas (unified)
+    case "ADD_AREA":
       return {
         ...state,
-        miscCategories: [...state.miscCategories, action.payload],
+        areas: [...state.areas, action.payload],
       };
 
-    case "UPDATE_CATEGORY":
+    case "UPDATE_AREA":
       return {
         ...state,
-        miscCategories: state.miscCategories.map((c) =>
-          c.id === action.payload.id ? action.payload : c,
+        areas: state.areas.map((a) =>
+          a.id === action.payload.id ? action.payload : a,
         ),
       };
 
-    case "DELETE_CATEGORY":
+    case "DELETE_AREA":
       return {
         ...state,
-        miscCategories: state.miscCategories.filter(
-          (c) => c.id !== action.payload,
-        ),
-        // Also clear categoryId from tasks in this category
+        areas: state.areas.filter((a) => a.id !== action.payload),
         tasks: state.tasks.map((t) =>
-          t.categoryId === action.payload ? { ...t, categoryId: undefined } : t,
-        ),
-      };
-
-    // Work Areas
-    case "ADD_WORK_AREA":
-      return {
-        ...state,
-        workAreas: [...state.workAreas, action.payload],
-      };
-
-    case "UPDATE_WORK_AREA":
-      return {
-        ...state,
-        workAreas: state.workAreas.map((w) =>
-          w.id === action.payload.id ? action.payload : w,
-        ),
-      };
-
-    case "DELETE_WORK_AREA":
-      return {
-        ...state,
-        workAreas: state.workAreas.filter((w) => w.id !== action.payload),
-        // Also clear workAreaId from tasks in this work area
-        tasks: state.tasks.map((t) =>
-          t.workAreaId === action.payload
-            ? { ...t, workAreaId: undefined }
-            : t,
+          t.areaId === action.payload ? { ...t, areaId: undefined } : t,
         ),
       };
 
@@ -865,8 +828,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             attachments: data.attachments,
             projectNotes: data.projectNotes,
             projectLinks: data.projectLinks,
-            miscCategories: data.miscCategories,
-            workAreas: data.workAreas || [],
+            areas: data.areas || [],
             energyLogs: data.energyLogs,
             stickyNotes: data.stickyNotes || [],
             quickTodoLists: data.quickTodoLists || [],
@@ -1095,25 +1057,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             await db.updateLinkOrders(updates);
             break;
           }
-          // Misc Categories
-          case "ADD_CATEGORY":
-            await db.createMiscCategory(action.payload);
+          // Areas (unified)
+          case "ADD_AREA":
+            await db.createArea(action.payload);
             break;
-          case "UPDATE_CATEGORY":
-            await db.updateMiscCategory(action.payload);
+          case "UPDATE_AREA":
+            await db.updateArea(action.payload);
             break;
-          case "DELETE_CATEGORY":
-            await db.deleteMiscCategory(action.payload);
-            break;
-          // Work Areas
-          case "ADD_WORK_AREA":
-            await db.createWorkArea(action.payload);
-            break;
-          case "UPDATE_WORK_AREA":
-            await db.updateWorkArea(action.payload);
-            break;
-          case "DELETE_WORK_AREA":
-            await db.deleteWorkArea(action.payload);
+          case "DELETE_AREA":
+            await db.deleteArea(action.payload);
             break;
           // Energy Logs
           case "ADD_ENERGY_LOG":

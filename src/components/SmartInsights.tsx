@@ -138,30 +138,30 @@ export default function SmartInsights({ onFocusTask }: SmartInsightsProps) {
       (s) => new Date(s.startTime) >= weekAgo
     );
 
-    const workAreaMinutes = new Map<string, number>();
+    const areaMinutes = new Map<string, number>();
     recentSessions.forEach((session) => {
       const task = state.tasks.find((t) => t.id === session.taskId);
-      if (task?.workAreaId) {
-        const current = workAreaMinutes.get(task.workAreaId) || 0;
-        workAreaMinutes.set(task.workAreaId, current + session.minutes);
+      if (task?.areaId) {
+        const current = areaMinutes.get(task.areaId) || 0;
+        areaMinutes.set(task.areaId, current + session.minutes);
       }
     });
 
-    // Find work areas with tasks but no recent focus
-    const neglectedWorkAreas = state.workAreas.filter((wa) => {
-      const hasActiveTasks = activeTasks.some((t) => t.workAreaId === wa.id);
-      const recentMinutes = workAreaMinutes.get(wa.id) || 0;
+    // Find areas with tasks but no recent focus
+    const neglectedAreas = state.areas.filter((a) => {
+      const hasActiveTasks = activeTasks.some((t) => t.areaId === a.id);
+      const recentMinutes = areaMinutes.get(a.id) || 0;
       return hasActiveTasks && recentMinutes === 0;
     });
 
-    if (neglectedWorkAreas.length > 0) {
-      const workArea = neglectedWorkAreas[0];
-      const tasksInArea = activeTasks.filter((t) => t.workAreaId === workArea.id);
+    if (neglectedAreas.length > 0) {
+      const area = neglectedAreas[0];
+      const tasksInArea = activeTasks.filter((t) => t.areaId === area.id);
       insights.push({
-        id: `balance-${workArea.id}`,
+        id: `balance-${area.id}`,
         type: "balance",
-        title: "Work Area Needs Attention",
-        description: `You have ${tasksInArea.length} task${tasksInArea.length > 1 ? "s" : ""} in ${workArea.name} with no focus this week`,
+        title: "Area Needs Attention",
+        description: `You have ${tasksInArea.length} task${tasksInArea.length > 1 ? "s" : ""} in ${area.name} with no focus this week`,
         icon: <TrendingUp size={20} />,
         color: "text-purple-600",
         bgColor: "bg-purple-50 border-purple-200",
@@ -201,7 +201,7 @@ export default function SmartInsights({ onFocusTask }: SmartInsightsProps) {
     }
 
     return insights;
-  }, [state.tasks, state.projects, state.focusSessions, state.workAreas]);
+  }, [state.tasks, state.projects, state.focusSessions, state.areas]);
 
   // Auto-rotate insights every 5 seconds
   useEffect(() => {

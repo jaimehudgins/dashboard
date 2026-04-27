@@ -67,7 +67,7 @@ export default function UnifiedTaskTable({ onFocusTask }: Props) {
 
   const [search, setSearch] = useState("");
   const [dueFilter, setDueFilter] = useState<DueFilter>("all");
-  const [areaFilter, setAreaFilter] = useState<string>("all"); // "all" | workAreaId | "partner" | "unassigned"
+  const [areaFilter, setAreaFilter] = useState<string>("all"); // "all" | areaId | "partner" | "unassigned"
   const [statusFilter, setStatusFilter] = useState<string>("active"); // "all" | "active" | "completed"
   const [sortKey, setSortKey] = useState<SortKey>("dueDate");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -158,8 +158,8 @@ export default function UnifiedTaskTable({ onFocusTask }: Props) {
     return state.tasks
       .filter((t) => !t.parentTaskId)
       .map((t) => {
-        const wa = t.workAreaId
-          ? state.workAreas.find((w) => w.id === t.workAreaId)
+        const a = t.areaId
+          ? state.areas.find((x) => x.id === t.areaId)
           : null;
         return {
           id: t.id,
@@ -168,12 +168,12 @@ export default function UnifiedTaskTable({ onFocusTask }: Props) {
           dueDate: t.dueDate ? new Date(t.dueDate) : null,
           status: t.status,
           priority: t.priority,
-          area: wa?.name || "Unassigned",
-          areaColor: wa?.color || "#94a3b8",
+          area: a?.name || "Unassigned",
+          areaColor: a?.color || "#94a3b8",
           task: t,
         };
       });
-  }, [state.tasks, state.workAreas]);
+  }, [state.tasks, state.areas]);
 
   const allRows = useMemo(
     () => [...localRows, ...partnerRows],
@@ -206,9 +206,9 @@ export default function UnifiedTaskTable({ onFocusTask }: Props) {
         if (areaFilter === "partner") {
           if (r.source === "local") return false;
         } else if (areaFilter === "unassigned") {
-          if (r.source !== "local" || r.task?.workAreaId) return false;
+          if (r.source !== "local" || r.task?.areaId) return false;
         } else {
-          if (r.source !== "local" || r.task?.workAreaId !== areaFilter)
+          if (r.source !== "local" || r.task?.areaId !== areaFilter)
             return false;
         }
       }
@@ -409,9 +409,9 @@ export default function UnifiedTaskTable({ onFocusTask }: Props) {
           >
             <option value="all">All Areas</option>
             <option value="partner">Partner</option>
-            {state.workAreas.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
+            {state.areas.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
               </option>
             ))}
             <option value="unassigned">Unassigned</option>

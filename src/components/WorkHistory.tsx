@@ -26,7 +26,7 @@ export default function WorkHistory() {
 
   // Filter states
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
-  const [selectedWorkAreas, setSelectedWorkAreas] = useState<string[]>([]);
+  const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<DateRangePreset>("all");
   const [customStartDate, setCustomStartDate] = useState<string>("");
@@ -100,9 +100,9 @@ export default function WorkHistory() {
     }
 
     // Work area filter
-    if (selectedWorkAreas.length > 0) {
+    if (selectedAreas.length > 0) {
       tasks = tasks.filter((task) =>
-        task.workAreaId ? selectedWorkAreas.includes(task.workAreaId) : false
+        task.areaId ? selectedAreas.includes(task.areaId) : false
       );
     }
 
@@ -121,7 +121,7 @@ export default function WorkHistory() {
     customStartDate,
     customEndDate,
     selectedProjects,
-    selectedWorkAreas,
+    selectedAreas,
     selectedTags,
   ]);
 
@@ -158,7 +158,7 @@ export default function WorkHistory() {
   const clearAllFilters = () => {
     setSearchQuery("");
     setSelectedProjects([]);
-    setSelectedWorkAreas([]);
+    setSelectedAreas([]);
     setSelectedTags([]);
     setDateRange("all");
     setCustomStartDate("");
@@ -168,7 +168,7 @@ export default function WorkHistory() {
   const hasActiveFilters =
     searchQuery.trim() !== "" ||
     selectedProjects.length > 0 ||
-    selectedWorkAreas.length > 0 ||
+    selectedAreas.length > 0 ||
     selectedTags.length > 0 ||
     dateRange !== "all";
 
@@ -374,33 +374,33 @@ export default function WorkHistory() {
             </div>
 
             {/* Work Areas */}
-            {state.workAreas.length > 0 && (
+            {state.areas.length > 0 && (
               <div>
                 <label className="text-sm font-medium text-slate-700 mb-2 block">
                   Work Areas
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {state.workAreas.map((workArea) => (
+                  {state.areas.map((area) => (
                     <button
-                      key={workArea.id}
+                      key={area.id}
                       onClick={() =>
                         toggleArrayFilter(
-                          workArea.id,
-                          selectedWorkAreas,
-                          setSelectedWorkAreas
+                          area.id,
+                          selectedAreas,
+                          setSelectedAreas
                         )
                       }
                       className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                        selectedWorkAreas.includes(workArea.id)
+                        selectedAreas.includes(area.id)
                           ? "bg-indigo-600 text-white"
                           : "bg-white border border-slate-300 text-slate-700 hover:border-indigo-300"
                       }`}
                     >
                       <span
                         className="inline-block w-2 h-2 rounded-full mr-2"
-                        style={{ backgroundColor: workArea.color }}
+                        style={{ backgroundColor: area.color }}
                       />
-                      {workArea.name}
+                      {area.name}
                     </button>
                   ))}
                 </div>
@@ -473,8 +473,8 @@ export default function WorkHistory() {
                   const project = state.projects.find(
                     (p) => p.id === task.projectId
                   );
-                  const workArea = task.workAreaId
-                    ? state.workAreas.find((w) => w.id === task.workAreaId)
+                  const area = task.areaId
+                    ? state.areas.find((a) => a.id === task.areaId)
                     : null;
 
                   return (
@@ -515,10 +515,10 @@ export default function WorkHistory() {
                             </span>
                           )}
 
-                          {workArea && (
+                          {area && (
                             <span className="flex items-center gap-1.5">
                               <Briefcase size={12} />
-                              {workArea.name}
+                              {area.name}
                             </span>
                           )}
 

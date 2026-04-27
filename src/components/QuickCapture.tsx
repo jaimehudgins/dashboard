@@ -9,7 +9,7 @@ import TaskCreateModal from "./TaskCreateModal";
 type CaptureTarget =
   | { type: "unassigned" }
   | { type: "project"; projectId: string }
-  | { type: "misc"; categoryId: string };
+  | { type: "area"; areaId: string };
 
 export default function QuickCapture() {
   const [input, setInput] = useState("");
@@ -18,7 +18,7 @@ export default function QuickCapture() {
   const { state, dispatch } = useApp();
 
   const activeProjects = state.projects.filter((p) => !p.archived);
-  const categories = state.miscCategories;
+  const areas = state.areas;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,6 +38,7 @@ export default function QuickCapture() {
         },
       });
     } else if (target.type === "project") {
+      const project = activeProjects.find((p) => p.id === target.projectId);
       dispatch({
         type: "ADD_TASK",
         payload: {
@@ -46,11 +47,12 @@ export default function QuickCapture() {
           priority: "medium" as Priority,
           status: "pending",
           projectId: target.projectId,
+          areaId: project?.defaultAreaId,
           createdAt: new Date(),
           focusMinutes: 0,
         },
       });
-    } else if (target.type === "misc") {
+    } else if (target.type === "area") {
       dispatch({
         type: "ADD_TASK",
         payload: {
@@ -59,7 +61,7 @@ export default function QuickCapture() {
           priority: "medium" as Priority,
           status: "pending",
           projectId: null,
-          categoryId: target.categoryId,
+          areaId: target.areaId,
           createdAt: new Date(),
           focusMinutes: 0,
         },
@@ -74,9 +76,9 @@ export default function QuickCapture() {
       const project = activeProjects.find((p) => p.id === target.projectId);
       return project?.color;
     }
-    if (target.type === "misc") {
-      const category = categories.find((c) => c.id === target.categoryId);
-      return category?.color;
+    if (target.type === "area") {
+      const area = areas.find((a) => a.id === target.areaId);
+      return area?.color;
     }
     return undefined;
   };
@@ -127,7 +129,7 @@ export default function QuickCapture() {
                     ? "unassigned"
                     : target.type === "project"
                       ? `project:${target.projectId}`
-                      : `misc:${target.categoryId}`
+                      : `area:${target.areaId}`
                 }
                 onChange={(e) => {
                   const value = e.target.value;
@@ -138,10 +140,10 @@ export default function QuickCapture() {
                       type: "project",
                       projectId: value.replace("project:", ""),
                     });
-                  } else if (value.startsWith("misc:")) {
+                  } else if (value.startsWith("area:")) {
                     setTarget({
-                      type: "misc",
-                      categoryId: value.replace("misc:", ""),
+                      type: "area",
+                      areaId: value.replace("area:", ""),
                     });
                   }
                 }}
@@ -159,11 +161,11 @@ export default function QuickCapture() {
                   </optgroup>
                 )}
 
-                {categories.length > 0 && (
-                  <optgroup label="Misc Tasks">
-                    {categories.map((category) => (
-                      <option key={category.id} value={`misc:${category.id}`}>
-                        {category.name}
+                {areas.length > 0 && (
+                  <optgroup label="Areas (no project)">
+                    {areas.map((area) => (
+                      <option key={area.id} value={`area:${area.id}`}>
+                        {area.name}
                       </option>
                     ))}
                   </optgroup>
