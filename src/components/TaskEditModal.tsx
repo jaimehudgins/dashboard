@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, Plus, Bell, Clock, ExternalLink } from "lucide-react";
 import { useApp } from "@/store/store";
 import {
@@ -49,6 +50,9 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date | undefined>(
     task.recurrenceEndDate ? new Date(task.recurrenceEndDate) : undefined,
   );
+  const [recurrenceDaysOfWeek, setRecurrenceDaysOfWeek] = useState<number[]>(
+    task.recurrenceDaysOfWeek || [],
+  );
   const [showTagDropdown, setShowTagDropdown] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [milestoneId, setMilestoneId] = useState<string | undefined>(
@@ -87,6 +91,8 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
         reminders,
         recurrenceRule,
         recurrenceEndDate,
+        recurrenceDaysOfWeek:
+          recurrenceDaysOfWeek.length > 0 ? recurrenceDaysOfWeek : undefined,
         milestoneId: projectId ? milestoneId : undefined,
         link: link.trim() || undefined,
         estimatedMinutes,
@@ -150,7 +156,13 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
     return option?.label || `${minutesBefore} minutes before`;
   };
 
-  return (
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  if (!mounted) return null;
+
+  const modal = (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
       <div className="bg-white border border-slate-200 rounded-xl w-full max-w-lg shadow-xl max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100 flex-shrink-0">
@@ -528,6 +540,8 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
               onChange={setRecurrenceRule}
               endDate={recurrenceEndDate}
               onEndDateChange={setRecurrenceEndDate}
+              daysOfWeek={recurrenceDaysOfWeek}
+              onDaysOfWeekChange={setRecurrenceDaysOfWeek}
             />
           )}
 
@@ -563,4 +577,6 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
       </div>
     </div>
   );
+
+  return createPortal(modal, document.body);
 }

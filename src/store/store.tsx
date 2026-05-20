@@ -217,8 +217,14 @@ function appReducer(state: AppState, action: Action): AppState {
         updatedTask.completedAt = new Date();
         newCompletedToday = [...state.completedToday, updatedTask];
 
-        // Handle recurring task - create next instance
-        if (updatedTask.recurrenceRule && originalTask) {
+        // Handle recurring task - create next instance.
+        // Skip if instances were pre-generated upfront (recurrenceDaysOfWeek set)
+        // or if this task is a child of a pre-generated series.
+        const isPreGenerated =
+          (updatedTask.recurrenceDaysOfWeek &&
+            updatedTask.recurrenceDaysOfWeek.length > 0) ||
+          !!updatedTask.recurringParentId;
+        if (updatedTask.recurrenceRule && originalTask && !isPreGenerated) {
           const baseDate = updatedTask.dueDate
             ? new Date(updatedTask.dueDate)
             : new Date();
@@ -230,6 +236,9 @@ function appReducer(state: AppState, action: Action): AppState {
               break;
             case "weekly":
               nextDueDate = addWeeks(baseDate, 1);
+              break;
+            case "biweekly":
+              nextDueDate = addWeeks(baseDate, 2);
               break;
             case "monthly":
               nextDueDate = addMonths(baseDate, 1);

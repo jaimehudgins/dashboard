@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, Plus, Clock, ExternalLink } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Task, Priority, TaskStatus, Tag } from "@/types";
@@ -8,6 +9,40 @@ import TagBadge from "./TagBadge";
 import RecurrenceSelector from "./RecurrenceSelector";
 import type { RecurrenceRule, Reminder } from "@/types";
 import { Bell, Flag } from "lucide-react";
+
+function generateRecurringDates(
+  start: Date,
+  end: Date,
+  daysOfWeek: number[],
+  weekInterval: number,
+): Date[] {
+  if (daysOfWeek.length === 0) return [];
+  const result: Date[] = [];
+  // Anchor on the Sunday of the start date's week, so biweekly cadence is
+  // measured in whole weeks from a stable reference.
+  const anchor = new Date(start);
+  anchor.setHours(12, 0, 0, 0);
+  anchor.setDate(anchor.getDate() - anchor.getDay());
+
+  const endTs = new Date(end);
+  endTs.setHours(23, 59, 59, 999);
+  const startTs = new Date(start);
+  startTs.setHours(0, 0, 0, 0);
+
+  for (let weekOffset = 0; ; weekOffset += weekInterval) {
+    const weekStart = new Date(anchor);
+    weekStart.setDate(anchor.getDate() + weekOffset * 7);
+    if (weekStart > endTs) break;
+    for (const dow of daysOfWeek) {
+      const d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + dow);
+      d.setHours(12, 0, 0, 0);
+      if (d >= startTs && d <= endTs) result.push(d);
+    }
+  }
+  result.sort((a, b) => a.getTime() - b.getTime());
+  return result;
+}
 
 const reminderOptions = [
   { label: "1 hour before", minutes: 60 },
@@ -43,6 +78,9 @@ export default function TaskCreateModal({
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<
     Date | undefined
   >();
+  const [recurrenceDaysOfWeek, setRecurrenceDaysOfWeek] = useState<number[]>(
+    [],
+  );
   const [showTagDropdown, setShowTagDropdown] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [milestoneId, setMilestoneId] = useState<string | undefined>();
@@ -81,27 +119,82 @@ export default function TaskCreateModal({
     e.preventDefault();
     if (!title.trim()) return;
 
-    const newTask: Task = {
-      id: `task-${Date.now()}`,
+    const usesDaysOfWeek =
+      (recurrenceRule === "weekly" || recurrenceRule === "biweekly") &&
+      recurrenceDaysOfWeek.length > 0;
+
+    if (
+      (recurrenceRule === "weekly" || recurrenceRule === "biweekly") &&
+      recurrenceDaysOfWeek.length === 0
+    ) {
+      alert("Select at least one day of the week for this recurrence.");
+      return;
+    }
+    if (usesDaysOfWeek && !recurrenceEndDate) {
+      alert("Set an end date so we know how many instances to create.");
+      return;
+    }
+
+    const baseDueDate = dueDate ? new Date(dueDate + "T12:00:00") : new Date();
+    const baseTaskId = `task-${Date.now()}`;
+
+    const baseTask: Task = {
+      id: baseTaskId,
       title: title.trim(),
       description: description.trim() || undefined,
       priority,
       status,
       projectId,
-      dueDate: dueDate ? new Date(dueDate + "T12:00:00") : undefined,
+      dueDate: dueDate ? baseDueDate : undefined,
       createdAt: new Date(),
       focusMinutes: 0,
       tagIds,
       reminders,
       recurrenceRule,
       recurrenceEndDate,
+      recurrenceDaysOfWeek: usesDaysOfWeek ? recurrenceDaysOfWeek : undefined,
       milestoneId: projectId ? milestoneId : undefined,
       link: link.trim() || undefined,
       estimatedMinutes,
       areaId,
     };
 
-    dispatch({ type: "ADD_TASK", payload: newTask });
+    if (!usesDaysOfWeek) {
+      dispatch({ type: "ADD_TASK", payload: baseTask });
+      onClose();
+      return;
+    }
+
+    // Pre-generate all instances upfront for weekly/biweekly with selected days.
+    const instanceDates = generateRecurringDates(
+      baseDueDate,
+      recurrenceEndDate!,
+      recurrenceDaysOfWeek,
+      recurrenceRule === "biweekly" ? 2 : 1,
+    );
+
+    if (instanceDates.length === 0) {
+      alert(
+        "No occurrences fall between the start and end date for the selected days.",
+      );
+      return;
+    }
+
+    const [firstDate, ...restDates] = instanceDates;
+    const firstTask: Task = { ...baseTask, dueDate: firstDate };
+    dispatch({ type: "ADD_TASK", payload: firstTask });
+
+    restDates.forEach((d, idx) => {
+      const sibling: Task = {
+        ...baseTask,
+        id: `task-${Date.now()}-${idx + 1}`,
+        dueDate: d,
+        createdAt: new Date(),
+        recurringParentId: baseTaskId,
+      };
+      dispatch({ type: "ADD_TASK", payload: sibling });
+    });
+
     onClose();
   };
 
@@ -149,8 +242,14 @@ export default function TaskCreateModal({
     return option?.label || `${minutesBefore} minutes before`;
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  if (!mounted) return null;
+
+  const modal = (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
       <div className="bg-white border border-slate-200 rounded-xl w-full max-w-lg p-6 shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-semibold text-slate-900">New Task</h2>
@@ -485,6 +584,8 @@ export default function TaskCreateModal({
             onChange={setRecurrenceRule}
             endDate={recurrenceEndDate}
             onEndDateChange={setRecurrenceEndDate}
+            daysOfWeek={recurrenceDaysOfWeek}
+            onDaysOfWeekChange={setRecurrenceDaysOfWeek}
           />
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
@@ -507,4 +608,6 @@ export default function TaskCreateModal({
       </div>
     </div>
   );
+
+  return createPortal(modal, document.body);
 }

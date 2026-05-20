@@ -49,6 +49,8 @@ function toTask(row: Record<string, unknown>): Task {
       ? new Date(row.recurrence_end_date as string)
       : undefined,
     recurringParentId: row.recurring_parent_id as string | undefined,
+    recurrenceDaysOfWeek:
+      (row.recurrence_days_of_week as number[] | null) || undefined,
     milestoneId: row.milestone_id as string | undefined,
     link: row.link as string | undefined,
     areaId: row.area_id as string | undefined,
@@ -284,6 +286,7 @@ export async function createTask(task: Task): Promise<void> {
     recurrence_rule: task.recurrenceRule,
     recurrence_end_date: task.recurrenceEndDate?.toISOString(),
     recurring_parent_id: task.recurringParentId,
+    recurrence_days_of_week: task.recurrenceDaysOfWeek || null,
     milestone_id: task.milestoneId,
     link: task.link,
     area_id: task.areaId,
@@ -313,6 +316,7 @@ export async function updateTask(task: Task): Promise<void> {
       recurrence_rule: task.recurrenceRule,
       recurrence_end_date: task.recurrenceEndDate?.toISOString(),
       recurring_parent_id: task.recurringParentId,
+      recurrence_days_of_week: task.recurrenceDaysOfWeek || null,
       milestone_id: task.milestoneId,
       link: task.link,
       area_id: task.areaId,
