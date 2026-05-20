@@ -140,6 +140,34 @@ export default function UnifiedTaskTable({ onFocusTask }: Props) {
     }
   };
 
+  const focusPartnerRow = (row: UnifiedRow) => {
+    const mirrorId = `task-partner-${row.id}`;
+    const existing = state.tasks.find((t) => t.id === mirrorId);
+    if (existing) {
+      onFocusTask?.(existing);
+      return;
+    }
+    const partnerArea =
+      state.areas.find((a) => a.name.toLowerCase() === "partner") ||
+      state.areas.find((a) => a.name.toLowerCase().includes("partner"));
+    const mirror: Task = {
+      id: mirrorId,
+      title: row.partnerName
+        ? `${row.title} (${row.partnerName})`
+        : row.title,
+      priority: "medium",
+      status: "pending",
+      projectId: null,
+      dueDate: row.dueDate || undefined,
+      createdAt: new Date(),
+      focusMinutes: 0,
+      areaId: partnerArea?.id,
+      link: "https://partner-management-application.vercel.app/tasks",
+    };
+    dispatch({ type: "ADD_TASK", payload: mirror });
+    onFocusTask?.(mirror);
+  };
+
   const openPartnerEditor = (row: UnifiedRow) => {
     setEditingPartner(row);
     setPartnerEditTitle(row.title);
@@ -614,6 +642,13 @@ export default function UnifiedTaskTable({ onFocusTask }: Props) {
                         )}
                         {row.source !== "local" && (
                           <>
+                            <button
+                              onClick={() => focusPartnerRow(row)}
+                              className="flex items-center gap-1 px-2 py-1 bg-indigo-500 hover:bg-indigo-600 text-white rounded text-xs font-medium"
+                              title="Focus"
+                            >
+                              <Play size={10} />
+                            </button>
                             <button
                               onClick={() => openPartnerEditor(row)}
                               className="flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-medium"
