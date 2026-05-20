@@ -151,9 +151,9 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-lg p-6 shadow-xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-lg shadow-xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100 flex-shrink-0">
           <h2 className="text-lg font-semibold text-slate-900">Edit Task</h2>
           <button
             onClick={onClose}
@@ -164,7 +164,8 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="space-y-4 overflow-y-auto px-6 py-4 flex-1">
           <div>
             <label className="block text-sm text-slate-600 mb-1">Title</label>
             <input
@@ -532,8 +533,9 @@ export default function TaskEditModal({ task, onClose }: TaskEditModalProps) {
 
           {/* Comments Section */}
           <CommentSection taskId={task.id} />
+          </div>
 
-          <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 flex-shrink-0 bg-white rounded-b-xl">
             <button
               type="button"
               onClick={handleDelete}
