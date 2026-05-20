@@ -13,6 +13,8 @@ import {
   Search,
 } from "lucide-react";
 import { format, startOfDay, addDays } from "date-fns";
+import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Task } from "@/types";
 import TaskEditModal from "./TaskEditModal";
@@ -61,6 +63,11 @@ type DueFilter = (typeof DUE_FILTERS)[number]["id"];
 export default function UnifiedTaskTable({ onFocusTask }: Props) {
   const { state, dispatch } = useApp();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editingPartner, setEditingPartner] = useState<UnifiedRow | null>(null);
+  const [partnerEditTitle, setPartnerEditTitle] = useState("");
+  const [partnerEditNotes, setPartnerEditNotes] = useState("");
+  const [partnerEditDueDate, setPartnerEditDueDate] = useState("");
+  const [savingPartner, setSavingPartner] = useState(false);
 
   const [partnerRows, setPartnerRows] = useState<UnifiedRow[]>([]);
   const [loadingPartner, setLoadingPartner] = useState(true);
@@ -130,6 +137,49 @@ export default function UnifiedTaskTable({ onFocusTask }: Props) {
       console.error("Error fetching partner tasks:", err);
     } finally {
       setLoadingPartner(false);
+    }
+  };
+
+  const openPartnerEditor = (row: UnifiedRow) => {
+    setEditingPartner(row);
+    setPartnerEditTitle(row.title);
+    setPartnerEditNotes(row.notes || "");
+    setPartnerEditDueDate(
+      row.dueDate ? format(row.dueDate, "yyyy-MM-dd") : "",
+    );
+  };
+
+  const savePartnerEdit = async () => {
+    if (!editingPartner || !partnerEditTitle.trim()) return;
+    setSavingPartner(true);
+    try {
+      const rawId = editingPartner.id.replace(/^(fu|ob)-/, "");
+      if (editingPartner.source === "partner-onboarding") {
+        const { error } = await crmSupabase
+          .from("onboarding_tasks")
+          .update({
+            title: partnerEditTitle.trim(),
+            due_date: partnerEditDueDate || null,
+          })
+          .eq("id", rawId);
+        if (error) throw error;
+      } else {
+        const { error } = await crmSupabase
+          .from("follow_up_tasks")
+          .update({
+            task: partnerEditTitle.trim(),
+            notes: partnerEditNotes || null,
+            due_date: partnerEditDueDate || null,
+          })
+          .eq("id", rawId);
+        if (error) throw error;
+      }
+      setEditingPartner(null);
+      fetchPartnerTasks();
+    } catch (err) {
+      console.error("Error saving partner task:", err);
+    } finally {
+      setSavingPartner(false);
     }
   };
 
@@ -563,15 +613,24 @@ export default function UnifiedTaskTable({ onFocusTask }: Props) {
                           </>
                         )}
                         {row.source !== "local" && (
-                          <a
-                            href="https://partner-management-application.vercel.app/tasks"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-medium"
-                            title="Open in CRM"
-                          >
-                            <ExternalLink size={10} />
-                          </a>
+                          <>
+                            <button
+                              onClick={() => openPartnerEditor(row)}
+                              className="flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-medium"
+                              title="Edit"
+                            >
+                              <Pencil size={10} />
+                            </button>
+                            <a
+                              href="https://partner-management-application.vercel.app/tasks"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-medium"
+                              title="Open in CRM"
+                            >
+                              <ExternalLink size={10} />
+                            </a>
+                          </>
                         )}
                       </div>
                     </td>
@@ -586,6 +645,84 @@ export default function UnifiedTaskTable({ onFocusTask }: Props) {
       {editingTask && (
         <TaskEditModal task={editingTask} onClose={() => setEditingTask(null)} />
       )}
+
+      {editingPartner &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl w-full max-w-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Edit Partner Task
+                </h3>
+                <button
+                  onClick={() => setEditingPartner(null)}
+                  className="text-slate-400 hover:text-slate-600"
+                  aria-label="Close"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-slate-700 block mb-1">
+                    Task
+                  </label>
+                  <input
+                    type="text"
+                    value={partnerEditTitle}
+                    onChange={(e) => setPartnerEditTitle(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                {editingPartner.source === "partner-followup" && (
+                  <div>
+                    <label className="text-sm font-medium text-slate-700 block mb-1">
+                      Notes
+                    </label>
+                    <textarea
+                      value={partnerEditNotes}
+                      onChange={(e) => setPartnerEditNotes(e.target.value)}
+                      rows={3}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                      placeholder="Add notes..."
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="text-sm font-medium text-slate-700 block mb-1">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={partnerEditDueDate}
+                    onChange={(e) => setPartnerEditDueDate(e.target.value)}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="text-xs text-slate-400">
+                  Partner: {editingPartner.partnerName}
+                </div>
+                <div className="flex justify-end gap-2 pt-4">
+                  <button
+                    onClick={() => setEditingPartner(null)}
+                    className="px-4 py-2 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={savePartnerEdit}
+                    disabled={!partnerEditTitle.trim() || savingPartner}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {savingPartner ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
