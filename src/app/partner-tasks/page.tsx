@@ -442,7 +442,7 @@ export default function PartnerTasksPage() {
           </div>
           <div className="flex gap-2">
             <a
-              href="https://partner-management-application.vercel.app/tasks"
+              href="https://willow-crm-three.vercel.app/tasks"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 px-4 py-2 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"

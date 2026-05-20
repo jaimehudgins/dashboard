@@ -162,7 +162,7 @@ export default function UnifiedTaskTable({ onFocusTask }: Props) {
       createdAt: new Date(),
       focusMinutes: 0,
       areaId: partnerArea?.id,
-      link: "https://partner-management-application.vercel.app/tasks",
+      link: "https://willow-crm-three.vercel.app/tasks",
     };
     dispatch({ type: "ADD_TASK", payload: mirror });
     onFocusTask?.(mirror);
@@ -657,7 +657,7 @@ export default function UnifiedTaskTable({ onFocusTask }: Props) {
                               <Pencil size={10} />
                             </button>
                             <a
-                              href="https://partner-management-application.vercel.app/tasks"
+                              href="https://willow-crm-three.vercel.app/tasks"
                               target="_blank"
                               rel="noopener noreferrer"
                               className="flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-medium"

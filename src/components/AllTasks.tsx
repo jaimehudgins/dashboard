@@ -533,7 +533,7 @@ export default function AllTasks({ onFocusTask }: AllTasksProps) {
                 Edit
               </button>
               <a
-                href={`https://partner-management-application.vercel.app/tasks`}
+                href={`https://willow-crm-three.vercel.app/tasks`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-medium transition-colors"
