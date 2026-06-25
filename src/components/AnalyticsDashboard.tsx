@@ -141,7 +141,7 @@ export default function AnalyticsDashboard({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Command Center</h1>
+          <h1 className="text-2xl font-bold text-slate-900">What's next?</h1>
           <p className="text-slate-500 mt-1">
             {mounted ? format(new Date(), "EEEE, MMMM d, yyyy") : "\u00A0"}
           </p>
