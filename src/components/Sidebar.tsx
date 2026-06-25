@@ -183,7 +183,7 @@ export default function Sidebar({ children }: SidebarProps) {
         {/* Logo */}
         <div className="p-6 border-b border-slate-200 flex items-center justify-between">
           <h1 className="text-xl font-semibold text-slate-900 tracking-tight">
-            Jaime's Dashboard
+            Leo
           </h1>
           {mounted && (
             <button
