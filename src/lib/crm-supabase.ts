@@ -17,6 +17,8 @@ export interface CrmPartner {
   id: string;
   name: string;
   status: string;
+  relationship_health?: string | null;
+  last_contact_date?: string | null;
 }
 
 export interface CrmFollowUpTask {

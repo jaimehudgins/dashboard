@@ -11,14 +11,24 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar,
+  Users,
+  HeartPulse,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Task } from "@/types";
 import { format, differenceInDays, startOfDay } from "date-fns";
+import { crmSupabase, isCrmConfigured, CrmPartner } from "@/lib/crm-supabase";
 
 interface Insight {
   id: string;
-  type: "overdue" | "due_soon" | "stale" | "balance" | "momentum";
+  type:
+    | "overdue"
+    | "due_soon"
+    | "stale"
+    | "balance"
+    | "momentum"
+    | "partner_silent"
+    | "partner_at_risk";
   title: string;
   description: string;
   icon: React.ReactNode;
@@ -28,6 +38,9 @@ interface Insight {
   action?: string;
 }
 
+// Days since last contact before a partner is considered "gone quiet".
+const PARTNER_SILENT_DAYS = 30;
+
 interface SmartInsightsProps {
   onFocusTask?: (task: Task) => void;
 }
@@ -36,6 +49,26 @@ export default function SmartInsights({ onFocusTask }: SmartInsightsProps) {
   const { state } = useApp();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [autoRotate, setAutoRotate] = useState(true);
+  const [partners, setPartners] = useState<CrmPartner[]>([]);
+
+  // Pull partner metadata from the CRM for relationship-aware insights.
+  useEffect(() => {
+    if (!isCrmConfigured) return;
+    let active = true;
+    crmSupabase
+      .from("partners")
+      .select("id, name, status, relationship_health, last_contact_date")
+      .then(({ data, error }) => {
+        if (error) {
+          console.warn("Could not load CRM partners for insights:", error.message);
+          return;
+        }
+        if (active && data) setPartners(data as CrmPartner[]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const insights = useMemo(() => {
     const insights: Insight[] = [];
@@ -187,7 +220,56 @@ export default function SmartInsights({ onFocusTask }: SmartInsightsProps) {
       });
     }
 
-    // 6. General encouragement if no specific insights
+    // 6. Partner has gone quiet (no contact in 30+ days)
+    const silentPartners = partners
+      .filter((p) => !!p.last_contact_date)
+      .map((p) => ({
+        partner: p,
+        days: differenceInDays(today, startOfDay(new Date(p.last_contact_date!))),
+      }))
+      .filter((x) => x.days >= PARTNER_SILENT_DAYS)
+      .sort((a, b) => b.days - a.days);
+
+    if (silentPartners.length > 0) {
+      const { partner, days } = silentPartners[0];
+      const others = silentPartners.length - 1;
+      insights.push({
+        id: `partner-silent-${partner.id}`,
+        type: "partner_silent",
+        title: "Partner Has Gone Quiet",
+        description: `${partner.name} hasn't been contacted in ${days} days${
+          others > 0
+            ? ` (and ${others} other${others > 1 ? "s" : ""} past ${PARTNER_SILENT_DAYS} days)`
+            : ""
+        }`,
+        icon: <Users size={20} />,
+        color: "text-sky-600",
+        bgColor: "bg-sky-50 border-sky-200",
+      });
+    }
+
+    // 7. Partner relationship flagged "Watch"
+    const watchPartners = partners.filter(
+      (p) => p.relationship_health === "Watch"
+    );
+
+    if (watchPartners.length > 0) {
+      const partner = watchPartners[0];
+      const others = watchPartners.length - 1;
+      insights.push({
+        id: `partner-watch-${partner.id}`,
+        type: "partner_at_risk",
+        title: "Partner Relationship Needs Attention",
+        description: `${partner.name}${
+          others > 0 ? ` and ${others} other${others > 1 ? "s" : ""}` : ""
+        } flagged "Watch" — worth a check-in`,
+        icon: <HeartPulse size={20} />,
+        color: "text-rose-600",
+        bgColor: "bg-rose-50 border-rose-200",
+      });
+    }
+
+    // 8. General encouragement if no specific insights
     if (insights.length === 0) {
       insights.push({
         id: "general-encouragement",
@@ -201,7 +283,7 @@ export default function SmartInsights({ onFocusTask }: SmartInsightsProps) {
     }
 
     return insights;
-  }, [state.tasks, state.projects, state.focusSessions, state.areas]);
+  }, [state.tasks, state.projects, state.focusSessions, state.areas, partners]);
 
   // Auto-rotate insights every 5 seconds
   useEffect(() => {
