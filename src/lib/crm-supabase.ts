@@ -19,6 +19,10 @@ export interface CrmPartner {
   status: string;
   relationship_health?: string | null;
   last_contact_date?: string | null;
+  city_state?: string | null;
+  district?: string | null;
+  willow_staff_lead?: string | null;
+  summary?: string | null;
 }
 
 export interface CrmFollowUpTask {
