@@ -6,6 +6,7 @@ import { Target, CalendarClock } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Task } from "@/types";
 import DailyQuote from "./DailyQuote";
+import EnergyNudge from "./EnergyNudge";
 import SmartInsights from "./SmartInsights";
 import UnifiedTaskTable from "./UnifiedTaskTable";
 
@@ -46,6 +47,9 @@ export default function MorningBrief({ onOpenZenMode }: MorningBriefProps) {
           <div className="text-xl font-bold text-indigo-600">{momentum}%</div>
         </div>
       </div>
+
+      {/* Energy-aware nudge */}
+      <EnergyNudge />
 
       {/* Today's tasks */}
       <div>
