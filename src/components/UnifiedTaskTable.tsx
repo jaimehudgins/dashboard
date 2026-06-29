@@ -554,7 +554,12 @@ export default function UnifiedTaskTable({ onFocusTask }: Props) {
                   colSpan={7}
                   className="text-center text-slate-400 py-10 text-sm"
                 >
-                  No tasks match these filters.
+                  {search.trim() === "" &&
+                  dueFilter === "all" &&
+                  areaFilter === "all" &&
+                  statusFilter === "active"
+                    ? "Nothing right now. Nice work."
+                    : "No tasks match these filters."}
                 </td>
               </tr>
             ) : (

@@ -5,6 +5,7 @@ import { AppProvider } from "@/store/store";
 import ReminderProvider from "@/components/ReminderProvider";
 import { KeyboardShortcutsProvider } from "@/components/KeyboardShortcuts";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import SessionProviderWrapper from "@/components/SessionProviderWrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,8 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Jaime's Dashboard",
-  description: "Your personal command center for focused productivity",
+  title: "Leo",
+  description: "Your chief of staff.",
 };
 
 export default function RootLayout({
@@ -32,13 +33,15 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-50`}
         suppressHydrationWarning
       >
-        <ThemeProvider>
-          <AppProvider>
-            <KeyboardShortcutsProvider>
-              <ReminderProvider>{children}</ReminderProvider>
-            </KeyboardShortcutsProvider>
-          </AppProvider>
-        </ThemeProvider>
+        <SessionProviderWrapper>
+          <ThemeProvider>
+            <AppProvider>
+              <KeyboardShortcutsProvider>
+                <ReminderProvider>{children}</ReminderProvider>
+              </KeyboardShortcutsProvider>
+            </AppProvider>
+          </ThemeProvider>
+        </SessionProviderWrapper>
       </body>
     </html>
   );
