@@ -21,6 +21,7 @@ import {
   CurriculumLesson,
   CurriculumLessonStatus,
   QuickTask,
+  Quote,
 } from "@/types";
 
 // Helper to convert snake_case DB rows to camelCase
@@ -939,6 +940,30 @@ function toEnergyLog(row: Record<string, unknown>): EnergyLog {
     note: row.note as string | undefined,
     createdAt: new Date(row.created_at as string),
   };
+}
+
+function toQuote(row: Record<string, unknown>): Quote {
+  return {
+    id: row.id as string,
+    quote: row.quote as string,
+    speaker: (row.speaker as string | null) ?? undefined,
+    context: (row.context as string | null) ?? undefined,
+    createdAt: new Date(row.created_at as string),
+  };
+}
+
+export async function fetchQuotes(): Promise<Quote[]> {
+  const { data, error } = await supabase
+    .from("quotes")
+    .select("*")
+    .order("created_at", { ascending: true });
+
+  // Return empty array if table doesn't exist yet
+  if (error) {
+    console.warn("quotes table not found or error:", error.message);
+    return [];
+  }
+  return (data || []).map(toQuote);
 }
 
 export async function fetchEnergyLogs(): Promise<EnergyLog[]> {
