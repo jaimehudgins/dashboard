@@ -33,7 +33,7 @@ import {
   Loader2,
   Search,
 } from "lucide-react";
-import { GcalEvent, GcalCalendar } from "@/lib/google-calendar";
+import { GcalEvent, GcalCalendar, isOwnedCalendar } from "@/lib/google-calendar";
 import EventEditor from "./EventEditor";
 import FindTimeModal from "./FindTimeModal";
 
@@ -124,6 +124,9 @@ export default function CharlieCalendar({ onSelectEvent }: CharlieCalendarProps)
   );
   const [findTimeOpen, setFindTimeOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Default colleagues' (non-owned) calendars to hidden on first load; the
+  // user can toggle them on. Only applied once so it doesn't override choices.
+  const defaultedHidden = useRef(false);
 
   const reload = useCallback(() => setRefreshKey((k) => k + 1), []);
 
@@ -164,7 +167,14 @@ export default function CharlieCalendar({ onSelectEvent }: CharlieCalendarProps)
       })
       .then((data) => {
         setEvents(data.events || []);
-        setCalendars(data.calendars || []);
+        const cals: GcalCalendar[] = data.calendars || [];
+        setCalendars(cals);
+        if (!defaultedHidden.current && cals.length > 0) {
+          defaultedHidden.current = true;
+          setHidden(
+            new Set(cals.filter((c) => !isOwnedCalendar(c)).map((c) => c.id)),
+          );
+        }
         setLoading(false);
       })
       .catch((err) => {
