@@ -124,7 +124,9 @@ export default function WeeklyReview() {
       {/* Header with Week Navigation */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Weekly Review</h2>
+          <h2 className="text-2xl font-bold text-slate-900">
+            Big Block of Cheese Day
+          </h2>
           <p className="text-slate-500 mt-1">
             {format(weekStart, "MMM d")} - {format(weekEnd, "MMM d, yyyy")}
             {isCurrentWeek && <span className="ml-2 text-indigo-500 font-medium">(This Week)</span>}
@@ -154,6 +156,19 @@ export default function WeeklyReview() {
             <ChevronRight size={20} />
           </button>
         </div>
+      </div>
+
+      {/* Framing: the space for unconventional thinking */}
+      <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-5">
+        <p className="text-sm text-amber-900/80 leading-relaxed">
+          <span className="font-semibold text-amber-900">
+            Throw open the doors.
+          </span>{" "}
+          This is the time for the unconventional thinking that gets crowded out
+          in a normal week &mdash; the big bets, the half-formed ideas, the
+          things worth an hour even if they go nowhere. Review what got done,
+          then make room for what wouldn&rsquo;t otherwise get a hearing.
+        </p>
       </div>
 
       {/* Stats Cards */}
