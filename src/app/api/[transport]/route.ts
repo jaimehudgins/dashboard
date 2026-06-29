@@ -5,9 +5,16 @@ import {
   fetchAreas,
   fetchProjects,
   fetchCurriculumLessons,
+  createTask,
+  updateTask,
 } from "@/lib/database";
-import { crmSupabase, isCrmConfigured } from "@/lib/crm-supabase";
+import {
+  crmSupabase,
+  isCrmConfigured,
+  createPartnerFollowUp,
+} from "@/lib/crm-supabase";
 import { rememberFact, recallMemories, forgetMemory } from "@/lib/memory";
+import { Task } from "@/types";
 
 const ok = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
@@ -329,6 +336,174 @@ const handler = createMcpHandler(
       async ({ id }) => {
         await forgetMemory(id);
         return ok({ forgotten: true, id });
+      },
+    );
+
+    // ---- Writes (confirm-gated) ----
+    // Each write tool previews the change when `confirm` is unset and only
+    // executes when confirm=true, so there's an explicit approval step.
+    const CONFIRM_NOTE =
+      "This writes to live data. Show the user exactly what will change and only set confirm=true after they approve.";
+
+    server.registerTool(
+      "create_task",
+      {
+        title: "Create task",
+        description: `Create a task in Leo. ${CONFIRM_NOTE}`,
+        inputSchema: {
+          title: z.string(),
+          priority: z.enum(["critical", "high", "medium", "low"]).optional(),
+          dueDate: z.string().optional().describe("YYYY-MM-DD"),
+          area: z.string().optional().describe("Area name (fuzzy)."),
+          project: z.string().optional().describe("Project name (fuzzy)."),
+          description: z.string().optional(),
+          confirm: z.boolean().optional(),
+        },
+      },
+      async ({ title, priority, dueDate, area, project, description, confirm }) => {
+        const [areas, projects] = await Promise.all([
+          fetchAreas(),
+          fetchProjects(),
+        ]);
+        const areaMatch = area
+          ? areas.find((a) => a.name.toLowerCase().includes(area.toLowerCase()))
+          : undefined;
+        const projMatch = project
+          ? projects.find((p) =>
+              p.name.toLowerCase().includes(project.toLowerCase()),
+            )
+          : undefined;
+        const preview = {
+          title,
+          priority: priority || "medium",
+          dueDate: dueDate || null,
+          area: areaMatch?.name || null,
+          project: projMatch?.name || null,
+        };
+        if (!confirm)
+          return ok({ pending: true, action: "create_task", task: preview, note: "Re-run with confirm=true to save." });
+
+        const task: Task = {
+          id: crypto.randomUUID(),
+          title,
+          description,
+          priority: priority || "medium",
+          status: "pending",
+          projectId: projMatch?.id ?? null,
+          dueDate: dueDate ? new Date(`${dueDate}T12:00:00`) : undefined,
+          createdAt: new Date(),
+          focusMinutes: 0,
+          areaId: areaMatch?.id,
+        };
+        await createTask(task);
+        return ok({ created: true, id: task.id, title });
+      },
+    );
+
+    server.registerTool(
+      "update_task",
+      {
+        title: "Update task",
+        description: `Update an existing task found by title. ${CONFIRM_NOTE}`,
+        inputSchema: {
+          taskTitle: z.string().describe("Title (or part) of the task."),
+          newTitle: z.string().optional(),
+          priority: z.enum(["critical", "high", "medium", "low"]).optional(),
+          dueDate: z.string().optional().describe("YYYY-MM-DD"),
+          status: z
+            .enum(["pending", "in_progress", "completed", "blocked"])
+            .optional(),
+          confirm: z.boolean().optional(),
+        },
+      },
+      async ({ taskTitle, newTitle, priority, dueDate, status, confirm }) => {
+        const tasks = await fetchTasks();
+        const matches = tasks.filter(
+          (t) => !t.parentTaskId && t.title.toLowerCase().includes(taskTitle.toLowerCase()),
+        );
+        if (matches.length === 0) return ok({ error: `No task matching "${taskTitle}"` });
+        if (matches.length > 1)
+          return ok({ error: "Multiple tasks match — be more specific.", candidates: matches.slice(0, 8).map((t) => t.title) });
+        const task = matches[0];
+
+        const changes: Record<string, unknown> = {};
+        if (newTitle) changes.title = newTitle;
+        if (priority) changes.priority = priority;
+        if (dueDate) changes.dueDate = dueDate;
+        if (status) changes.status = status;
+        if (!confirm)
+          return ok({ pending: true, action: "update_task", task: task.title, changes, note: "Re-run with confirm=true to apply." });
+
+        const updated: Task = {
+          ...task,
+          title: newTitle ?? task.title,
+          priority: priority ?? task.priority,
+          status: status ?? task.status,
+          dueDate: dueDate ? new Date(`${dueDate}T12:00:00`) : task.dueDate,
+          completedAt:
+            status === "completed" ? new Date() : task.completedAt,
+        };
+        await updateTask(updated);
+        return ok({ updated: true, title: updated.title });
+      },
+    );
+
+    server.registerTool(
+      "complete_task",
+      {
+        title: "Complete task",
+        description: `Mark a task done (found by title). ${CONFIRM_NOTE}`,
+        inputSchema: {
+          taskTitle: z.string().describe("Title (or part) of the task."),
+          confirm: z.boolean().optional(),
+        },
+      },
+      async ({ taskTitle, confirm }) => {
+        const tasks = await fetchTasks();
+        const matches = tasks.filter(
+          (t) =>
+            !t.parentTaskId &&
+            t.status !== "completed" &&
+            t.title.toLowerCase().includes(taskTitle.toLowerCase()),
+        );
+        if (matches.length === 0) return ok({ error: `No open task matching "${taskTitle}"` });
+        if (matches.length > 1)
+          return ok({ error: "Multiple tasks match — be more specific.", candidates: matches.slice(0, 8).map((t) => t.title) });
+        const task = matches[0];
+        if (!confirm)
+          return ok({ pending: true, action: "complete_task", task: task.title, note: "Re-run with confirm=true to complete." });
+        await updateTask({ ...task, status: "completed", completedAt: new Date() });
+        return ok({ completed: true, title: task.title });
+      },
+    );
+
+    server.registerTool(
+      "create_partner_follow_up",
+      {
+        title: "Create partner follow-up",
+        description: `Create a follow-up task in the CRM tagged to a partner (due in N days, default 2). ${CONFIRM_NOTE}`,
+        inputSchema: {
+          partner: z.string().describe("Partner name (fuzzy)."),
+          dueInDays: z.number().int().min(0).max(90).optional(),
+          confirm: z.boolean().optional(),
+        },
+      },
+      async ({ partner, dueInDays, confirm }) => {
+        if (!isCrmConfigured) return ok({ error: "CRM not configured" });
+        const { data, error } = await crmSupabase
+          .from("partners")
+          .select("id, name")
+          .ilike("name", `%${partner}%`)
+          .limit(3);
+        if (error) return ok({ error: error.message });
+        if (!data || data.length === 0) return ok({ error: `No partner matching "${partner}"` });
+        if (data.length > 1)
+          return ok({ error: "Multiple partners match — be more specific.", candidates: data.map((p) => p.name) });
+        const p = data[0];
+        if (!confirm)
+          return ok({ pending: true, action: "create_partner_follow_up", partner: p.name, dueInDays: dueInDays ?? 2, note: "Re-run with confirm=true to create." });
+        await createPartnerFollowUp({ partnerId: p.id, partnerName: p.name, dueInDays });
+        return ok({ created: true, partner: p.name });
       },
     );
   },
