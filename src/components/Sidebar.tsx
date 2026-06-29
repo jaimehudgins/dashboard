@@ -38,6 +38,8 @@ import {
   Sun,
   StickyNote,
   GraduationCap,
+  Sunrise,
+  Sunset,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Project } from "@/types";
@@ -58,11 +60,13 @@ interface SidebarProps {
 }
 
 const navItems = [
+  { href: "/brief", label: "Morning Brief", icon: Sunrise },
+  { href: "/eod", label: "End of Day", icon: Sunset },
   { href: "/partner-tasks", label: "Partner Tasks", icon: Users },
   { href: "/", label: "Command Center", icon: Command },
   { href: "/archive", label: "Work History", icon: Calendar },
   { href: "/notes", label: "Note Catcher", icon: StickyNote },
-  { href: "/review", label: "Weekly Review", icon: TrendingUp },
+  { href: "/review", label: "Big Block of Cheese Day", icon: TrendingUp },
   { href: "/curriculum", label: "Curriculum Tracker", icon: GraduationCap },
 ];
 

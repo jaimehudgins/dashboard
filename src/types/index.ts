@@ -189,6 +189,15 @@ export interface EnergyLog {
   createdAt: Date;
 }
 
+// Daily West Wing quote shown on the morning brief
+export interface Quote {
+  id: string;
+  quote: string;
+  speaker?: string;
+  context?: string;
+  createdAt: Date;
+}
+
 // Note Catcher types
 export type StickyNoteColor = "yellow" | "pink" | "blue" | "green" | "purple";
 
