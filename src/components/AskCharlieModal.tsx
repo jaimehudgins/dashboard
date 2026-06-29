@@ -5,13 +5,9 @@ import { format, isSameDay } from "date-fns";
 import { X, Sparkles, Loader2, Clock, ArrowLeft } from "lucide-react";
 import { FreeSlot } from "@/lib/google-calendar";
 
-interface ParsedSchedule {
+interface Proposal {
   title: string;
-  durationMinutes: number;
   attendees: string[];
-  earliestDate: string;
-  latestDate: string;
-  partOfDay: "morning" | "afternoon" | "any";
 }
 
 interface AskCharlieModalProps {
@@ -25,40 +21,50 @@ interface AskCharlieModalProps {
 }
 
 const EXAMPLES = [
+  "When's my next meeting with Rasha?",
+  "What's on my calendar Thursday?",
   "Find me 30 minutes for deep work next week, mornings",
-  "An hour with the team sometime in the next 3 days",
-  "A 45-minute call Thursday or Friday afternoon",
 ];
 
 export default function AskCharlieModal({
   onPick,
   onClose,
 }: AskCharlieModalProps) {
-  const [request, setRequest] = useState("");
+  const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [parsed, setParsed] = useState<ParsedSchedule | null>(null);
+  const [answer, setAnswer] = useState<string | null>(null);
   const [slots, setSlots] = useState<FreeSlot[]>([]);
+  const [proposal, setProposal] = useState<Proposal | null>(null);
+  const [asked, setAsked] = useState("");
 
   const ask = async () => {
-    if (!request.trim()) return;
+    if (!question.trim()) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/calendar/schedule", {
+      const res = await fetch("/api/calendar/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ request: request.trim() }),
+        body: JSON.stringify({ question: question.trim() }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't find a time");
-      setParsed(data.parsed);
+      if (!res.ok) throw new Error(data.error || "Charlie couldn't answer");
+      setAnswer(data.answer);
       setSlots(data.slots || []);
+      setProposal(data.proposal || null);
+      setAsked(question.trim());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setLoading(false);
     }
+  };
+
+  const reset = () => {
+    setAnswer(null);
+    setSlots([]);
+    setProposal(null);
   };
 
   // Group slots by day.
@@ -93,28 +99,28 @@ export default function AskCharlieModal({
           </button>
         </div>
 
-        {!parsed ? (
+        {answer === null ? (
           <div className="p-5 space-y-4">
             <p className="text-sm text-slate-500">
-              Describe the meeting in plain English — Charlie reads your calendar
-              and proposes open times.
+              Ask about your schedule or find time — Charlie reads your calendar
+              and answers.
             </p>
             <textarea
               autoFocus
-              value={request}
-              onChange={(e) => setRequest(e.target.value)}
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) ask();
               }}
               rows={3}
-              placeholder="e.g. Find me 30 minutes for a call next Tuesday morning"
+              placeholder="e.g. When's my next meeting with Rasha?"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
             />
             <div className="flex flex-wrap gap-2">
               {EXAMPLES.map((ex) => (
                 <button
                   key={ex}
-                  onClick={() => setRequest(ex)}
+                  onClick={() => setQuestion(ex)}
                   className="text-xs text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-full px-3 py-1 transition-colors"
                 >
                   {ex}
@@ -125,7 +131,7 @@ export default function AskCharlieModal({
             <div className="flex justify-end">
               <button
                 onClick={ask}
-                disabled={loading || !request.trim()}
+                disabled={loading || !question.trim()}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 rounded-lg transition-colors"
               >
                 {loading ? (
@@ -133,7 +139,7 @@ export default function AskCharlieModal({
                 ) : (
                   <Sparkles size={15} />
                 )}
-                Find times
+                Ask
               </button>
             </div>
           </div>
@@ -141,38 +147,26 @@ export default function AskCharlieModal({
           <>
             <div className="p-5 border-b border-slate-100">
               <button
-                onClick={() => {
-                  setParsed(null);
-                  setSlots([]);
-                }}
+                onClick={reset}
                 className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1 mb-3"
               >
                 <ArrowLeft size={12} />
-                New request
+                Ask something else
               </button>
-              <p className="text-sm text-slate-700">
-                <span className="font-medium">{parsed.title}</span> ·{" "}
-                {parsed.durationMinutes} min
-                {parsed.partOfDay !== "any" ? ` · ${parsed.partOfDay}s` : ""}
-              </p>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {format(new Date(`${parsed.earliestDate}T00:00:00`), "MMM d")} –{" "}
-                {format(new Date(`${parsed.latestDate}T00:00:00`), "MMM d")}
-                {parsed.attendees.length > 0
-                  ? ` · with ${parsed.attendees.join(", ")}`
-                  : ""}
+              <p className="text-xs text-slate-400 mb-1">{asked}</p>
+              <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
+                {answer}
               </p>
             </div>
-            <div className="p-5 overflow-y-auto flex-1">
-              {slots.length === 0 ? (
-                <p className="text-sm text-slate-500">
-                  No open slots that fit. Try a wider range or a shorter meeting.
+            {slots.length > 0 && (
+              <div className="p-5 overflow-y-auto flex-1">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+                  Open times — pick one to book
                 </p>
-              ) : (
                 <div className="space-y-4">
                   {byDay.map(({ day, slots: daySlots }) => (
                     <div key={day.toISOString()}>
-                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                      <div className="text-xs font-semibold text-slate-500 mb-2">
                         {format(day, "EEEE, MMM d")}
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -183,8 +177,8 @@ export default function AskCharlieModal({
                               onPick(
                                 new Date(s.start),
                                 new Date(s.end),
-                                parsed.title,
-                                parsed.attendees,
+                                proposal?.title || "Meeting",
+                                proposal?.attendees || [],
                               )
                             }
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50 transition-colors"
@@ -197,8 +191,8 @@ export default function AskCharlieModal({
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </>
         )}
       </div>
