@@ -13,11 +13,19 @@ import {
   Calendar,
   Users,
   HeartPulse,
+  Plus,
+  Check,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Task } from "@/types";
 import { format, differenceInDays, startOfDay } from "date-fns";
-import { crmSupabase, isCrmConfigured, CrmPartner } from "@/lib/crm-supabase";
+import {
+  crmSupabase,
+  isCrmConfigured,
+  CrmPartner,
+  createPartnerFollowUp,
+  fetchOpenFollowUpPartnerIds,
+} from "@/lib/crm-supabase";
 
 interface Insight {
   id: string;
@@ -36,6 +44,8 @@ interface Insight {
   bgColor: string;
   task?: Task;
   action?: string;
+  partnerId?: string;
+  partnerName?: string;
 }
 
 // Days since last contact before a partner is considered "gone quiet".
@@ -50,8 +60,12 @@ export default function SmartInsights({ onFocusTask }: SmartInsightsProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [autoRotate, setAutoRotate] = useState(true);
   const [partners, setPartners] = useState<CrmPartner[]>([]);
+  const [openFollowUps, setOpenFollowUps] = useState<Set<string>>(new Set());
+  const [createdFor, setCreatedFor] = useState<Set<string>>(new Set());
+  const [creatingId, setCreatingId] = useState<string | null>(null);
 
-  // Pull partner metadata from the CRM for relationship-aware insights.
+  // Pull partner metadata + open follow-ups from the CRM for relationship-aware
+  // insights and follow-up de-duplication.
   useEffect(() => {
     if (!isCrmConfigured) return;
     let active = true;
@@ -65,10 +79,30 @@ export default function SmartInsights({ onFocusTask }: SmartInsightsProps) {
         }
         if (active && data) setPartners(data as CrmPartner[]);
       });
+    fetchOpenFollowUpPartnerIds().then((ids) => {
+      if (active) setOpenFollowUps(ids);
+    });
     return () => {
       active = false;
     };
   }, []);
+
+  const handleCreateFollowUp = async (insight: Insight) => {
+    if (!insight.partnerId || !insight.partnerName) return;
+    setCreatingId(insight.partnerId);
+    try {
+      await createPartnerFollowUp({
+        partnerId: insight.partnerId,
+        partnerName: insight.partnerName,
+        dueInDays: 2,
+      });
+      setCreatedFor((prev) => new Set(prev).add(insight.partnerId!));
+    } catch (err) {
+      console.error("Could not create follow-up task:", err);
+    } finally {
+      setCreatingId(null);
+    }
+  };
 
   const insights = useMemo(() => {
     const insights: Insight[] = [];
@@ -245,6 +279,8 @@ export default function SmartInsights({ onFocusTask }: SmartInsightsProps) {
         icon: <Users size={20} />,
         color: "text-sky-600",
         bgColor: "bg-sky-50 border-sky-200",
+        partnerId: partner.id,
+        partnerName: partner.name,
       });
     }
 
@@ -266,6 +302,8 @@ export default function SmartInsights({ onFocusTask }: SmartInsightsProps) {
         icon: <HeartPulse size={20} />,
         color: "text-rose-600",
         bgColor: "bg-rose-50 border-rose-200",
+        partnerId: partner.id,
+        partnerName: partner.name,
       });
     }
 
@@ -366,6 +404,31 @@ export default function SmartInsights({ onFocusTask }: SmartInsightsProps) {
                   {currentInsight.action}
                 </button>
               )}
+
+              {/* Partner follow-up action */}
+              {currentInsight.partnerId &&
+                (createdFor.has(currentInsight.partnerId) ? (
+                  <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-600">
+                    <Check size={16} />
+                    Follow-up created
+                  </span>
+                ) : openFollowUps.has(currentInsight.partnerId) ? (
+                  <span className="inline-flex items-center gap-1.5 text-sm text-slate-400">
+                    <Check size={16} />
+                    Follow-up already open
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => handleCreateFollowUp(currentInsight)}
+                    disabled={creatingId === currentInsight.partnerId}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white bg-slate-800 hover:bg-slate-900 disabled:opacity-60 transition-colors"
+                  >
+                    <Plus size={16} />
+                    {creatingId === currentInsight.partnerId
+                      ? "Creating…"
+                      : "Create follow-up task"}
+                  </button>
+                ))}
             </div>
           </div>
         </div>

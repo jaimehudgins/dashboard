@@ -62,3 +62,48 @@ export const taskStatusColors: Record<TaskStatus, string> = {
   "Paused": "bg-orange-100 text-orange-800",
   "Complete": "bg-green-100 text-green-800",
 };
+
+// Returns partner_ids that already have an open (incomplete) follow-up task,
+// so callers can avoid creating duplicates.
+export async function fetchOpenFollowUpPartnerIds(): Promise<Set<string>> {
+  if (!isCrmConfigured) return new Set();
+  const { data, error } = await crmSupabase
+    .from("follow_up_tasks")
+    .select("partner_id")
+    .eq("completed", false);
+  if (error) {
+    console.warn("Could not load open follow-ups:", error.message);
+    return new Set();
+  }
+  return new Set(
+    (data || [])
+      .map((r) => (r as { partner_id: string | null }).partner_id)
+      .filter((id): id is string => !!id),
+  );
+}
+
+// Creates a follow-up task tagged to a partner. It lands on the partner's CRM
+// page and round-trips into Leo's unified task table via the existing bridge.
+export async function createPartnerFollowUp(opts: {
+  partnerId: string;
+  partnerName: string;
+  dueInDays?: number;
+}): Promise<void> {
+  const due = new Date();
+  due.setDate(due.getDate() + (opts.dueInDays ?? 2));
+  const nowIso = new Date().toISOString();
+
+  const { error } = await crmSupabase.from("follow_up_tasks").insert({
+    id: crypto.randomUUID(),
+    partner_id: opts.partnerId,
+    touchpoint_id: null,
+    task: `Follow up with ${opts.partnerName}`,
+    due_date: due.toISOString().split("T")[0],
+    completed: false,
+    status: "Not Started",
+    notes: "Created from Leo morning brief",
+    created_at: nowIso,
+    updated_at: nowIso,
+  });
+  if (error) throw error;
+}
