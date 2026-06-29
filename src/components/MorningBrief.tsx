@@ -2,12 +2,13 @@
 
 import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
-import { Target, CalendarClock } from "lucide-react";
+import { Target } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Task } from "@/types";
 import DailyQuote from "./DailyQuote";
 import EnergyNudge from "./EnergyNudge";
 import SmartInsights from "./SmartInsights";
+import TodayAgenda from "./TodayAgenda";
 import UnifiedTaskTable from "./UnifiedTaskTable";
 
 interface MorningBriefProps {
@@ -51,6 +52,9 @@ export default function MorningBrief({ onOpenZenMode }: MorningBriefProps) {
       {/* Energy-aware nudge */}
       <EnergyNudge />
 
+      {/* Today's calendar */}
+      <TodayAgenda />
+
       {/* Today's tasks */}
       <div>
         <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">
@@ -61,16 +65,6 @@ export default function MorningBrief({ onOpenZenMode }: MorningBriefProps) {
 
       {/* Smart Insights */}
       <SmartInsights onFocusTask={onOpenZenMode} />
-
-      {/* Calendar placeholder (wired in Phase 2: Charlie) */}
-      <div className="bg-slate-50 border border-slate-200 border-dashed rounded-xl p-8 text-center">
-        <CalendarClock className="mx-auto text-slate-300 mb-3" size={36} />
-        <h3 className="text-slate-900 font-medium mb-1">Today&rsquo;s calendar</h3>
-        <p className="text-sm text-slate-500">
-          Your schedule will appear here once Charlie (Phase 2) connects Google
-          Calendar.
-        </p>
-      </div>
     </div>
   );
 }
