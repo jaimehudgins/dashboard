@@ -7,6 +7,7 @@ import {
   fetchCurriculumLessons,
 } from "@/lib/database";
 import { crmSupabase, isCrmConfigured } from "@/lib/crm-supabase";
+import { rememberFact, recallMemories, forgetMemory } from "@/lib/memory";
 
 const ok = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
@@ -232,6 +233,102 @@ const handler = createMcpHandler(
           rows = rows.filter((l) => String(l.unit || "").toLowerCase().includes(q));
         }
         return ok(rows);
+      },
+    );
+
+    // ---- Persistent memory (dashboard Supabase `memory` table) ----
+    server.registerTool(
+      "recall",
+      {
+        title: "Recall memories",
+        description:
+          "Recall previously stored facts about an entity (a partner, project, person, topic, or global). Call this at the start of a conversation about someone/something to load what Leo already knows. Filter by entity and/or keyword; expired memories are excluded.",
+        inputSchema: {
+          entityType: z
+            .enum(["partner", "project", "person", "topic", "global"])
+            .optional(),
+          entityId: z
+            .string()
+            .optional()
+            .describe("e.g. a partner name/id, project id, or person email."),
+          query: z.string().optional().describe("Keyword to match in the fact."),
+          limit: z.number().int().min(1).max(100).optional(),
+        },
+      },
+      async ({ entityType, entityId, query, limit }) => {
+        const rows = await recallMemories({ entityType, entityId, query, limit });
+        return ok(
+          rows.map((m) => ({
+            id: m.id,
+            entity: `${m.entity_type}${m.entity_id ? `:${m.entity_id}` : ""}`,
+            fact: m.fact,
+            importance: m.importance,
+            recorded: m.created_at,
+          })),
+        );
+      },
+    );
+
+    server.registerTool(
+      "remember",
+      {
+        title: "Remember a fact",
+        description:
+          "Store a durable fact for future conversations — a preference, a decision, a piece of context worth keeping. Tag it to an entity so it can be recalled later. Use this when the user shares something they'd want Leo to remember.",
+        inputSchema: {
+          entityType: z.enum([
+            "partner",
+            "project",
+            "person",
+            "topic",
+            "global",
+          ]),
+          entityId: z
+            .string()
+            .optional()
+            .describe("What the fact is about (partner name, project, email)."),
+          fact: z.string().describe("The fact to remember, stated plainly."),
+          sourceQuote: z
+            .string()
+            .optional()
+            .describe("Optional verbatim quote this was drawn from."),
+          importance: z
+            .number()
+            .int()
+            .min(1)
+            .max(10)
+            .optional()
+            .describe("1-10, default 5."),
+          expiresAt: z
+            .string()
+            .optional()
+            .describe("Optional ISO timestamp after which the fact is stale."),
+        },
+      },
+      async ({ entityType, entityId, fact, sourceQuote, importance, expiresAt }) => {
+        const row = await rememberFact({
+          entityType,
+          entityId,
+          fact,
+          sourceQuote,
+          importance,
+          expiresAt,
+        });
+        return ok({ saved: true, id: row.id });
+      },
+    );
+
+    server.registerTool(
+      "forget",
+      {
+        title: "Forget a memory",
+        description:
+          "Delete a stored memory by its id (from a prior recall) — when a fact is wrong or no longer true.",
+        inputSchema: { id: z.string().describe("The memory id to delete.") },
+      },
+      async ({ id }) => {
+        await forgetMemory(id);
+        return ok({ forgotten: true, id });
       },
     );
   },
