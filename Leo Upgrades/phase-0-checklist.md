@@ -34,7 +34,7 @@ dashboard Supabase project). RLS stays allow-all; **NextAuth is the actual gate.
 ## ③ Supabase tables — SQL WRITTEN (commit 06d1d1d); **YOU run it**
 - [x] `memory-table.sql` written (build-plan schema + allow-all RLS)
 - [x] `quotes-table.sql` written (schema + 6 seed rows + allow-all RLS)
-- [ ] **Run both in the dashboard Supabase project `wsxgofbgpptlfxtcqnlx` SQL editor (NOT the CRM project)**
+- [x] **Ran both in the dashboard Supabase project `wsxgofbgpptlfxtcqnlx` SQL editor**
 
 ## ④ NextAuth + Google OAuth — DONE
 - [x] `next-auth@^4.24.14` installed
@@ -44,7 +44,7 @@ dashboard Supabase project). RLS stays allow-all; **NextAuth is the actual gate.
 - [x] `src/components/SessionProviderWrapper.tsx` + wired into `layout.tsx`
 - [x] `src/app/auth/signin/page.tsx` + `src/app/auth/error/page.tsx` (plain, Leo-branded)
 - [x] `src/middleware.ts` — the gate, added last — commit 10af27f
-- [ ] **YOU: browser sign-in test (see below) — the OAuth handshake I can't run myself**
+- [x] **Browser sign-in test passed (local + prod OAuth handshake confirmed)**
 
 ## ⑤ Vercel cron scaffolding — DONE (commit 7b3fed4)
 - [x] `vercel.json` — one placeholder daily cron
@@ -58,12 +58,13 @@ dashboard Supabase project). RLS stays allow-all; **NextAuth is the actual gate.
 - Dev probes (before gate): providers endpoint returns Google w/ correct callback; sign-in page 200; cron route `{"ok":true}`.
 
 ## Remaining for you (before merge)
-1. Run the two SQL files in the dashboard Supabase project.
-2. `npm run dev` → confirm `/` redirects to `/auth/signin` → Google consent (click through the
-   "unverified app" screen) → lands back in Leo. Then click around every route.
-3. Push the branch / deploy preview and repeat the sign-in test on the Vercel domain (prod
-   NEXTAUTH_URL + redirect URI must match exactly).
+1. ~~Run the two SQL files in the dashboard Supabase project.~~ DONE
+2. ~~`npm run dev` → confirm `/` redirects to `/auth/signin` → Google consent → lands back in Leo →
+   click around every route.~~ DONE
+3. ~~Push the branch / deploy preview and repeat the sign-in test on the Vercel domain.~~ DONE
 4. (optional) Set CRON_SECRET in Vercel.
+
+**Phase 0 is functionally complete** — only the optional CRON_SECRET remains. Ready to merge `leo-phase-0` → `main`.
 
 ## Risks to test
 - Sign-in must work local **and** prod (NEXTAUTH_URL / redirect URI mismatch is the #1 failure).
