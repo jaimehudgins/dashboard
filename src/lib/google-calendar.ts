@@ -134,23 +134,42 @@ export async function listEvents(
     .map((e: any) => normalizeEvent(e, cal));
 }
 
-// Fetches events across every calendar in the user's list, color-coded by
-// calendar. Returns both the merged events and the calendar list (for legends).
+// A calendar the user owns (vs. colleagues' calendars shared to them, which
+// come back as reader/writer/freeBusyReader). Only owned calendars should
+// drive availability and the "what's coming up" agenda.
+export function isOwnedCalendar(c: GcalCalendar): boolean {
+  return c.accessRole === "owner";
+}
+
+// Owned calendars, falling back to the primary calendar if none are tagged
+// "owner" (defensive — the primary is normally owner-role).
+export function ownedCalendars(calendars: GcalCalendar[]): GcalCalendar[] {
+  const owned = calendars.filter(isOwnedCalendar);
+  if (owned.length > 0) return owned;
+  return calendars.filter((c) => c.primary);
+}
+
+// Fetches events across the user's calendars, color-coded. With ownedOnly,
+// only the user's own calendars are queried (for the brief agenda); otherwise
+// all visible calendars are included (for the full calendar view, so shared
+// colleague calendars are visible). freeBusyReader calendars expose no event
+// detail, so they are never in the event list.
 export async function listAllEvents(
   accessToken: string,
   timeMin: string,
   timeMax: string,
+  opts: { ownedOnly?: boolean } = {},
 ): Promise<{ events: GcalEvent[]; calendars: GcalCalendar[] }> {
-  const calendars = await listCalendars(accessToken);
+  const all = await listCalendars(accessToken);
+  const visible = all.filter((c) => c.accessRole !== "freeBusyReader");
+  const source = opts.ownedOnly ? ownedCalendars(visible) : visible;
   const perCal = await Promise.all(
-    calendars
-      .filter((c) => c.accessRole !== "freeBusyReader")
-      .map((c) =>
-        listEvents(accessToken, c, timeMin, timeMax).catch(() => [] as GcalEvent[]),
-      ),
+    source.map((c) =>
+      listEvents(accessToken, c, timeMin, timeMax).catch(() => [] as GcalEvent[]),
+    ),
   );
   const events = perCal.flat().sort((a, b) => a.start.localeCompare(b.start));
-  return { events, calendars };
+  return { events, calendars: source };
 }
 
 /* ------------------------------ Mutations ------------------------------ */

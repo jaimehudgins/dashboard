@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import {
   listCalendars,
+  ownedCalendars,
   queryFreeBusy,
   findFreeSlots,
   CalendarApiError,
@@ -29,11 +30,13 @@ export async function GET(req: Request) {
 
   try {
     const calendars = await listCalendars(session.accessToken);
+    // Only the user's own calendars determine their availability — colleagues'
+    // shared calendars must not block "find a time".
     const busy = await queryFreeBusy(
       session.accessToken,
       start,
       end,
-      calendars.map((c) => c.id),
+      ownedCalendars(calendars).map((c) => c.id),
     );
     const slots = findFreeSlots({
       busy,

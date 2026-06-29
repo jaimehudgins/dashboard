@@ -23,7 +23,7 @@ export default function TodayAgenda() {
     const controller = new AbortController();
     const start = startOfDay(new Date()).toISOString();
     const end = endOfDay(new Date()).toISOString();
-    fetch(`/api/calendar/events?start=${start}&end=${end}`, {
+    fetch(`/api/calendar/events?start=${start}&end=${end}&scope=owned`, {
       signal: controller.signal,
     })
       .then(async (res) => {

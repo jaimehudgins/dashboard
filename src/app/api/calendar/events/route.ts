@@ -33,6 +33,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const start = searchParams.get("start");
   const end = searchParams.get("end");
+  const ownedOnly = searchParams.get("scope") === "owned";
   if (!start || !end) {
     return NextResponse.json(
       { error: "start and end query params are required" },
@@ -45,6 +46,7 @@ export async function GET(req: Request) {
       session.accessToken,
       start,
       end,
+      { ownedOnly },
     );
     return NextResponse.json({ events, calendars });
   } catch (err) {
