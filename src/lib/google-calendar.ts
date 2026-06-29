@@ -153,4 +153,114 @@ export async function listAllEvents(
   return { events, calendars };
 }
 
+/* ------------------------------ Mutations ------------------------------ */
+
+export interface EventInput {
+  calendarId: string;
+  title: string;
+  allDay: boolean;
+  // allDay: "YYYY-MM-DD". timed: "YYYY-MM-DDTHH:mm:ss" (local wall time).
+  start: string;
+  end: string;
+  timeZone?: string;
+  location?: string;
+  description?: string;
+  attendees?: string[]; // email addresses
+  addMeet?: boolean;
+}
+
+function addDaysToYmd(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(y, m - 1, d + days);
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+  return `${dt.getFullYear()}-${mm}-${dd}`;
+}
+
+function buildEventBody(input: EventInput) {
+  const tz =
+    input.timeZone ||
+    Intl.DateTimeFormat().resolvedOptions().timeZone ||
+    "UTC";
+
+  const body: any = {
+    summary: input.title,
+    location: input.location || undefined,
+    description: input.description || undefined,
+  };
+
+  if (input.allDay) {
+    // Google all-day end date is exclusive; store start..(end+1 day).
+    body.start = { date: input.start };
+    body.end = { date: addDaysToYmd(input.end || input.start, 1) };
+  } else {
+    body.start = { dateTime: input.start, timeZone: tz };
+    body.end = { dateTime: input.end, timeZone: tz };
+  }
+
+  if (input.attendees && input.attendees.length > 0) {
+    body.attendees = input.attendees.map((email) => ({ email }));
+  }
+
+  if (input.addMeet) {
+    body.conferenceData = {
+      createRequest: {
+        requestId: `leo-${Date.now()}-${Math.floor(
+          (Date.now() % 100000) + (input.title.length || 1),
+        )}`,
+        conferenceSolutionKey: { type: "hangoutsMeet" },
+      },
+    };
+  }
+
+  return body;
+}
+
+export async function createEvent(
+  accessToken: string,
+  input: EventInput,
+): Promise<any> {
+  const params = new URLSearchParams();
+  if (input.addMeet) params.set("conferenceDataVersion", "1");
+  if (input.attendees?.length) params.set("sendUpdates", "all");
+  const qs = params.toString() ? `?${params}` : "";
+  return gcalFetch(
+    accessToken,
+    `/calendars/${encodeURIComponent(input.calendarId)}/events${qs}`,
+    { method: "POST", body: JSON.stringify(buildEventBody(input)) },
+  );
+}
+
+export async function updateEvent(
+  accessToken: string,
+  eventId: string,
+  input: EventInput,
+): Promise<any> {
+  const params = new URLSearchParams();
+  if (input.addMeet) params.set("conferenceDataVersion", "1");
+  if (input.attendees?.length) params.set("sendUpdates", "all");
+  const qs = params.toString() ? `?${params}` : "";
+  return gcalFetch(
+    accessToken,
+    `/calendars/${encodeURIComponent(input.calendarId)}/events/${encodeURIComponent(
+      eventId,
+    )}${qs}`,
+    { method: "PATCH", body: JSON.stringify(buildEventBody(input)) },
+  );
+}
+
+export async function deleteEvent(
+  accessToken: string,
+  calendarId: string,
+  eventId: string,
+): Promise<void> {
+  await gcalFetch(
+    accessToken,
+    `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(
+      eventId,
+    )}?sendUpdates=all`,
+    { method: "DELETE" },
+  );
+}
+
 export { CalendarApiError };

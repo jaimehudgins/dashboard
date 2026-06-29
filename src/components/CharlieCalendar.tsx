@@ -27,8 +27,13 @@ import {
   Users,
   X,
   AlertCircle,
+  Plus,
+  Pencil,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import { GcalEvent, GcalCalendar } from "@/lib/google-calendar";
+import EventEditor from "./EventEditor";
 
 type View = "day" | "week" | "month";
 const HOUR_PX = 48;
@@ -109,7 +114,20 @@ export default function CharlieCalendar({ onSelectEvent }: CharlieCalendarProps)
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<GcalEvent | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorEvent, setEditorEvent] = useState<GcalEvent | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const reload = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  const hasWritableCalendar = useMemo(
+    () =>
+      calendars.some(
+        (c) => c.accessRole === "owner" || c.accessRole === "writer",
+      ),
+    [calendars],
+  );
 
   const range = useMemo(() => {
     if (view === "day") return { start: startOfDay(anchor), end: endOfDay(anchor) };
@@ -149,7 +167,7 @@ export default function CharlieCalendar({ onSelectEvent }: CharlieCalendarProps)
         setLoading(false);
       });
     return () => controller.abort();
-  }, [range.start, range.end]);
+  }, [range.start, range.end, refreshKey]);
 
   // Scroll the time grid to morning on mount / view change.
   useEffect(() => {
@@ -246,6 +264,19 @@ export default function CharlieCalendar({ onSelectEvent }: CharlieCalendarProps)
               </button>
             ))}
           </div>
+          {/* New event */}
+          {hasWritableCalendar && (
+            <button
+              onClick={() => {
+                setEditorEvent(null);
+                setEditorOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+            >
+              <Plus size={16} />
+              New event
+            </button>
+          )}
         </div>
       </div>
 
@@ -311,7 +342,38 @@ export default function CharlieCalendar({ onSelectEvent }: CharlieCalendarProps)
         ))}
 
       {selected && (
-        <EventDetail event={selected} onClose={() => setSelected(null)} />
+        <EventDetail
+          event={selected}
+          canEdit={
+            calendars.find((c) => c.id === selected.calendarId)?.accessRole ===
+              "owner" ||
+            calendars.find((c) => c.id === selected.calendarId)?.accessRole ===
+              "writer"
+          }
+          onClose={() => setSelected(null)}
+          onEdit={() => {
+            setEditorEvent(selected);
+            setSelected(null);
+            setEditorOpen(true);
+          }}
+          onDeleted={() => {
+            setSelected(null);
+            reload();
+          }}
+        />
+      )}
+
+      {editorOpen && (
+        <EventEditor
+          calendars={calendars}
+          event={editorEvent}
+          defaultDate={anchor}
+          onSaved={reload}
+          onClose={() => {
+            setEditorOpen(false);
+            setEditorEvent(null);
+          }}
+        />
       )}
     </div>
   );
@@ -572,13 +634,42 @@ function MonthGrid({
 
 function EventDetail({
   event,
+  canEdit,
   onClose,
+  onEdit,
+  onDeleted,
 }: {
   event: GcalEvent;
+  canEdit: boolean;
   onClose: () => void;
+  onEdit: () => void;
+  onDeleted: () => void;
 }) {
   const start = parseStart(event);
   const end = parseEnd(event);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/calendar/events/${event.id}?calendarId=${encodeURIComponent(
+          event.calendarId,
+        )}`,
+        { method: "DELETE" },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete");
+      onDeleted();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete");
+      setDeleting(false);
+    }
+  };
+
   return (
     <div
       className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4"
@@ -598,14 +689,62 @@ function EventDetail({
               {event.title}
             </h2>
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600"
-            aria-label="Close"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-1">
+            {canEdit && (
+              <>
+                <button
+                  onClick={onEdit}
+                  className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  aria-label="Edit event"
+                >
+                  <Pencil size={16} />
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  aria-label="Delete event"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
+
+        {confirmDelete && (
+          <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
+            <p className="text-sm text-red-800 mb-2">
+              Delete &ldquo;{event.title}&rdquo;?
+              {event.attendees && event.attendees.length > 0
+                ? " Guests will be notified."
+                : ""}
+            </p>
+            {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-60 rounded-lg transition-colors"
+              >
+                {deleting && <Loader2 size={14} className="animate-spin" />}
+                Delete
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-3 text-sm">
           <div className="text-slate-600">
