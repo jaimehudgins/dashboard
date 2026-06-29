@@ -11,6 +11,8 @@ interface EventEditorProps {
   defaultDate?: Date; // when creating
   defaultStart?: Date; // when creating from a picked slot
   defaultEnd?: Date;
+  defaultTitle?: string;
+  defaultAttendees?: string[];
   onSaved: () => void;
   onClose: () => void;
 }
@@ -31,6 +33,8 @@ export default function EventEditor({
   defaultDate,
   defaultStart,
   defaultEnd,
+  defaultTitle,
+  defaultAttendees,
   onSaved,
   onClose,
 }: EventEditorProps) {
@@ -55,7 +59,9 @@ export default function EventEditor({
       ? new Date(defaultEnd)
       : new Date(initStart.getTime() + 60 * 60 * 1000);
 
-  const [title, setTitle] = useState(event?.title === "(no title)" ? "" : event?.title || "");
+  const [title, setTitle] = useState(
+    event?.title === "(no title)" ? "" : event?.title || defaultTitle || "",
+  );
   const [calendarId, setCalendarId] = useState(
     event?.calendarId ||
       writableCals.find((c) => c.primary)?.id ||
@@ -71,10 +77,12 @@ export default function EventEditor({
     event?.description?.replace(/<[^>]+>/g, "") || "",
   );
   const [attendees, setAttendees] = useState(
-    (event?.attendees || [])
-      .map((a) => a.email)
-      .filter(Boolean)
-      .join(", "),
+    event
+      ? (event.attendees || [])
+          .map((a) => a.email)
+          .filter(Boolean)
+          .join(", ")
+      : (defaultAttendees || []).join(", "),
   );
   const [addMeet, setAddMeet] = useState(!!event?.hangoutLink);
 

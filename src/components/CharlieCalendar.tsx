@@ -32,10 +32,12 @@ import {
   Trash2,
   Loader2,
   Search,
+  Sparkles,
 } from "lucide-react";
 import { GcalEvent, GcalCalendar, isOwnedCalendar } from "@/lib/google-calendar";
 import EventEditor from "./EventEditor";
 import FindTimeModal from "./FindTimeModal";
+import AskCharlieModal from "./AskCharlieModal";
 
 type View = "day" | "week" | "month";
 const HOUR_PX = 48;
@@ -119,10 +121,14 @@ export default function CharlieCalendar({ onSelectEvent }: CharlieCalendarProps)
   const [refreshKey, setRefreshKey] = useState(0);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorEvent, setEditorEvent] = useState<GcalEvent | null>(null);
-  const [editorSlot, setEditorSlot] = useState<{ start: Date; end: Date } | null>(
-    null,
-  );
+  const [editorSlot, setEditorSlot] = useState<{
+    start: Date;
+    end: Date;
+    title?: string;
+    attendees?: string[];
+  } | null>(null);
   const [findTimeOpen, setFindTimeOpen] = useState(false);
+  const [askCharlieOpen, setAskCharlieOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   // Default colleagues' (non-owned) calendars to hidden on first load; the
   // user can toggle them on. Only applied once so it doesn't override choices.
@@ -280,6 +286,14 @@ export default function CharlieCalendar({ onSelectEvent }: CharlieCalendarProps)
               </button>
             ))}
           </div>
+          {/* Ask Charlie (NL scheduling) */}
+          <button
+            onClick={() => setAskCharlieOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-indigo-600 border border-indigo-200 hover:bg-indigo-50 rounded-lg transition-colors"
+          >
+            <Sparkles size={15} />
+            Ask Charlie
+          </button>
           {/* Find a time */}
           <button
             onClick={() => setFindTimeOpen(true)}
@@ -395,6 +409,8 @@ export default function CharlieCalendar({ onSelectEvent }: CharlieCalendarProps)
           defaultDate={anchor}
           defaultStart={editorSlot?.start}
           defaultEnd={editorSlot?.end}
+          defaultTitle={editorSlot?.title}
+          defaultAttendees={editorSlot?.attendees}
           onSaved={reload}
           onClose={() => {
             setEditorOpen(false);
@@ -411,6 +427,18 @@ export default function CharlieCalendar({ onSelectEvent }: CharlieCalendarProps)
             setFindTimeOpen(false);
             setEditorEvent(null);
             setEditorSlot({ start, end });
+            setEditorOpen(true);
+          }}
+        />
+      )}
+
+      {askCharlieOpen && (
+        <AskCharlieModal
+          onClose={() => setAskCharlieOpen(false)}
+          onPick={(start, end, title, attendees) => {
+            setAskCharlieOpen(false);
+            setEditorEvent(null);
+            setEditorSlot({ start, end, title, attendees });
             setEditorOpen(true);
           }}
         />
