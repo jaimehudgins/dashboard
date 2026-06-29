@@ -263,4 +263,114 @@ export async function deleteEvent(
   );
 }
 
+/* ------------------------------ Free/busy ------------------------------ */
+
+export interface BusyInterval {
+  start: string;
+  end: string;
+}
+
+export interface FreeSlot {
+  start: string; // ISO
+  end: string; // ISO
+}
+
+export async function queryFreeBusy(
+  accessToken: string,
+  timeMin: string,
+  timeMax: string,
+  calendarIds: string[],
+): Promise<BusyInterval[]> {
+  const data = await gcalFetch(accessToken, "/freeBusy", {
+    method: "POST",
+    body: JSON.stringify({
+      timeMin,
+      timeMax,
+      items: calendarIds.map((id) => ({ id })),
+    }),
+  });
+  const cals = data.calendars || {};
+  const busy: BusyInterval[] = [];
+  for (const id of Object.keys(cals)) {
+    (cals[id].busy || []).forEach((b: BusyInterval) => busy.push(b));
+  }
+  return busy;
+}
+
+// Pure: given busy intervals, find open slots of durationMin within working
+// hours across [rangeStart, rangeEnd]. Local-time working window.
+export function findFreeSlots(opts: {
+  busy: BusyInterval[];
+  rangeStart: Date;
+  rangeEnd: Date;
+  durationMin: number;
+  workStartHour?: number;
+  workEndHour?: number;
+  weekdaysOnly?: boolean;
+  stepMin?: number;
+  maxSlots?: number;
+}): FreeSlot[] {
+  const {
+    busy,
+    rangeStart,
+    rangeEnd,
+    durationMin,
+    workStartHour = 9,
+    workEndHour = 17,
+    weekdaysOnly = true,
+    stepMin = 30,
+    maxSlots = 30,
+  } = opts;
+
+  // Merge overlapping busy intervals.
+  const merged: [number, number][] = [];
+  busy
+    .map((b) => [new Date(b.start).getTime(), new Date(b.end).getTime()] as [number, number])
+    .sort((a, b) => a[0] - b[0])
+    .forEach((iv) => {
+      const last = merged[merged.length - 1];
+      if (last && iv[0] <= last[1]) last[1] = Math.max(last[1], iv[1]);
+      else merged.push([iv[0], iv[1]]);
+    });
+
+  const overlapsBusy = (s: number, e: number) =>
+    merged.some(([bs, be]) => s < be && e > bs);
+
+  const slots: FreeSlot[] = [];
+  const durMs = durationMin * 60000;
+  const stepMs = stepMin * 60000;
+  const nowMs = Date.now();
+
+  const day = new Date(rangeStart);
+  day.setHours(0, 0, 0, 0);
+
+  while (day.getTime() <= rangeEnd.getTime() && slots.length < maxSlots) {
+    const dow = day.getDay();
+    if (!(weekdaysOnly && (dow === 0 || dow === 6))) {
+      const dayEnd = new Date(day);
+      dayEnd.setHours(workEndHour, 0, 0, 0);
+      const cursor = new Date(day);
+      cursor.setHours(workStartHour, 0, 0, 0);
+
+      while (
+        cursor.getTime() + durMs <= dayEnd.getTime() &&
+        slots.length < maxSlots
+      ) {
+        const s = cursor.getTime();
+        const e = s + durMs;
+        if (s >= nowMs && s >= rangeStart.getTime() && !overlapsBusy(s, e)) {
+          slots.push({
+            start: new Date(s).toISOString(),
+            end: new Date(e).toISOString(),
+          });
+        }
+        cursor.setTime(cursor.getTime() + stepMs);
+      }
+    }
+    day.setDate(day.getDate() + 1);
+  }
+
+  return slots;
+}
+
 export { CalendarApiError };

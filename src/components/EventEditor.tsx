@@ -9,6 +9,8 @@ interface EventEditorProps {
   calendars: GcalCalendar[];
   event?: GcalEvent | null; // present → edit mode
   defaultDate?: Date; // when creating
+  defaultStart?: Date; // when creating from a picked slot
+  defaultEnd?: Date;
   onSaved: () => void;
   onClose: () => void;
 }
@@ -27,6 +29,8 @@ export default function EventEditor({
   calendars,
   event,
   defaultDate,
+  defaultStart,
+  defaultEnd,
   onSaved,
   onClose,
 }: EventEditorProps) {
@@ -38,14 +42,18 @@ export default function EventEditor({
     ? event.allDay
       ? new Date(`${event.start}T09:00:00`)
       : new Date(event.start)
-    : defaultDate
-      ? new Date(defaultDate.setHours(9, 0, 0, 0))
-      : new Date(new Date().setMinutes(0, 0, 0));
+    : defaultStart
+      ? new Date(defaultStart)
+      : defaultDate
+        ? new Date(new Date(defaultDate).setHours(9, 0, 0, 0))
+        : new Date(new Date().setMinutes(0, 0, 0));
   const initEnd = event
     ? event.allDay
       ? initStart
       : new Date(event.end)
-    : new Date(initStart.getTime() + 60 * 60 * 1000);
+    : defaultEnd
+      ? new Date(defaultEnd)
+      : new Date(initStart.getTime() + 60 * 60 * 1000);
 
   const [title, setTitle] = useState(event?.title === "(no title)" ? "" : event?.title || "");
   const [calendarId, setCalendarId] = useState(

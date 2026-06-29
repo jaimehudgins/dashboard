@@ -31,9 +31,11 @@ import {
   Pencil,
   Trash2,
   Loader2,
+  Search,
 } from "lucide-react";
 import { GcalEvent, GcalCalendar } from "@/lib/google-calendar";
 import EventEditor from "./EventEditor";
+import FindTimeModal from "./FindTimeModal";
 
 type View = "day" | "week" | "month";
 const HOUR_PX = 48;
@@ -117,6 +119,10 @@ export default function CharlieCalendar({ onSelectEvent }: CharlieCalendarProps)
   const [refreshKey, setRefreshKey] = useState(0);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorEvent, setEditorEvent] = useState<GcalEvent | null>(null);
+  const [editorSlot, setEditorSlot] = useState<{ start: Date; end: Date } | null>(
+    null,
+  );
+  const [findTimeOpen, setFindTimeOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const reload = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -264,11 +270,20 @@ export default function CharlieCalendar({ onSelectEvent }: CharlieCalendarProps)
               </button>
             ))}
           </div>
+          {/* Find a time */}
+          <button
+            onClick={() => setFindTimeOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors"
+          >
+            <Search size={15} />
+            Find a time
+          </button>
           {/* New event */}
           {hasWritableCalendar && (
             <button
               onClick={() => {
                 setEditorEvent(null);
+                setEditorSlot(null);
                 setEditorOpen(true);
               }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
@@ -368,10 +383,25 @@ export default function CharlieCalendar({ onSelectEvent }: CharlieCalendarProps)
           calendars={calendars}
           event={editorEvent}
           defaultDate={anchor}
+          defaultStart={editorSlot?.start}
+          defaultEnd={editorSlot?.end}
           onSaved={reload}
           onClose={() => {
             setEditorOpen(false);
             setEditorEvent(null);
+            setEditorSlot(null);
+          }}
+        />
+      )}
+
+      {findTimeOpen && (
+        <FindTimeModal
+          onClose={() => setFindTimeOpen(false)}
+          onPick={(start, end) => {
+            setFindTimeOpen(false);
+            setEditorEvent(null);
+            setEditorSlot({ start, end });
+            setEditorOpen(true);
           }}
         />
       )}
