@@ -73,12 +73,34 @@ function isMine(owner: string | null): boolean {
 // Granola summary and return the bullets owned by Jaime or unattributed.
 // `attendeeNames` (lowercased first names) disambiguate a "Name:" prefix owner
 // from an ordinary "Word:" lead-in like "Timing:".
+// Accept a header that is genuinely a next-steps/action-items section, not a
+// compound one like "Platform Management & Next Steps" or "Handoff and Next
+// Steps" (those tend to hold status/context, not action items).
+function isNextStepsHeader(line: string): boolean {
+  const h = line.match(/^#{1,6}\s+(.+?)\s*$/);
+  if (!h) return false;
+  const t = h[1]
+    .toLowerCase()
+    .replace(/[^a-z ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return [
+    "next steps",
+    "action items",
+    "follow ups",
+    "follow up",
+    "todos",
+    "to dos",
+    "next steps and action items",
+    "action items and next steps",
+    "next steps action items",
+  ].includes(t);
+}
+
 function parseNextSteps(summary: string, attendeeNames: Set<string>): NextStep[] {
   if (!summary) return [];
   const lines = summary.split("\n");
-  const startIdx = lines.findIndex(
-    (l) => /^#{1,6}\s/.test(l) && /next steps/i.test(l),
-  );
+  const startIdx = lines.findIndex(isNextStepsHeader);
   if (startIdx < 0) return [];
 
   // Section runs until the next header.
