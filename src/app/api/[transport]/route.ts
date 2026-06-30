@@ -35,7 +35,11 @@ import {
   getReplyContext,
   archiveThread,
 } from "@/lib/gmail";
-import { listMeetings, searchTranscripts } from "@/lib/granola-search";
+import {
+  listMeetings,
+  searchTranscripts,
+  meetingsForPartner,
+} from "@/lib/granola-search";
 
 const ok = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
@@ -177,7 +181,10 @@ const handler = createMcpHandler(
           .limit(1);
         if (error) return ok({ error: error.message });
         if (!data || data.length === 0) return ok({ error: `No partner matching "${name}"` });
-        return ok(data[0]);
+        const partner = data[0];
+        // Surface recent meetings (Margaret) with this partner.
+        const recentMeetings = await meetingsForPartner(partner.id as string);
+        return ok({ ...partner, recentMeetings });
       },
     );
 

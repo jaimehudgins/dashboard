@@ -63,6 +63,7 @@ export default function Margaret() {
     text: string;
   } | null>(null);
   const [loadingTranscript, setLoadingTranscript] = useState(false);
+  const [partnerFilter, setPartnerFilter] = useState("all");
 
   const load = useCallback(() => {
     setLoading(true);
@@ -165,6 +166,21 @@ export default function Margaret() {
     0,
   );
 
+  const partnerOptions = Array.from(
+    new Set(
+      meetings.flatMap((m) =>
+        m.tasks.map((t) => t.partner_name).filter((p): p is string => !!p),
+      ),
+    ),
+  ).sort();
+
+  const visibleMeetings =
+    partnerFilter === "all"
+      ? meetings
+      : meetings.filter((m) =>
+          m.tasks.some((t) => t.partner_name === partnerFilter),
+        );
+
   return (
     <div className="max-w-3xl mx-auto">
       {/* Header */}
@@ -198,6 +214,24 @@ export default function Margaret() {
         </button>
       </div>
 
+      {partnerOptions.length > 0 && (
+        <div className="flex items-center gap-2 mb-4">
+          <Building2 size={14} className="text-slate-400" />
+          <select
+            value={partnerFilter}
+            onChange={(e) => setPartnerFilter(e.target.value)}
+            className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200"
+          >
+            <option value="all">All meetings</option>
+            {partnerOptions.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {error && (
         <p className="text-sm text-red-600 mb-4 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
           {error}
@@ -214,7 +248,7 @@ export default function Margaret() {
         </div>
       ) : (
         <div className="space-y-4">
-          {meetings.map((m) => {
+          {visibleMeetings.map((m) => {
             const pending = m.tasks.filter((t) => t.status === "pending");
             const partner = m.tasks.find((t) => t.partner_name)?.partner_name;
             return (

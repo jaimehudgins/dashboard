@@ -34,6 +34,38 @@ export async function listMeetings(limit = 15): Promise<MeetingSummary[]> {
   }));
 }
 
+// Recent meetings linked to a CRM partner (via partner-tagged extracted tasks),
+// newest first, with a short summary. Used to surface "from your meeting on X"
+// context on a partner.
+export async function meetingsForPartner(
+  partnerId: string,
+  limit = 5,
+): Promise<MeetingSummary[]> {
+  if (!partnerId) return [];
+  const { data: tasks } = await supabase
+    .from("granola_extracted_tasks")
+    .select("meeting_id")
+    .eq("partner_id", partnerId);
+  const meetingIds = Array.from(
+    new Set((tasks || []).map((t) => t.meeting_id as string)),
+  );
+  if (meetingIds.length === 0) return [];
+
+  const { data } = await supabase
+    .from("granola_meetings")
+    .select("id, title, meeting_date, attendees, summary")
+    .in("id", meetingIds)
+    .order("meeting_date", { ascending: false })
+    .limit(Math.min(limit, 20));
+  return ((data as MeetingRow[]) || []).map((m) => ({
+    id: m.id,
+    title: m.title,
+    date: m.meeting_date,
+    attendees: (m.attendees || []).map((a) => a.name).filter(Boolean),
+    summary: m.summary ? m.summary.slice(0, 800) : undefined,
+  }));
+}
+
 const STOP = new Set([
   "the", "what", "did", "say", "said", "about", "her", "his", "their", "and",
   "for", "with", "that", "this", "have", "has", "was", "were", "are", "you",
