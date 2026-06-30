@@ -61,6 +61,14 @@ const QUOTES: Record<string, { name: string; lines: string[] }> = {
       "Full lid? Not while the field's still moving.",
     ],
   },
+  josh: {
+    name: "Josh",
+    lines: [
+      "What's the play? Who do we need on the phone?",
+      "I'll handle the room. You handle the work.",
+      "Nothing's on fire. Yet. Let me check the channels.",
+    ],
+  },
 };
 
 function dayOfYear(date: Date): number {

@@ -51,6 +51,7 @@ import {
   FolderSearch,
   Radio,
   Sprout,
+  Slack as SlackIcon,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Project } from "@/types";
@@ -75,6 +76,7 @@ const navItems = [
   { href: "/chat", label: "Chat with Leo", icon: MessageSquare },
   { href: "/mail", label: "Mail", icon: Mail },
   { href: "/meetings", label: "Meetings", icon: NotebookPen },
+  { href: "/slack", label: "Slack", icon: SlackIcon },
   { href: "/brief", label: "Morning Brief", icon: Sunrise },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/travel", label: "Travel", icon: Plane },

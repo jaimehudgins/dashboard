@@ -47,6 +47,7 @@ import {
   daysSince,
 } from "@/lib/decisions";
 import { searchDrive } from "@/lib/drive";
+import { searchSlack, isSlackConfigured } from "@/lib/slack";
 
 const ok = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
@@ -336,6 +337,31 @@ const handler = createMcpHandler(
             type: f.type,
             modified: f.modifiedTime?.slice(0, 10),
             link: f.webViewLink,
+          })),
+        );
+      },
+    );
+
+    // ---- Slack (Josh) ----
+    server.registerTool(
+      "search_slack",
+      {
+        title: "Search Slack",
+        description:
+          "Search the Willow Slack workspace. Supports Slack search operators (from:, in:, after:). Returns matching messages with channel, author, and a permalink.",
+        inputSchema: {
+          query: z.string().describe("Slack search query."),
+        },
+      },
+      async ({ query }) => {
+        if (!isSlackConfigured) return ok({ error: "Slack not connected" });
+        const hits = await searchSlack(query, 20);
+        return ok(
+          hits.map((h) => ({
+            channel: h.channel,
+            from: h.user,
+            text: h.text,
+            link: h.permalink,
           })),
         );
       },
