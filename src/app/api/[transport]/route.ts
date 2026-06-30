@@ -15,6 +15,19 @@ import {
 } from "@/lib/crm-supabase";
 import { rememberFact, recallMemories, forgetMemory } from "@/lib/memory";
 import { Task } from "@/types";
+import {
+  getGoogleAccessToken,
+  isGoogleServerConfigured,
+} from "@/lib/google-auth";
+import {
+  listAllEvents,
+  listCalendars,
+  ownedCalendars,
+  queryFreeBusy,
+  findFreeSlots,
+  createEvent,
+} from "@/lib/google-calendar";
+import { searchMessages, getThread } from "@/lib/gmail";
 
 const ok = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
@@ -504,6 +517,194 @@ const handler = createMcpHandler(
           return ok({ pending: true, action: "create_partner_follow_up", partner: p.name, dueInDays: dueInDays ?? 2, note: "Re-run with confirm=true to create." });
         await createPartnerFollowUp({ partnerId: p.id, partnerName: p.name, dueInDays });
         return ok({ created: true, partner: p.name });
+      },
+    );
+
+    // ---- Calendar (Google, headless via stored refresh token) ----
+    const NO_GOOGLE = {
+      error:
+        "Google isn't connected. Capture a refresh token at /api/google/refresh-token and set GOOGLE_REFRESH_TOKEN.",
+    };
+
+    server.registerTool(
+      "list_calendar_events",
+      {
+        title: "List calendar events",
+        description:
+          "List the user's own calendar events in a date range, optionally filtered by a search term (title/attendees/location). For 'next'/'upcoming', search from today forward.",
+        inputSchema: {
+          start: z.string().describe("ISO datetime or YYYY-MM-DD"),
+          end: z.string().describe("ISO datetime or YYYY-MM-DD"),
+          query: z.string().optional(),
+        },
+      },
+      async ({ start, end, query }) => {
+        if (!isGoogleServerConfigured) return ok(NO_GOOGLE);
+        const token = await getGoogleAccessToken();
+        const toStart = (s: string) =>
+          s.includes("T") ? s : new Date(`${s}T00:00:00`).toISOString();
+        const toEnd = (s: string) =>
+          s.includes("T") ? s : new Date(`${s}T23:59:59`).toISOString();
+        const { events } = await listAllEvents(token, toStart(start), toEnd(end), {
+          ownedOnly: true,
+        });
+        const q = (query || "").toLowerCase();
+        const rows = (q
+          ? events.filter(
+              (e) =>
+                (e.title || "").toLowerCase().includes(q) ||
+                (e.location || "").toLowerCase().includes(q) ||
+                (e.attendees || []).some(
+                  (a) =>
+                    (a.email || "").toLowerCase().includes(q) ||
+                    (a.displayName || "").toLowerCase().includes(q),
+                ),
+            )
+          : events
+        ).slice(0, 50);
+        return ok(
+          rows.map((e) => ({
+            title: e.title,
+            start: e.start,
+            end: e.end,
+            allDay: e.allDay,
+            location: e.location,
+            attendees: (e.attendees || [])
+              .map((a) => a.displayName || a.email)
+              .filter(Boolean),
+            hasMeet: !!e.hangoutLink,
+          })),
+        );
+      },
+    );
+
+    server.registerTool(
+      "find_calendar_time",
+      {
+        title: "Find open time",
+        description:
+          "Find open slots of a given length within working hours (9am–5pm weekdays) across the user's own calendars.",
+        inputSchema: {
+          durationMinutes: z.number().int(),
+          earliestDate: z.string().describe("YYYY-MM-DD"),
+          latestDate: z.string().describe("YYYY-MM-DD"),
+          partOfDay: z.enum(["morning", "afternoon", "any"]).optional(),
+        },
+      },
+      async ({ durationMinutes, earliestDate, latestDate, partOfDay }) => {
+        if (!isGoogleServerConfigured) return ok(NO_GOOGLE);
+        const token = await getGoogleAccessToken();
+        const now = new Date();
+        const rangeStart = new Date(`${earliestDate}T00:00:00`);
+        const effectiveStart = rangeStart.getTime() < now.getTime() ? now : rangeStart;
+        const rangeEnd = new Date(`${latestDate}T23:59:59`);
+        const calendars = await listCalendars(token);
+        const busy = await queryFreeBusy(
+          token,
+          effectiveStart.toISOString(),
+          rangeEnd.toISOString(),
+          ownedCalendars(calendars).map((c) => c.id),
+        );
+        let slots = findFreeSlots({
+          busy,
+          rangeStart: effectiveStart,
+          rangeEnd,
+          durationMin: durationMinutes || 30,
+        });
+        if (partOfDay === "morning")
+          slots = slots.filter((s) => new Date(s.start).getHours() < 12);
+        else if (partOfDay === "afternoon")
+          slots = slots.filter((s) => new Date(s.start).getHours() >= 12);
+        return ok(slots.slice(0, 12));
+      },
+    );
+
+    server.registerTool(
+      "create_calendar_event",
+      {
+        title: "Create calendar event",
+        description: `Create an event on the user's primary calendar. ${CONFIRM_NOTE}`,
+        inputSchema: {
+          title: z.string(),
+          date: z.string().describe("YYYY-MM-DD"),
+          startTime: z.string().optional().describe("HH:mm (omit for all-day)"),
+          endTime: z.string().optional().describe("HH:mm"),
+          allDay: z.boolean().optional(),
+          location: z.string().optional(),
+          attendees: z.array(z.string()).optional().describe("Guest emails."),
+          addMeet: z.boolean().optional(),
+          confirm: z.boolean().optional(),
+        },
+      },
+      async ({ title, date, startTime, endTime, allDay, location, attendees, addMeet, confirm }) => {
+        if (!isGoogleServerConfigured) return ok(NO_GOOGLE);
+        const token = await getGoogleAccessToken();
+        const isAllDay = allDay || (!startTime && !endTime);
+        const preview = {
+          title,
+          when: isAllDay
+            ? `${date} (all day)`
+            : `${date} ${startTime}–${endTime}`,
+          location: location || null,
+          attendees: attendees || [],
+          meet: !!addMeet,
+        };
+        if (!confirm)
+          return ok({ pending: true, action: "create_calendar_event", event: preview, note: "Re-run with confirm=true to create." });
+
+        const calendars = await listCalendars(token);
+        const target =
+          ownedCalendars(calendars).find((c) => c.primary) ||
+          ownedCalendars(calendars)[0];
+        if (!target) return ok({ error: "No writable calendar found." });
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+        await createEvent(token, {
+          calendarId: target.id,
+          title,
+          allDay: isAllDay,
+          start: isAllDay ? date : `${date}T${startTime}:00`,
+          end: isAllDay ? date : `${date}T${endTime}:00`,
+          timeZone: tz,
+          location,
+          attendees,
+          addMeet,
+        });
+        return ok({ created: true, title, when: preview.when });
+      },
+    );
+
+    // ---- Gmail (read-only; drafting comes in Phase 4) ----
+    server.registerTool(
+      "search_email",
+      {
+        title: "Search email",
+        description:
+          "Search Gmail using Gmail query syntax (e.g. 'from:sarah', 'is:unread', 'in:inbox newer_than:7d'). Returns sender, subject, date, and snippet.",
+        inputSchema: {
+          query: z.string().optional().describe("Gmail search; default in:inbox."),
+          limit: z.number().int().min(1).max(25).optional(),
+        },
+      },
+      async ({ query, limit }) => {
+        if (!isGoogleServerConfigured) return ok(NO_GOOGLE);
+        const token = await getGoogleAccessToken();
+        const rows = await searchMessages(token, query || "in:inbox", limit ?? 10);
+        return ok(rows);
+      },
+    );
+
+    server.registerTool(
+      "get_email_thread",
+      {
+        title: "Get email thread",
+        description:
+          "Get the full messages of an email thread by threadId (from search_email), including plain-text bodies.",
+        inputSchema: { threadId: z.string() },
+      },
+      async ({ threadId }) => {
+        if (!isGoogleServerConfigured) return ok(NO_GOOGLE);
+        const token = await getGoogleAccessToken();
+        return ok(await getThread(token, threadId));
       },
     );
   },
