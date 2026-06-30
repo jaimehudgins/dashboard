@@ -7,6 +7,7 @@ async function gmailFetch(
   token: string,
   path: string,
   init?: RequestInit,
+  attempt = 0,
 ): Promise<any> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
@@ -16,12 +17,38 @@ async function gmailFetch(
       ...(init?.headers || {}),
     },
   });
+  // Retry transient rate-limit / server errors with backoff.
+  if ((res.status === 429 || res.status === 500 || res.status === 503) && attempt < 4) {
+    await new Promise((r) => setTimeout(r, 400 * (attempt + 1) * (attempt + 1)));
+    return gmailFetch(token, path, init, attempt + 1);
+  }
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Gmail API ${res.status}: ${body.slice(0, 200)}`);
   }
   if (res.status === 204) return null;
   return res.json();
+}
+
+// Run async work with bounded concurrency (Gmail has a low per-user burst cap).
+async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (x: T) => Promise<R>,
+): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let idx = 0;
+  const workers = Array.from(
+    { length: Math.min(limit, items.length) },
+    async () => {
+      while (idx < items.length) {
+        const i = idx++;
+        out[i] = await fn(items[i]);
+      }
+    },
+  );
+  await Promise.all(workers);
+  return out;
 }
 
 function base64url(s: string): string {
@@ -211,8 +238,7 @@ export async function listThreads(
   if (!opts.q && !opts.labelIds) params.set("q", "in:inbox");
   const list = await gmailFetch(token, `/threads?${params}`);
   const threads: { id: string; snippet?: string }[] = list.threads || [];
-  return Promise.all(
-    threads.map(async (t) => {
+  return mapLimit(threads, 5, async (t) => {
       const full = await gmailFetch(
         token,
         `/threads/${t.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`,
@@ -229,8 +255,7 @@ export async function listThreads(
         unread: msgs.some((m) => (m.labelIds || []).includes("UNREAD")),
         messageCount: msgs.length,
       };
-    }),
-  );
+  });
 }
 
 /* ------------------------------ Labels ------------------------------ */
@@ -311,27 +336,23 @@ export async function fetchInboxForClassify(
     `/threads?labelIds=INBOX&maxResults=${Math.min(max, 100)}`,
   );
   const threads: { id: string }[] = list.threads || [];
-  return Promise.all(
-    threads.map(async (t) => {
-      const full = await gmailFetch(
-        token,
-        `/threads/${t.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=List-Unsubscribe`,
-      );
-      const msgs: any[] = full.messages || [];
-      const last = msgs[msgs.length - 1];
-      const h = last?.payload?.headers || [];
-      const labelIds = Array.from(
-        new Set(msgs.flatMap((m) => m.labelIds || [])),
-      );
-      return {
-        id: t.id,
-        from: header(h, "From"),
-        subject: header(h, "Subject"),
-        labelIds,
-        listUnsub: !!header(h, "List-Unsubscribe"),
-      };
-    }),
-  );
+  return mapLimit(threads, 5, async (t) => {
+    const full = await gmailFetch(
+      token,
+      `/threads/${t.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=List-Unsubscribe`,
+    );
+    const msgs: any[] = full.messages || [];
+    const last = msgs[msgs.length - 1];
+    const h = last?.payload?.headers || [];
+    const labelIds = Array.from(new Set(msgs.flatMap((m) => m.labelIds || [])));
+    return {
+      id: t.id,
+      from: header(h, "From"),
+      subject: header(h, "Subject"),
+      labelIds,
+      listUnsub: !!header(h, "List-Unsubscribe"),
+    };
+  });
 }
 
 export async function getThread(

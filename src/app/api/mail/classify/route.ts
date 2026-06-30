@@ -9,7 +9,7 @@ import {
   fetchInboxForClassify,
   modifyThreadLabels,
 } from "@/lib/gmail";
-import { emailDomain, LeoBucket } from "@/lib/mail-views";
+import { emailDomain, isNotificationMail, LeoBucket } from "@/lib/mail-views";
 
 const NEWSLETTER_CATEGORIES = [
   "CATEGORY_PROMOTIONS",
@@ -60,7 +60,10 @@ export async function POST() {
 
     for (const t of unlabeled) {
       const domain = emailDomain(t.from);
-      if (domain.endsWith("willowed.org")) {
+      if (isNotificationMail(t.from, t.subject)) {
+        // Calendar/Drive/Docs noise takes priority over everything.
+        decided.push({ id: t.id, bucket: "notifications" });
+      } else if (domain.endsWith("willowed.org")) {
         decided.push({ id: t.id, bucket: "willow" });
       } else if (
         t.listUnsub ||
