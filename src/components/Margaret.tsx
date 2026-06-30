@@ -92,6 +92,7 @@ export default function Margaret() {
   } | null>(null);
   const [loadingTranscript, setLoadingTranscript] = useState(false);
   const [partnerFilter, setPartnerFilter] = useState("all");
+  const [showAll, setShowAll] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
 
   // Seed an editable draft per pending item from Margaret's suggestion.
@@ -360,10 +361,14 @@ export default function Margaret() {
     ),
   ).sort();
 
+  const reviewMeetings = meetings.filter((m) =>
+    m.tasks.some((t) => t.status === "pending"),
+  );
+  const base = showAll ? meetings : reviewMeetings;
   const visibleMeetings =
     partnerFilter === "all"
-      ? meetings
-      : meetings.filter((m) =>
+      ? base
+      : base.filter((m) =>
           m.tasks.some((t) => t.partner_name === partnerFilter),
         );
 
@@ -400,23 +405,49 @@ export default function Margaret() {
         </button>
       </div>
 
-      {partnerOptions.length > 0 && (
-        <div className="flex items-center gap-2 mb-4">
-          <Building2 size={14} className="text-slate-400" />
-          <select
-            value={partnerFilter}
-            onChange={(e) => setPartnerFilter(e.target.value)}
-            className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200"
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        {/* Needs review / All meetings toggle */}
+        <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden text-sm">
+          <button
+            onClick={() => setShowAll(false)}
+            className={`px-3 py-1.5 font-medium transition-colors ${
+              !showAll
+                ? "bg-indigo-600 text-white"
+                : "bg-white text-slate-600 hover:bg-slate-50"
+            }`}
           >
-            <option value="all">All meetings</option>
-            {partnerOptions.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
+            Needs review{reviewMeetings.length > 0 && ` (${reviewMeetings.length})`}
+          </button>
+          <button
+            onClick={() => setShowAll(true)}
+            className={`px-3 py-1.5 font-medium transition-colors border-l border-slate-200 ${
+              showAll
+                ? "bg-indigo-600 text-white"
+                : "bg-white text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            All meetings
+          </button>
         </div>
-      )}
+
+        {partnerOptions.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Building2 size={14} className="text-slate-400" />
+            <select
+              value={partnerFilter}
+              onChange={(e) => setPartnerFilter(e.target.value)}
+              className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            >
+              <option value="all">All partners</option>
+              {partnerOptions.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
 
       {error && (
         <p className="text-sm text-red-600 mb-4 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
@@ -431,6 +462,26 @@ export default function Margaret() {
       ) : meetings.length === 0 ? (
         <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-12 text-center text-slate-500">
           No meetings yet. Click <strong>Sync now</strong> to pull from Granola.
+        </div>
+      ) : visibleMeetings.length === 0 ? (
+        <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-12 text-center text-slate-500">
+          {!showAll ? (
+            <>
+              <CheckCircle2
+                className="mx-auto text-emerald-400 mb-3"
+                size={32}
+              />
+              All caught up — nothing to review.{" "}
+              <button
+                onClick={() => setShowAll(true)}
+                className="text-indigo-600 font-medium hover:underline"
+              >
+                Browse all meetings →
+              </button>
+            </>
+          ) : (
+            "No meetings match this filter."
+          )}
         </div>
       ) : (
         <div className="space-y-4">
