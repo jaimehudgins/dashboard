@@ -52,6 +52,35 @@ export default function LeoChat() {
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const todayKey = `leo.chat.${new Date().toISOString().slice(0, 10)}`;
+
+  // Keep today's conversation across reloads; older days are cleared (EOD reset).
+  useEffect(() => {
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith("leo.chat.") && k !== todayKey)
+          localStorage.removeItem(k);
+      }
+      const saved = localStorage.getItem(todayKey);
+      if (saved) setMessages(JSON.parse(saved));
+    } catch {
+      /* ignore storage errors */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (messages.length) localStorage.setItem(todayKey, JSON.stringify(messages));
+      else localStorage.removeItem(todayKey);
+    } catch {
+      /* ignore */
+    }
+  }, [messages, todayKey]);
+
+  const clearChat = () => setMessages([]);
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
@@ -96,6 +125,14 @@ export default function LeoChat() {
           <h1 className="text-2xl font-bold text-slate-900">Leo</h1>
           <p className="text-slate-500 text-sm">What can I do for you?</p>
         </div>
+        {messages.length > 0 && (
+          <button
+            onClick={clearChat}
+            className="ml-auto text-xs font-medium text-slate-400 hover:text-slate-700"
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       {/* Messages */}
