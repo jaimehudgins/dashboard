@@ -198,17 +198,17 @@ export interface GmailThreadSummary {
   messageCount: number;
 }
 
-// List threads (one row per conversation) for an inbox view. `query` uses
-// Gmail search syntax; defaults to the inbox.
+// List threads (one row per conversation) for an inbox view. Pass either a
+// Gmail search `q` or a set of `labelIds` (AND-ed); defaults to the inbox.
 export async function listThreads(
   token: string,
-  query: string,
+  opts: { q?: string; labelIds?: string[] },
   max = 25,
 ): Promise<GmailThreadSummary[]> {
-  const params = new URLSearchParams({
-    q: query || "in:inbox",
-    maxResults: String(Math.min(max, 50)),
-  });
+  const params = new URLSearchParams({ maxResults: String(Math.min(max, 50)) });
+  if (opts.labelIds) opts.labelIds.forEach((id) => params.append("labelIds", id));
+  if (opts.q) params.set("q", opts.q);
+  if (!opts.q && !opts.labelIds) params.set("q", "in:inbox");
   const list = await gmailFetch(token, `/threads?${params}`);
   const threads: { id: string; snippet?: string }[] = list.threads || [];
   return Promise.all(
@@ -228,6 +228,107 @@ export async function listThreads(
         snippet: t.snippet || last?.snippet || "",
         unread: msgs.some((m) => (m.labelIds || []).includes("UNREAD")),
         messageCount: msgs.length,
+      };
+    }),
+  );
+}
+
+/* ------------------------------ Labels ------------------------------ */
+
+import { LEO_LABEL_NAMES, LeoBucket } from "./mail-views";
+
+export interface GmailLabel {
+  id: string;
+  name: string;
+  type?: string;
+  threadsUnread?: number;
+  threadsTotal?: number;
+}
+
+export async function listLabels(token: string): Promise<GmailLabel[]> {
+  const data = await gmailFetch(token, "/labels");
+  return data.labels || [];
+}
+
+export async function getLabel(token: string, id: string): Promise<GmailLabel> {
+  return gmailFetch(token, `/labels/${encodeURIComponent(id)}`);
+}
+
+// Ensure the Leo bucket labels exist; returns bucket -> labelId.
+export async function ensureLeoLabels(
+  token: string,
+): Promise<Record<LeoBucket, string>> {
+  const labels = await listLabels(token);
+  const byName = new Map(labels.map((l) => [l.name, l.id]));
+  const out = {} as Record<LeoBucket, string>;
+  for (const [bucket, name] of Object.entries(LEO_LABEL_NAMES) as [
+    LeoBucket,
+    string,
+  ][]) {
+    let id = byName.get(name);
+    if (!id) {
+      const created = await gmailFetch(token, "/labels", {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          labelListVisibility: "labelShow",
+          messageListVisibility: "show",
+        }),
+      });
+      id = created.id;
+    }
+    out[bucket] = id!;
+  }
+  return out;
+}
+
+export async function modifyThreadLabels(
+  token: string,
+  threadId: string,
+  addLabelIds: string[],
+  removeLabelIds: string[] = [],
+): Promise<void> {
+  await gmailFetch(token, `/threads/${threadId}/modify`, {
+    method: "POST",
+    body: JSON.stringify({ addLabelIds, removeLabelIds }),
+  });
+}
+
+// Fetch inbox threads with the metadata needed to classify them into buckets.
+export interface ClassifyThread {
+  id: string;
+  from: string;
+  subject: string;
+  labelIds: string[];
+  listUnsub: boolean;
+}
+export async function fetchInboxForClassify(
+  token: string,
+  max = 40,
+): Promise<ClassifyThread[]> {
+  const list = await gmailFetch(
+    token,
+    `/threads?labelIds=INBOX&maxResults=${Math.min(max, 100)}`,
+  );
+  const threads: { id: string }[] = list.threads || [];
+  return Promise.all(
+    threads.map(async (t) => {
+      const full = await gmailFetch(
+        token,
+        `/threads/${t.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=List-Unsubscribe`,
+      );
+      const msgs: any[] = full.messages || [];
+      const last = msgs[msgs.length - 1];
+      const h = last?.payload?.headers || [];
+      const labelIds = Array.from(
+        new Set(msgs.flatMap((m) => m.labelIds || [])),
+      );
+      return {
+        id: t.id,
+        from: header(h, "From"),
+        subject: header(h, "Subject"),
+        labelIds,
+        listUnsub: !!header(h, "List-Unsubscribe"),
       };
     }),
   );

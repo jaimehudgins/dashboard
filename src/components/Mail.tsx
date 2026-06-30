@@ -12,6 +12,7 @@ import {
   PenSquare,
   X,
   RefreshCw,
+  Sparkles,
 } from "lucide-react";
 
 interface ThreadSummary {
@@ -47,10 +48,14 @@ function fmtDate(d: string): string {
 }
 
 export default function Mail() {
-  const [query, setQuery] = useState("in:inbox");
   const [search, setSearch] = useState("");
+  const [activeView, setActiveView] = useState("all");
+  const [views, setViews] = useState<
+    { key: string; label: string; unread: number }[]
+  >([]);
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [loadingList, setLoadingList] = useState(true);
+  const [classifying, setClassifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -61,10 +66,22 @@ export default function Mail() {
   const [sending, setSending] = useState(false);
   const [composing, setComposing] = useState(false);
 
-  const loadThreads = useCallback((q: string) => {
+  const loadViews = useCallback(() => {
+    fetch("/api/mail/views")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.views) setViews(d.views);
+      })
+      .catch(() => {});
+  }, []);
+
+  const loadThreads = useCallback((view: string, q?: string) => {
     setLoadingList(true);
     setError(null);
-    fetch(`/api/mail/threads?q=${encodeURIComponent(q)}`)
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    else params.set("view", view);
+    fetch(`/api/mail/threads?${params}`)
       .then(async (r) => {
         const d = await r.json();
         if (!r.ok) throw new Error(d.error || "Failed to load mail");
@@ -76,8 +93,31 @@ export default function Mail() {
   }, []);
 
   useEffect(() => {
-    loadThreads(query);
-  }, [query, loadThreads]);
+    loadViews();
+    loadThreads("all");
+  }, [loadViews, loadThreads]);
+
+  const selectView = (view: string) => {
+    setActiveView(view);
+    setSearch("");
+    loadThreads(view);
+  };
+
+  const classify = async () => {
+    setClassifying(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/mail/classify", { method: "POST" });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Sort failed");
+      loadViews();
+      loadThreads(activeView);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Sort failed");
+    } finally {
+      setClassifying(false);
+    }
+  };
 
   const openThread = (id: string) => {
     setSelectedId(id);
@@ -113,8 +153,9 @@ export default function Mail() {
       await doAction({ action: "archive", threadId: id });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Archive failed");
-      loadThreads(query);
+      loadThreads(activeView);
     }
+    loadViews();
   };
 
   const sendReply = async () => {
@@ -231,20 +272,63 @@ export default function Mail() {
             <p className="text-slate-500 text-sm">Your inbox, inside Leo.</p>
           </div>
         </div>
-        <button
-          onClick={() => setComposing(true)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-        >
-          <PenSquare size={16} />
-          Compose
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={classify}
+            disabled={classifying}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 disabled:opacity-60 rounded-lg transition-colors"
+            title="Sort the inbox into buckets"
+          >
+            {classifying ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <Sparkles size={15} />
+            )}
+            Sort inbox
+          </button>
+          <button
+            onClick={() => setComposing(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+          >
+            <PenSquare size={16} />
+            Compose
+          </button>
+        </div>
+      </div>
+
+      {/* View chips with unread counters */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {views.map((v) => (
+          <button
+            key={v.key}
+            onClick={() => selectView(v.key)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-full border transition-colors ${
+              activeView === v.key && !search
+                ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                : "border-slate-200 text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            {v.label}
+            {v.unread > 0 && (
+              <span
+                className={`text-xs font-semibold rounded-full px-1.5 min-w-[18px] text-center ${
+                  activeView === v.key && !search
+                    ? "bg-indigo-600 text-white"
+                    : "bg-slate-200 text-slate-700"
+                }`}
+              >
+                {v.unread}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
       {/* Search */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          setQuery(search.trim() || "in:inbox");
+          loadThreads(activeView, search.trim() || undefined);
         }}
         className="flex items-center gap-2"
       >
@@ -259,7 +343,7 @@ export default function Mail() {
         </div>
         <button
           type="button"
-          onClick={() => loadThreads(query)}
+          onClick={() => loadThreads(activeView, search.trim() || undefined)}
           className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
           title="Refresh"
         >
@@ -335,7 +419,8 @@ export default function Mail() {
           onClose={() => setComposing(false)}
           onSent={() => {
             setComposing(false);
-            loadThreads(query);
+            loadThreads(activeView);
+            loadViews();
           }}
         />
       )}
