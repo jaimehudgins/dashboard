@@ -1,6 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-// Reads ANTHROPIC_API_KEY from the environment.
-export const anthropic = new Anthropic();
+// Trim defensively — a stray newline/space pasted into the env var yields
+// "invalid x-api-key".
+const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
 
-export const isAnthropicConfigured = !!process.env.ANTHROPIC_API_KEY;
+export const anthropic = new Anthropic({ apiKey });
+
+export const isAnthropicConfigured = !!apiKey;
