@@ -188,6 +188,51 @@ function decodeBody(payload: any): string {
   return (walk(payload) || "").trim();
 }
 
+export interface GmailThreadSummary {
+  id: string;
+  from: string;
+  subject: string;
+  date: string;
+  snippet: string;
+  unread: boolean;
+  messageCount: number;
+}
+
+// List threads (one row per conversation) for an inbox view. `query` uses
+// Gmail search syntax; defaults to the inbox.
+export async function listThreads(
+  token: string,
+  query: string,
+  max = 25,
+): Promise<GmailThreadSummary[]> {
+  const params = new URLSearchParams({
+    q: query || "in:inbox",
+    maxResults: String(Math.min(max, 50)),
+  });
+  const list = await gmailFetch(token, `/threads?${params}`);
+  const threads: { id: string; snippet?: string }[] = list.threads || [];
+  return Promise.all(
+    threads.map(async (t) => {
+      const full = await gmailFetch(
+        token,
+        `/threads/${t.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`,
+      );
+      const msgs: any[] = full.messages || [];
+      const last = msgs[msgs.length - 1];
+      const h = last?.payload?.headers || [];
+      return {
+        id: t.id,
+        from: header(h, "From"),
+        subject: header(h, "Subject"),
+        date: header(h, "Date"),
+        snippet: t.snippet || last?.snippet || "",
+        unread: msgs.some((m) => (m.labelIds || []).includes("UNREAD")),
+        messageCount: msgs.length,
+      };
+    }),
+  );
+}
+
 export async function getThread(
   token: string,
   threadId: string,
