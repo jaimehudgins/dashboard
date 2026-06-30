@@ -37,6 +37,14 @@ const QUOTES: Record<string, { name: string; lines: string[] }> = {
       "We're going to do this together.",
     ],
   },
+  sam: {
+    name: "Sam",
+    lines: [
+      "Words, when spoken for the sake of performance, are music.",
+      "It's not enough to be right. You have to say it well.",
+      "Education is the silver bullet.",
+    ],
+  },
 };
 
 function dayOfYear(date: Date): number {
