@@ -14,8 +14,12 @@ import {
   Edit3,
   Check,
   FileText,
+  Sparkles,
+  ShieldCheck,
+  X,
 } from "lucide-react";
 import CharacterQuote from "./CharacterQuote";
+import { crmSupabase, isCrmConfigured } from "@/lib/crm-supabase";
 import {
   WritingDraft,
   DraftStatus,
@@ -235,6 +239,85 @@ function Editor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, content, status, audience, tags]);
 
+  // Draft-with-Leo + voice check.
+  const [assistOpen, setAssistOpen] = useState(false);
+  const [instruction, setInstruction] = useState("");
+  const [partnerId, setPartnerId] = useState("");
+  const [partners, setPartners] = useState<{ id: string; name: string }[]>([]);
+  const [generating, setGenerating] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const [assistError, setAssistError] = useState<string | null>(null);
+
+  const [checking, setChecking] = useState(false);
+  const [voice, setVoice] = useState<{
+    verdict: string | null;
+    summary: string;
+    flags: { quote: string; issue: string }[];
+  } | null>(null);
+
+  useEffect(() => {
+    if (!isCrmConfigured) return;
+    crmSupabase
+      .from("partners")
+      .select("id, name")
+      .order("name")
+      .then(({ data }) =>
+        setPartners(
+          (data || []).map((p) => ({ id: p.id as string, name: p.name as string })),
+        ),
+      );
+  }, []);
+
+  const generate = async () => {
+    if (!instruction.trim()) return;
+    setGenerating(true);
+    setAssistError(null);
+    setResult(null);
+    try {
+      const r = await fetch("/api/sam/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          instruction: instruction.trim(),
+          content,
+          audience: audience || undefined,
+          partnerId: partnerId || undefined,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Draft failed");
+      setResult(d.text || "");
+    } catch (e) {
+      setAssistError(e instanceof Error ? e.message : "Draft failed");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const voiceCheck = async () => {
+    if (!content.trim()) return;
+    setChecking(true);
+    setVoice(null);
+    try {
+      const r = await fetch("/api/sam/voice-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Check failed");
+      setVoice(d);
+    } catch (e) {
+      setVoice({
+        verdict: null,
+        summary: e instanceof Error ? e.message : "Check failed",
+        flags: [],
+      });
+    } finally {
+      setChecking(false);
+    }
+  };
+
   return (
     <div className="max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-4">
@@ -249,6 +332,29 @@ function Editor({
           <span className="text-xs text-slate-400">
             {saved ? "Saved" : "Saving…"}
           </span>
+          <button
+            onClick={() => {
+              setAssistOpen((o) => !o);
+              setResult(null);
+              setAssistError(null);
+            }}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+          >
+            <Sparkles size={15} />
+            Draft with Leo
+          </button>
+          <button
+            onClick={voiceCheck}
+            disabled={checking || !content.trim()}
+            className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 disabled:opacity-50"
+          >
+            {checking ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <ShieldCheck size={15} />
+            )}
+            Voice check
+          </button>
           <button
             onClick={() => setPreview((p) => !p)}
             className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
@@ -265,6 +371,135 @@ function Editor({
           </button>
         </div>
       </div>
+
+      {/* Draft-with-Leo panel */}
+      {assistOpen && (
+        <div className="bg-indigo-50/60 border border-indigo-100 rounded-xl p-4 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+              <Sparkles size={14} className="text-indigo-500" /> Draft with Leo
+            </span>
+            <button
+              onClick={() => setAssistOpen(false)}
+              className="text-slate-400 hover:text-slate-600"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <textarea
+            value={instruction}
+            onChange={(e) => setInstruction(e.target.value)}
+            rows={2}
+            placeholder="What should Sam write? e.g. 'A LinkedIn post from these notes' or 'Tighten the opening and cut the jargon'."
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none"
+          />
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            {partners.length > 0 && (
+              <select
+                value={partnerId}
+                onChange={(e) => setPartnerId(e.target.value)}
+                className="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300"
+              >
+                <option value="">Ground with a partner… (optional)</option>
+                {partners.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <button
+              onClick={generate}
+              disabled={generating || !instruction.trim()}
+              className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg transition-colors"
+            >
+              {generating ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Sparkles size={14} />
+              )}
+              {generating ? "Writing…" : "Generate"}
+            </button>
+          </div>
+          {assistError && (
+            <p className="text-sm text-red-600 mt-2">{assistError}</p>
+          )}
+          {result !== null && (
+            <div className="mt-3">
+              <div className="bg-white border border-slate-200 rounded-lg p-3 text-sm text-slate-800 whitespace-pre-wrap max-h-72 overflow-y-auto">
+                {result}
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <button
+                  onClick={() => {
+                    setContent(result);
+                    setAssistOpen(false);
+                  }}
+                  className="px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg"
+                >
+                  Replace draft
+                </button>
+                <button
+                  onClick={() => {
+                    setContent((c) => (c.trim() ? `${c}\n\n${result}` : result));
+                    setAssistOpen(false);
+                  }}
+                  className="px-3 py-1.5 text-sm font-medium text-slate-700 border border-slate-200 hover:bg-slate-50 rounded-lg"
+                >
+                  Append
+                </button>
+                <button
+                  onClick={generate}
+                  className="px-3 py-1.5 text-sm text-slate-500 hover:text-slate-800"
+                >
+                  Regenerate
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Voice check result */}
+      {voice && (
+        <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+              <ShieldCheck size={14} className="text-emerald-500" /> Voice check
+              {voice.verdict && (
+                <span
+                  className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                    voice.verdict === "on voice"
+                      ? "bg-emerald-50 text-emerald-700"
+                      : voice.verdict === "some drift"
+                        ? "bg-amber-50 text-amber-700"
+                        : "bg-red-50 text-red-700"
+                  }`}
+                >
+                  {voice.verdict}
+                </span>
+              )}
+            </span>
+            <button
+              onClick={() => setVoice(null)}
+              className="text-slate-400 hover:text-slate-600"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <p className="text-sm text-slate-600">{voice.summary}</p>
+          {voice.flags.length > 0 && (
+            <ul className="mt-2 space-y-1.5">
+              {voice.flags.map((f, i) => (
+                <li key={i} className="text-sm">
+                  <span className="text-slate-800">“{f.quote}”</span>
+                  <span className="text-slate-500"> — {f.issue}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <input
         value={title}
