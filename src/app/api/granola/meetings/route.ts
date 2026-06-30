@@ -24,6 +24,8 @@ export async function GET() {
         .from("granola_extracted_tasks")
         .select("*")
         .in("meeting_id", ids)
+        // Dismissed/ignored items leave the review view for good.
+        .neq("status", "dismissed")
         .order("created_at", { ascending: true });
       for (const t of tasks || []) {
         (tasksByMeeting[t.meeting_id as string] ||= []).push(t);

@@ -162,9 +162,15 @@ export default function Margaret() {
           ? m
           : {
               ...m,
-              tasks: m.tasks.map((t) =>
-                t.id !== taskId ? t : { ...t, status, routed_to: routedTo },
-              ),
+              // Dismissed/ignored items leave the view; confirmed stay as a receipt.
+              tasks:
+                status === "dismissed"
+                  ? m.tasks.filter((t) => t.id !== taskId)
+                  : m.tasks.map((t) =>
+                      t.id !== taskId
+                        ? t
+                        : { ...t, status, routed_to: routedTo },
+                    ),
             },
       ),
     );
@@ -393,17 +399,6 @@ export default function Margaret() {
                     )}
                     {m.tasks.map((t) => {
                       const isBusy = busy.has(t.id);
-                      if (t.status === "dismissed") {
-                        return (
-                          <div
-                            key={t.id}
-                            className="flex items-center gap-2 text-sm text-slate-400 line-through px-3 py-2"
-                          >
-                            <X size={14} className="flex-shrink-0" />
-                            <span className="truncate">{t.task}</span>
-                          </div>
-                        );
-                      }
                       if (t.status === "confirmed") {
                         return (
                           <div
