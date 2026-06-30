@@ -15,8 +15,11 @@ import {
   Sparkles,
   Plane,
   Check,
+  ListTodo,
 } from "lucide-react";
 import { Trip, loadTrips, attachEmailToTrip } from "@/lib/trips";
+import { useApp } from "@/store/store";
+import { Task, QuickTask } from "@/types";
 
 type Urgency = "now" | "question" | "later" | null;
 
@@ -154,6 +157,60 @@ export default function Mail() {
   const [tripMenuOpen, setTripMenuOpen] = useState(false);
   const [tripList, setTripList] = useState<Trip[]>([]);
   const [attachedTo, setAttachedTo] = useState<string | null>(null);
+
+  const { dispatch } = useApp();
+  const [taskMenuOpen, setTaskMenuOpen] = useState(false);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDest, setTaskDest] = useState<"task" | "quick">("task");
+  const [taskDue, setTaskDue] = useState("");
+  const [taskCreated, setTaskCreated] = useState(false);
+
+  const openTaskMenu = () => {
+    setTaskTitle(thread?.messages[0]?.subject || "");
+    setTaskDest("task");
+    setTaskDue("");
+    setTaskCreated(false);
+    setTripMenuOpen(false);
+    setTaskMenuOpen((o) => !o);
+  };
+
+  const createTaskFromEmail = () => {
+    const title = taskTitle.trim();
+    if (!title || !thread || !selectedId) return;
+    const from = thread.messages[0]?.from || "";
+    const origin = from ? ` (from ${senderName(from)})` : "";
+    const gmailUrl = `https://mail.google.com/mail/u/0/#all/${selectedId}`;
+    const now = new Date();
+    if (taskDest === "task") {
+      const task: Task = {
+        id: crypto.randomUUID(),
+        title,
+        description: `From email${origin}`,
+        priority: "medium",
+        status: "pending",
+        projectId: null,
+        dueDate: taskDue ? new Date(`${taskDue}T12:00:00`) : undefined,
+        createdAt: now,
+        focusMinutes: 0,
+        link: gmailUrl,
+      };
+      dispatch({ type: "ADD_TASK", payload: task });
+    } else {
+      const qt: QuickTask = {
+        id: crypto.randomUUID(),
+        task: title,
+        dueDate: taskDue ? new Date(`${taskDue}T00:00:00`) : undefined,
+        notes: `From email${origin}: ${gmailUrl}`,
+        status: "not_started",
+        displayOrder: 0,
+        createdAt: now,
+        updatedAt: now,
+      };
+      dispatch({ type: "ADD_QUICK_TASK", payload: qt });
+    }
+    setTaskCreated(true);
+    setTimeout(() => setTaskMenuOpen(false), 1000);
+  };
 
   const addToTrip = (trip: Trip) => {
     if (!thread || !selectedId) return;
@@ -364,6 +421,63 @@ export default function Mail() {
                         )}
                       </button>
                     ))
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="relative">
+              <button
+                onClick={openTaskMenu}
+                className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
+              >
+                <ListTodo size={15} />
+                Add task
+              </button>
+              {taskMenuOpen && (
+                <div className="absolute right-0 top-9 z-20 w-72 bg-white border border-slate-200 rounded-lg shadow-lg p-3 space-y-2">
+                  {taskCreated ? (
+                    <div className="flex items-center gap-2 text-sm text-emerald-700 py-2 px-1">
+                      <Check size={15} /> Added to{" "}
+                      {taskDest === "task" ? "Tasks" : "Quick Tasks"}
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        value={taskTitle}
+                        onChange={(e) => setTaskTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") createTaskFromEmail();
+                        }}
+                        placeholder="Task title"
+                        className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                      />
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={taskDest}
+                          onChange={(e) =>
+                            setTaskDest(e.target.value as "task" | "quick")
+                          }
+                          className="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                        >
+                          <option value="task">Task</option>
+                          <option value="quick">Quick task</option>
+                        </select>
+                        <input
+                          type="date"
+                          value={taskDue}
+                          onChange={(e) => setTaskDue(e.target.value)}
+                          className="flex-1 text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                        />
+                      </div>
+                      <button
+                        onClick={createTaskFromEmail}
+                        disabled={!taskTitle.trim()}
+                        className="w-full inline-flex items-center justify-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-md transition-colors"
+                      >
+                        <ListTodo size={14} />
+                        Create
+                      </button>
+                    </>
                   )}
                 </div>
               )}
