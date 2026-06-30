@@ -26,6 +26,7 @@ import {
   addFocusItem,
   deleteFocusItem,
 } from "@/lib/focus-items";
+import EodDebrief from "./EodDebrief";
 
 const PRIORITY_RANK: Record<Task["priority"], number> = {
   critical: 0,
@@ -410,6 +411,9 @@ export default function EndOfDay({ onOpenZenMode }: EndOfDayProps) {
           )}
         </div>
       </div>
+
+      {/* Process the day — quick debrief */}
+      <EodDebrief />
 
       {/* Tomorrow's focus — star any task or jot an intention */}
       <div className="bg-white border border-indigo-200 rounded-xl p-6 shadow-sm">
