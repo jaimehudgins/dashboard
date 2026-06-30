@@ -122,6 +122,14 @@ async function extractFromTranscript(
 
 IMPORTANT: Do NOT extract facts, contacts, numbers, decisions, or context just to "remember" them — those already live in the meeting summary, which is saved and searchable. Only surface things that require an action or are a forward-looking idea to revisit. A meeting with nothing to act on returns an empty array.
 
+Be strict and CONSOLIDATE — this is the most common mistake:
+- A task is ONE discrete next step with a clear done-state. If several actions are part of the same next step or the same upcoming conversation with one person, combine them into a SINGLE task. Topics to cover, agenda points, and anything that will happen *inside* a planned meeting are NOT separate tasks — they fold into that one follow-up.
+- Never output a fact, status, or "note that…" line as a task OR quick_task. quick_task is still a real to-do (just a small one), never a place for notes.
+- Prefer few, high-signal items. When in doubt, leave it out. Most meetings have 1–3 real tasks, not 5+.
+
+Worked example — a call where Jaime agrees to set up time with Rachel, and they'll cover rollout timing and senior goals in that call, and Rachel handles invoicing:
+→ ONE task: "Follow up with Rachel to plan the rollout (timing, senior goals)". NOT separate tasks for "discuss entry point" and "set goals" — those happen in the follow-up. The invoicing detail is a fact → omit entirely.
+
 For EACH item set:
 - confidence: "high" only for an explicit, concrete commitment Jaime clearly owns; otherwise "low".
 - suggested_destination — the single best home:
@@ -205,6 +213,23 @@ export async function extractPendingMeetings(
   let tasksFound = 0;
 
   for (const m of meetings) {
+    // Atomically CLAIM the meeting (flip false→true). If another overlapping
+    // run already claimed it, claimed is empty → skip, so it can't be
+    // double-extracted (which would create near-duplicate tasks).
+    const { data: claimed } = await supabase
+      .from("granola_meetings")
+      .update({ tasks_extracted: true })
+      .eq("id", m.id)
+      .eq("tasks_extracted", false)
+      .select("id");
+    if (!claimed || claimed.length === 0) continue;
+
+    const unclaim = () =>
+      supabase
+        .from("granola_meetings")
+        .update({ tasks_extracted: false })
+        .eq("id", m.id);
+
     const { data: tr } = await supabase
       .from("granola_transcripts")
       .select("transcript")
@@ -212,11 +237,7 @@ export async function extractPendingMeetings(
       .maybeSingle();
     const transcript = (tr?.transcript as string) || "";
     if (!transcript) {
-      // No transcript to work from — mark processed so we don't loop on it.
-      await supabase
-        .from("granola_meetings")
-        .update({ tasks_extracted: true })
-        .eq("id", m.id);
+      // No transcript to work from — stays claimed (marked) so we don't loop.
       processed++;
       continue;
     }
@@ -232,7 +253,10 @@ export async function extractPendingMeetings(
       partners,
       todayISO,
     );
-    if (!result) continue; // leave unprocessed to retry next run
+    if (!result) {
+      await unclaim(); // release so it retries next run
+      continue;
+    }
 
     // Backstop: only allow a partner match if an external (non-Willow)
     // attendee was present — internal staff meetings never link to a partner.
@@ -271,14 +295,12 @@ export async function extractPendingMeetings(
         .insert(rows);
       if (error) {
         console.warn("granola insert tasks:", m.id, error.message);
-        continue; // retry next run
+        await unclaim(); // release so it retries next run
+        continue;
       }
       tasksFound += rows.length;
     }
-    await supabase
-      .from("granola_meetings")
-      .update({ tasks_extracted: true })
-      .eq("id", m.id);
+    // Already marked extracted by the claim above.
     processed++;
   }
 
