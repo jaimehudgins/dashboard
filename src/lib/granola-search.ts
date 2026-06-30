@@ -9,6 +9,7 @@ interface MeetingRow {
   meeting_date: string | null;
   attendees: { name: string; email?: string }[];
   summary?: string;
+  hidden?: boolean;
 }
 
 export interface MeetingSummary {
@@ -22,10 +23,13 @@ export interface MeetingSummary {
 export async function listMeetings(limit = 15): Promise<MeetingSummary[]> {
   const { data } = await supabase
     .from("granola_meetings")
-    .select("id, title, meeting_date, attendees, summary")
+    .select("*")
     .order("meeting_date", { ascending: false })
-    .limit(Math.min(limit, 50));
-  return ((data as MeetingRow[]) || []).map((m) => ({
+    .limit(Math.min(limit * 2, 80));
+  return ((data as MeetingRow[]) || [])
+    .filter((m) => !m.hidden)
+    .slice(0, limit)
+    .map((m) => ({
     id: m.id,
     title: m.title,
     date: m.meeting_date,
@@ -53,11 +57,14 @@ export async function meetingsForPartner(
 
   const { data } = await supabase
     .from("granola_meetings")
-    .select("id, title, meeting_date, attendees, summary")
+    .select("*")
     .in("id", meetingIds)
     .order("meeting_date", { ascending: false })
-    .limit(Math.min(limit, 20));
-  return ((data as MeetingRow[]) || []).map((m) => ({
+    .limit(Math.min(limit * 2, 20));
+  return ((data as MeetingRow[]) || [])
+    .filter((m) => !m.hidden)
+    .slice(0, limit)
+    .map((m) => ({
     id: m.id,
     title: m.title,
     date: m.meeting_date,
@@ -95,9 +102,9 @@ export async function searchTranscripts(
 
   const { data: meetings } = await supabase
     .from("granola_meetings")
-    .select("id, title, meeting_date, attendees")
+    .select("*")
     .order("meeting_date", { ascending: false });
-  let candidates = (meetings as MeetingRow[]) || [];
+  let candidates = ((meetings as MeetingRow[]) || []).filter((m) => !m.hidden);
 
   if (person) {
     const p = person.toLowerCase();

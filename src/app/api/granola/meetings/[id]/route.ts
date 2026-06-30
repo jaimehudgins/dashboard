@@ -39,3 +39,35 @@ export async function GET(
     );
   }
 }
+
+// DELETE /api/granola/meetings/[id] — soft-delete (hide) a meeting and drop any
+// of its extracted-task candidates. The transcript stays as a tombstone so the
+// sync won't re-pull it from Granola.
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+  const { id } = await params;
+  try {
+    const { error } = await supabase
+      .from("granola_meetings")
+      .update({ hidden: true })
+      .eq("id", id);
+    if (error) throw error;
+    await supabase
+      .from("granola_extracted_tasks")
+      .delete()
+      .eq("meeting_id", id);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("Granola meeting delete error:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Delete failed" },
+      { status: 500 },
+    );
+  }
+}

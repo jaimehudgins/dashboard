@@ -17,3 +17,8 @@ ALTER TABLE granola_extracted_tasks
   ADD COLUMN IF NOT EXISTS confidence TEXT;            -- high | low
 ALTER TABLE granola_extracted_tasks
   ADD COLUMN IF NOT EXISTS suggested_destination TEXT; -- task|quick_task|note|backlog|ignore
+
+-- Soft-delete a meeting (e.g. a no-show that recorded junk). Kept as a
+-- tombstone so the sync won't re-pull it; hidden from all views and search.
+ALTER TABLE granola_meetings
+  ADD COLUMN IF NOT EXISTS hidden BOOLEAN DEFAULT FALSE;

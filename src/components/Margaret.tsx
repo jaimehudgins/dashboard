@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Building2,
   ListTodo,
+  Trash2,
 } from "lucide-react";
 
 const mdComponents = {
@@ -236,6 +237,21 @@ export default function Margaret() {
     }
   };
 
+  const deleteMeeting = async (m: Meeting) => {
+    if (
+      !window.confirm(
+        `Delete “${m.title}”? It will be hidden from Margaret and search, and any extracted items removed.`,
+      )
+    )
+      return;
+    setMeetings((prev) => prev.filter((x) => x.id !== m.id));
+    try {
+      await fetch(`/api/granola/meetings/${m.id}`, { method: "DELETE" });
+    } catch {
+      /* best-effort; it's gone from the view either way */
+    }
+  };
+
   const openTranscript = async (m: Meeting) => {
     setLoadingTranscript(true);
     setTranscript({ title: m.title, text: "" });
@@ -373,12 +389,21 @@ export default function Margaret() {
                       )}
                     </div>
                   </div>
-                  {partner && (
-                    <span className="flex-shrink-0 inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-2 py-0.5">
-                      <Building2 size={11} />
-                      {partner}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {partner && (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-2 py-0.5">
+                        <Building2 size={11} />
+                        {partner}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => deleteMeeting(m)}
+                      title="Delete meeting"
+                      className="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Items to route */}

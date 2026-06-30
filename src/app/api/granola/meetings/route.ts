@@ -10,14 +10,18 @@ export async function GET() {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
   try {
-    const { data: meetings, error } = await supabase
+    const { data: allMeetings, error } = await supabase
       .from("granola_meetings")
-      .select("id, title, meeting_date, attendees, summary, owner_name")
+      .select("*")
       .order("meeting_date", { ascending: false })
-      .limit(60);
+      .limit(80);
     if (error) throw error;
+    // Exclude hidden (soft-deleted) meetings; defensive if the column is absent.
+    const meetings = (allMeetings || [])
+      .filter((m) => !m.hidden)
+      .slice(0, 60);
 
-    const ids = (meetings || []).map((m) => m.id);
+    const ids = meetings.map((m) => m.id);
     const tasksByMeeting: Record<string, unknown[]> = {};
     if (ids.length > 0) {
       const { data: tasks } = await supabase
