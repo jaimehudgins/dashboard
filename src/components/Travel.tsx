@@ -12,12 +12,19 @@ import {
   Briefcase,
   ExternalLink,
   X,
+  Pencil,
+  ListPlus,
+  CalendarPlus,
+  CalendarCheck,
+  Loader2,
 } from "lucide-react";
 import {
   crmSupabase,
   isCrmConfigured,
   CrmPartner,
 } from "@/lib/crm-supabase";
+import { useApp } from "@/store/store";
+import { Task } from "@/types";
 
 const CRM_URL = "https://willow-crm-three.vercel.app";
 const STORAGE_KEY = "leo.trips";
@@ -34,7 +41,12 @@ interface Trip {
   end: string;
   notes?: string;
   packing: PackItem[];
+  partnerIds?: string[]; // CRM partners this trip is about
+  calendarEventId?: string; // linked Google Calendar event
+  calendarEventLink?: string;
 }
+
+type TripFields = Pick<Trip, "destination" | "start" | "end" | "notes">;
 
 const uid = () =>
   `${Date.now().toString(36)}-${Math.floor(performance.now()).toString(36)}`;
@@ -53,10 +65,12 @@ function cityToken(destination: string): string {
 }
 
 export default function Travel() {
+  const { dispatch } = useApp();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [partners, setPartners] = useState<CrmPartner[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // Load trips from localStorage once on mount.
   useEffect(() => {
@@ -99,7 +113,7 @@ export default function Travel() {
     };
   }, [trips]);
 
-  const addTrip = (t: Omit<Trip, "id" | "packing">) => {
+  const addTrip = (t: TripFields) => {
     setTrips((prev) => [...prev, { ...t, id: uid(), packing: [] }]);
     setShowForm(false);
   };
@@ -107,6 +121,42 @@ export default function Travel() {
     setTrips((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   const deleteTrip = (id: string) =>
     setTrips((prev) => prev.filter((t) => t.id !== id));
+
+  // Drop a prep task onto the main task list, due by the trip's start.
+  const addPrepTask = (trip: Trip) => {
+    const task: Task = {
+      id: crypto.randomUUID(),
+      title: `Prep for ${trip.destination} trip`,
+      priority: "medium",
+      status: "pending",
+      projectId: null,
+      dueDate: new Date(`${trip.start}T12:00:00`),
+      createdAt: new Date(),
+      focusMinutes: 0,
+    };
+    dispatch({ type: "ADD_TASK", payload: task });
+  };
+
+  // Create an all-day Google Calendar event spanning the trip and link it.
+  const addToCalendar = async (trip: Trip) => {
+    const res = await fetch("/api/calendar/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: `Travel: ${trip.destination}`,
+        allDay: true,
+        start: trip.start,
+        end: trip.end,
+        location: trip.destination,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to add to calendar");
+    updateTrip(trip.id, {
+      calendarEventId: data.event?.id,
+      calendarEventLink: data.event?.htmlLink,
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -133,7 +183,11 @@ export default function Travel() {
       </div>
 
       {showForm && (
-        <TripForm onAdd={addTrip} onCancel={() => setShowForm(false)} />
+        <TripForm
+          onSubmit={addTrip}
+          onCancel={() => setShowForm(false)}
+          submitLabel="Add trip"
+        />
       )}
 
       {hydrated && upcoming.length === 0 && past.length === 0 && !showForm && (
@@ -147,15 +201,31 @@ export default function Travel() {
         </div>
       )}
 
-      {upcoming.map((trip) => (
-        <TripCard
-          key={trip.id}
-          trip={trip}
-          partners={partners}
-          onUpdate={updateTrip}
-          onDelete={deleteTrip}
-        />
-      ))}
+      {upcoming.map((trip) =>
+        editingId === trip.id ? (
+          <TripForm
+            key={trip.id}
+            initial={trip}
+            submitLabel="Save changes"
+            onSubmit={(values) => {
+              updateTrip(trip.id, values);
+              setEditingId(null);
+            }}
+            onCancel={() => setEditingId(null)}
+          />
+        ) : (
+          <TripCard
+            key={trip.id}
+            trip={trip}
+            partners={partners}
+            onUpdate={updateTrip}
+            onDelete={deleteTrip}
+            onEdit={() => setEditingId(trip.id)}
+            onAddPrepTask={() => addPrepTask(trip)}
+            onAddToCalendar={() => addToCalendar(trip)}
+          />
+        ),
+      )}
 
       {past.length > 0 && (
         <div className="pt-2">
@@ -195,16 +265,20 @@ export default function Travel() {
 /* ------------------------------ Trip form ------------------------------ */
 
 function TripForm({
-  onAdd,
+  initial,
+  onSubmit,
   onCancel,
+  submitLabel,
 }: {
-  onAdd: (t: Omit<Trip, "id" | "packing">) => void;
+  initial?: TripFields;
+  onSubmit: (t: TripFields) => void;
   onCancel: () => void;
+  submitLabel: string;
 }) {
-  const [destination, setDestination] = useState("");
-  const [start, setStart] = useState("");
-  const [end, setEnd] = useState("");
-  const [notes, setNotes] = useState("");
+  const [destination, setDestination] = useState(initial?.destination || "");
+  const [start, setStart] = useState(initial?.start || "");
+  const [end, setEnd] = useState(initial?.end || "");
+  const [notes, setNotes] = useState(initial?.notes || "");
   const valid = destination.trim() && start && end && end >= start;
 
   return (
@@ -261,11 +335,11 @@ function TripForm({
         <button
           disabled={!valid}
           onClick={() =>
-            onAdd({ destination: destination.trim(), start, end, notes: notes.trim() || undefined })
+            onSubmit({ destination: destination.trim(), start, end, notes: notes.trim() || undefined })
           }
           className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 rounded-lg transition-colors"
         >
-          Add trip
+          {submitLabel}
         </button>
       </div>
     </div>
@@ -279,13 +353,45 @@ function TripCard({
   partners,
   onUpdate,
   onDelete,
+  onEdit,
+  onAddPrepTask,
+  onAddToCalendar,
 }: {
   trip: Trip;
   partners: CrmPartner[];
   onUpdate: (id: string, patch: Partial<Trip>) => void;
   onDelete: (id: string) => void;
+  onEdit: () => void;
+  onAddPrepTask: () => void;
+  onAddToCalendar: () => Promise<void>;
 }) {
   const [newItem, setNewItem] = useState("");
+  const [prepAdded, setPrepAdded] = useState(false);
+  const [calBusy, setCalBusy] = useState(false);
+  const [calError, setCalError] = useState(false);
+
+  const handleAddToCalendar = async () => {
+    setCalBusy(true);
+    setCalError(false);
+    try {
+      await onAddToCalendar();
+    } catch {
+      setCalError(true);
+    } finally {
+      setCalBusy(false);
+    }
+  };
+
+  const selected = useMemo(
+    () => new Set(trip.partnerIds || []),
+    [trip.partnerIds],
+  );
+  const togglePartner = (id: string) => {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onUpdate(trip.id, { partnerIds: [...next] });
+  };
 
   const daysUntil = differenceInCalendarDays(
     startOfDay(new Date(trip.start)),
@@ -351,13 +457,57 @@ function TripCard({
             <p className="text-sm text-slate-500 mt-1">{trip.notes}</p>
           )}
         </div>
-        <button
-          onClick={() => onDelete(trip.id)}
-          className="text-slate-300 hover:text-red-500 transition-colors"
-          aria-label="Delete trip"
-        >
-          <Trash2 size={16} />
-        </button>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {trip.calendarEventId ? (
+            <a
+              href={trip.calendarEventLink || "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+            >
+              <CalendarCheck size={14} />
+              On calendar
+            </a>
+          ) : (
+            <button
+              onClick={handleAddToCalendar}
+              disabled={calBusy}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-sky-600 hover:bg-sky-50 disabled:opacity-60 rounded-lg transition-colors"
+            >
+              {calBusy ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <CalendarPlus size={14} />
+              )}
+              {calError ? "Retry" : "Add to calendar"}
+            </button>
+          )}
+          <button
+            onClick={() => {
+              onAddPrepTask();
+              setPrepAdded(true);
+            }}
+            disabled={prepAdded}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50 disabled:text-green-600 disabled:hover:bg-transparent rounded-lg transition-colors"
+          >
+            {prepAdded ? <Check size={14} /> : <ListPlus size={14} />}
+            {prepAdded ? "Prep task added" : "Add prep task"}
+          </button>
+          <button
+            onClick={onEdit}
+            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
+            aria-label="Edit trip"
+          >
+            <Pencil size={15} />
+          </button>
+          <button
+            onClick={() => onDelete(trip.id)}
+            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded-lg transition-colors"
+            aria-label="Delete trip"
+          >
+            <Trash2 size={15} />
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
@@ -420,58 +570,87 @@ function TripCard({
           </div>
         </div>
 
-        {/* Partner briefings */}
+        {/* Partner briefings + selection */}
         <div className="p-5">
-          <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
             <Briefcase size={15} className="text-slate-400" />
             Partners in {cityToken(trip.destination) ? trip.destination : "the area"}
-            {matches.length > 0 && (
-              <span className="text-xs text-slate-400">({matches.length})</span>
+            {selected.size > 0 && (
+              <span className="text-xs font-medium text-indigo-600">
+                · {selected.size} tied
+              </span>
             )}
           </h3>
+          <p className="text-xs text-slate-400 mb-3 mt-0.5">
+            Check the partners this trip is about.
+          </p>
           {matches.length === 0 ? (
             <p className="text-sm text-slate-400">
               No CRM partners matched this city.
             </p>
           ) : (
             <div className="space-y-2">
-              {matches.map((p) => (
-                <a
-                  key={p.id}
-                  href={CRM_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block p-3 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors group"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium text-slate-800">
-                      {p.name}
-                    </span>
-                    <ExternalLink
-                      size={13}
-                      className="text-slate-300 group-hover:text-slate-500"
-                    />
+              {matches.map((p) => {
+                const isOn = selected.has(p.id);
+                return (
+                  <div
+                    key={p.id}
+                    className={`flex items-start gap-2.5 p-3 rounded-lg transition-colors ${
+                      isOn
+                        ? "bg-indigo-50 ring-1 ring-indigo-200"
+                        : "bg-slate-50 hover:bg-slate-100"
+                    }`}
+                  >
+                    <button
+                      onClick={() => togglePartner(p.id)}
+                      className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                        isOn
+                          ? "bg-indigo-500 border-indigo-500"
+                          : "border-slate-300 hover:border-slate-400 bg-white"
+                      }`}
+                      aria-label={isOn ? "Untie from trip" : "Tie to trip"}
+                    >
+                      {isOn && <Check size={11} className="text-white" />}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium text-slate-800">
+                          {p.name}
+                        </span>
+                        <a
+                          href={CRM_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-slate-300 hover:text-slate-500 flex-shrink-0"
+                          aria-label="Open in CRM"
+                        >
+                          <ExternalLink size={13} />
+                        </a>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-500 mt-1">
+                        {p.status && <span>{p.status}</span>}
+                        {p.relationship_health && (
+                          <span>· {p.relationship_health}</span>
+                        )}
+                        {p.last_contact_date && (
+                          <span>
+                            · last contact{" "}
+                            {format(new Date(p.last_contact_date), "MMM d")}
+                          </span>
+                        )}
+                        {p.willow_staff_lead && (
+                          <span>· {p.willow_staff_lead}</span>
+                        )}
+                      </div>
+                      {p.summary && (
+                        <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                          {p.summary}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-500 mt-1">
-                    {p.status && <span>{p.status}</span>}
-                    {p.relationship_health && (
-                      <span>· {p.relationship_health}</span>
-                    )}
-                    {p.last_contact_date && (
-                      <span>
-                        · last contact{" "}
-                        {format(new Date(p.last_contact_date), "MMM d")}
-                      </span>
-                    )}
-                    {p.willow_staff_lead && <span>· {p.willow_staff_lead}</span>}
-                  </div>
-                  {p.summary && (
-                    <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-                      {p.summary}
-                    </p>
-                  )}
-                </a>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
