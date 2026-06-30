@@ -131,6 +131,7 @@ export default function Mail() {
   const [error, setError] = useState<string | null>(null);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedUrgency, setSelectedUrgency] = useState<Urgency>(null);
   const [thread, setThread] = useState<FullThread | null>(null);
   const [loadingThread, setLoadingThread] = useState(false);
 
@@ -207,6 +208,7 @@ export default function Mail() {
 
   const openThread = (id: string) => {
     setSelectedId(id);
+    setSelectedUrgency(threads.find((t) => t.id === id)?.urgency ?? null);
     setThread(null);
     setReplyBody("");
     setLoadingThread(true);
@@ -287,9 +289,17 @@ export default function Mail() {
 
         {thread && (
           <>
-            <h1 className="text-xl font-bold text-slate-900 mb-4">
-              {thread.messages[0]?.subject || "(no subject)"}
-            </h1>
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              {selectedUrgency && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                  <span>{URGENCY[selectedUrgency].emoji}</span>
+                  {URGENCY[selectedUrgency].label}
+                </span>
+              )}
+              <h1 className="text-xl font-bold text-slate-900">
+                {thread.messages[0]?.subject || "(no subject)"}
+              </h1>
+            </div>
             <div className="space-y-3">
               {thread.messages.map((m, i) => (
                 <div
