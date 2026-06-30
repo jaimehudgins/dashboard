@@ -92,10 +92,24 @@ export default function Mail() {
       .finally(() => setLoadingList(false));
   }, []);
 
+  // Silent background sort — refreshes the counters when done.
+  const backgroundClassify = useCallback(async () => {
+    try {
+      const res = await fetch("/api/mail/classify", { method: "POST" });
+      if (res.ok) loadViews();
+    } catch {
+      /* ignore */
+    }
+  }, [loadViews]);
+
   useEffect(() => {
     loadViews();
     loadThreads("all");
-  }, [loadViews, loadThreads]);
+    // Sort on open, then quietly every few minutes while the inbox is open.
+    backgroundClassify();
+    const interval = setInterval(backgroundClassify, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [loadViews, loadThreads, backgroundClassify]);
 
   const selectView = (view: string) => {
     setActiveView(view);
