@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Zap, Plus, Trash2, Check, X, Pencil } from "lucide-react";
+import { Zap, Plus, Trash2, Check, X, Pencil, ChevronDown, ChevronRight } from "lucide-react";
 import { format, startOfDay } from "date-fns";
 import { useApp } from "@/store/store";
 import { QuickTask, QuickTaskStatus } from "@/types";
@@ -21,20 +21,27 @@ export default function QuickTasks() {
   const [editTask, setEditTask] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
   const [editNotes, setEditNotes] = useState("");
+  const [showCompleted, setShowCompleted] = useState(false);
 
-  const sorted = useMemo(() => {
-    const arr = [...state.quickTasks];
-    arr.sort((a, b) => {
-      // incomplete first
-      const aDone = a.status === "complete" ? 1 : 0;
-      const bDone = b.status === "complete" ? 1 : 0;
-      if (aDone !== bDone) return aDone - bDone;
-      // due date ascending, nulls last
-      const ad = a.dueDate ? a.dueDate.getTime() : Infinity;
-      const bd = b.dueDate ? b.dueDate.getTime() : Infinity;
-      return ad - bd;
-    });
-    return arr;
+  // Active tasks, sorted by due date (nulls last).
+  const active = useMemo(() => {
+    return state.quickTasks
+      .filter((t) => t.status !== "complete")
+      .sort((a, b) => {
+        const ad = a.dueDate ? a.dueDate.getTime() : Infinity;
+        const bd = b.dueDate ? b.dueDate.getTime() : Infinity;
+        return ad - bd;
+      });
+  }, [state.quickTasks]);
+
+  // Completed tasks are archived out of the main list; most-recent first.
+  const completed = useMemo(() => {
+    return state.quickTasks
+      .filter((t) => t.status === "complete")
+      .sort(
+        (a, b) =>
+          (b.updatedAt?.getTime() || 0) - (a.updatedAt?.getTime() || 0),
+      );
   }, [state.quickTasks]);
 
   const handleAdd = () => {
@@ -73,9 +80,7 @@ export default function QuickTasks() {
   const startEdit = (t: QuickTask) => {
     setEditingId(t.id);
     setEditTask(t.task);
-    setEditDueDate(
-      t.dueDate ? format(t.dueDate, "yyyy-MM-dd") : "",
-    );
+    setEditDueDate(t.dueDate ? format(t.dueDate, "yyyy-MM-dd") : "");
     setEditNotes(t.notes || "");
   };
 
@@ -99,6 +104,112 @@ export default function QuickTasks() {
     return startOfDay(t.dueDate) < startOfDay(new Date());
   };
 
+  const renderRow = (t: QuickTask) => {
+    const overdue = isOverdue(t);
+    const isEditing = editingId === t.id;
+    return (
+      <div key={t.id} className="px-3 py-2">
+        {isEditing ? (
+          <div className="space-y-2">
+            <input
+              value={editTask}
+              onChange={(e) => setEditTask(e.target.value)}
+              className="w-full px-2 py-1 text-sm border border-slate-200 rounded bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <input
+              type="date"
+              value={editDueDate}
+              onChange={(e) => setEditDueDate(e.target.value)}
+              className="w-full px-2 py-1 text-sm border border-slate-200 rounded bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <textarea
+              value={editNotes}
+              onChange={(e) => setEditNotes(e.target.value)}
+              placeholder="Notes…"
+              rows={2}
+              className="w-full px-2 py-1 text-sm border border-slate-200 rounded bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+            />
+            <div className="flex items-center gap-1 justify-end">
+              <button
+                onClick={() => setEditingId(null)}
+                className="p-1 text-slate-500 hover:text-slate-700"
+              >
+                <X size={14} />
+              </button>
+              <button
+                onClick={() => saveEdit(t)}
+                className="p-1 text-green-600 hover:text-green-700"
+              >
+                <Check size={14} />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2">
+            <div className="flex-1 min-w-0">
+              <div
+                className={`text-sm ${
+                  t.status === "complete"
+                    ? "line-through text-slate-400"
+                    : "text-slate-900"
+                }`}
+              >
+                {t.task}
+              </div>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {t.dueDate && (
+                  <span
+                    className={`text-xs ${
+                      overdue ? "text-red-600 font-medium" : "text-slate-500"
+                    }`}
+                  >
+                    {format(t.dueDate, "MMM d")}
+                  </span>
+                )}
+                <select
+                  value={t.status}
+                  onChange={(e) =>
+                    handleStatusChange(t, e.target.value as QuickTaskStatus)
+                  }
+                  className={`text-xs rounded px-1.5 py-0.5 border-0 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer ${
+                    STATUS_OPTIONS.find((s) => s.value === t.status)?.cls || ""
+                  }`}
+                >
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {t.notes && (
+                <div className="text-xs text-slate-500 mt-1 whitespace-pre-wrap">
+                  {t.notes}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <button
+                onClick={() => startEdit(t)}
+                className="p-1 text-slate-400 hover:text-slate-700"
+                title="Edit"
+              >
+                <Pencil size={12} />
+              </button>
+              <button
+                onClick={() => handleDelete(t.id)}
+                className="p-1 text-slate-400 hover:text-red-600"
+                title="Delete"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
       <div className="px-4 py-3 border-b border-slate-200 flex items-center gap-3">
@@ -107,9 +218,7 @@ export default function QuickTasks() {
         </div>
         <div className="flex-1">
           <h2 className="text-base font-semibold text-slate-900">Quick Tasks</h2>
-          <p className="text-xs text-slate-500">
-            {state.quickTasks.filter((t) => t.status !== "complete").length} open
-          </p>
+          <p className="text-xs text-slate-500">{active.length} open</p>
         </div>
       </div>
 
@@ -143,123 +252,45 @@ export default function QuickTasks() {
       </div>
 
       {/* List */}
-      <div className="overflow-auto max-h-[640px] divide-y divide-slate-100">
-        {sorted.length === 0 ? (
+      <div className="overflow-auto max-h-[640px]">
+        {active.length === 0 && completed.length === 0 ? (
           <div className="text-center text-slate-400 py-10 text-sm">
             No quick tasks yet.
           </div>
         ) : (
-          sorted.map((t) => {
-            const overdue = isOverdue(t);
-            const isEditing = editingId === t.id;
-            return (
-              <div key={t.id} className="px-3 py-2">
-                {isEditing ? (
-                  <div className="space-y-2">
-                    <input
-                      value={editTask}
-                      onChange={(e) => setEditTask(e.target.value)}
-                      className="w-full px-2 py-1 text-sm border border-slate-200 rounded bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                    <input
-                      type="date"
-                      value={editDueDate}
-                      onChange={(e) => setEditDueDate(e.target.value)}
-                      className="w-full px-2 py-1 text-sm border border-slate-200 rounded bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                    <textarea
-                      value={editNotes}
-                      onChange={(e) => setEditNotes(e.target.value)}
-                      placeholder="Notes…"
-                      rows={2}
-                      className="w-full px-2 py-1 text-sm border border-slate-200 rounded bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                    />
-                    <div className="flex items-center gap-1 justify-end">
-                      <button
-                        onClick={() => setEditingId(null)}
-                        className="p-1 text-slate-500 hover:text-slate-700"
-                      >
-                        <X size={14} />
-                      </button>
-                      <button
-                        onClick={() => saveEdit(t)}
-                        className="p-1 text-green-600 hover:text-green-700"
-                      >
-                        <Check size={14} />
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-start gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div
-                        className={`text-sm ${
-                          t.status === "complete"
-                            ? "line-through text-slate-400"
-                            : "text-slate-900"
-                        }`}
-                      >
-                        {t.task}
-                      </div>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        {t.dueDate && (
-                          <span
-                            className={`text-xs ${
-                              overdue
-                                ? "text-red-600 font-medium"
-                                : "text-slate-500"
-                            }`}
-                          >
-                            {format(t.dueDate, "MMM d")}
-                          </span>
-                        )}
-                        <select
-                          value={t.status}
-                          onChange={(e) =>
-                            handleStatusChange(
-                              t,
-                              e.target.value as QuickTaskStatus,
-                            )
-                          }
-                          className={`text-xs rounded px-1.5 py-0.5 border-0 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer ${
-                            STATUS_OPTIONS.find((s) => s.value === t.status)
-                              ?.cls || ""
-                          }`}
-                        >
-                          {STATUS_OPTIONS.map((s) => (
-                            <option key={s.value} value={s.value}>
-                              {s.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      {t.notes && (
-                        <div className="text-xs text-slate-500 mt-1 whitespace-pre-wrap">
-                          {t.notes}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button
-                        onClick={() => startEdit(t)}
-                        className="p-1 text-slate-400 hover:text-slate-700"
-                        title="Edit"
-                      >
-                        <Pencil size={12} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(t.id)}
-                        className="p-1 text-slate-400 hover:text-red-600"
-                        title="Delete"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
+          <>
+            <div className="divide-y divide-slate-100">
+              {active.length === 0 ? (
+                <div className="text-center text-slate-400 py-6 text-sm">
+                  All caught up.
+                </div>
+              ) : (
+                active.map(renderRow)
+              )}
+            </div>
+
+            {/* Completed (archived) */}
+            {completed.length > 0 && (
+              <div className="border-t border-slate-200">
+                <button
+                  onClick={() => setShowCompleted((s) => !s)}
+                  className="w-full flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-500 hover:bg-slate-50"
+                >
+                  {showCompleted ? (
+                    <ChevronDown size={14} />
+                  ) : (
+                    <ChevronRight size={14} />
+                  )}
+                  Completed ({completed.length})
+                </button>
+                {showCompleted && (
+                  <div className="divide-y divide-slate-100">
+                    {completed.map(renderRow)}
                   </div>
                 )}
               </div>
-            );
-          })
+            )}
+          </>
         )}
       </div>
     </div>
