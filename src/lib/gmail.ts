@@ -3,15 +3,122 @@
 
 const BASE = "https://gmail.googleapis.com/gmail/v1/users/me";
 
-async function gmailFetch(token: string, path: string): Promise<any> {
+async function gmailFetch(
+  token: string,
+  path: string,
+  init?: RequestInit,
+): Promise<any> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...(init?.headers || {}),
+    },
   });
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Gmail API ${res.status}: ${body.slice(0, 200)}`);
   }
+  if (res.status === 204) return null;
   return res.json();
+}
+
+function base64url(s: string): string {
+  return Buffer.from(s, "utf8")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+interface DraftInput {
+  to: string;
+  subject: string;
+  body: string;
+  cc?: string;
+  inReplyTo?: string; // Message-ID header for replies
+  references?: string;
+}
+
+function buildRaw(input: DraftInput): string {
+  const lines = [
+    `To: ${input.to}`,
+    input.cc ? `Cc: ${input.cc}` : null,
+    `Subject: ${input.subject}`,
+    input.inReplyTo ? `In-Reply-To: ${input.inReplyTo}` : null,
+    input.references ? `References: ${input.references}` : null,
+    "Content-Type: text/plain; charset=UTF-8",
+    "MIME-Version: 1.0",
+    "",
+    input.body,
+  ].filter((l): l is string => l !== null);
+  return base64url(lines.join("\r\n"));
+}
+
+// Create a Gmail draft (not sent). Returns the draft id.
+export async function createDraft(
+  token: string,
+  input: DraftInput,
+  threadId?: string,
+): Promise<{ id: string }> {
+  const data = await gmailFetch(token, "/drafts", {
+    method: "POST",
+    body: JSON.stringify({
+      message: { raw: buildRaw(input), ...(threadId ? { threadId } : {}) },
+    }),
+  });
+  return { id: data.id };
+}
+
+// Send an email immediately. Returns the sent message id + threadId.
+export async function sendEmail(
+  token: string,
+  input: DraftInput,
+  threadId?: string,
+): Promise<{ id: string; threadId: string }> {
+  const data = await gmailFetch(token, "/messages/send", {
+    method: "POST",
+    body: JSON.stringify({
+      raw: buildRaw(input),
+      ...(threadId ? { threadId } : {}),
+    }),
+  });
+  return { id: data.id, threadId: data.threadId };
+}
+
+// Resolve reply details (recipient, subject, threading headers) from a thread.
+export async function getReplyContext(
+  token: string,
+  threadId: string,
+): Promise<{ to: string; subject: string; inReplyTo: string; references: string }> {
+  const thread = await gmailFetch(
+    token,
+    `/threads/${threadId}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Message-ID&metadataHeaders=References`,
+  );
+  const msgs = thread.messages || [];
+  const last = msgs[msgs.length - 1];
+  const h = last?.payload?.headers || [];
+  const subject = header(h, "Subject");
+  const messageId = header(h, "Message-ID");
+  const refs = header(h, "References");
+  return {
+    to: header(h, "From"),
+    subject: /^re:/i.test(subject) ? subject : `Re: ${subject}`,
+    inReplyTo: messageId,
+    references: [refs, messageId].filter(Boolean).join(" "),
+  };
+}
+
+// Archive a thread (remove it from the inbox).
+export async function archiveThread(
+  token: string,
+  threadId: string,
+): Promise<void> {
+  await gmailFetch(token, `/threads/${threadId}/modify`, {
+    method: "POST",
+    body: JSON.stringify({ removeLabelIds: ["INBOX"] }),
+  });
 }
 
 function header(headers: any[], name: string): string {

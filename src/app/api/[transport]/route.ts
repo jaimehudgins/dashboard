@@ -27,7 +27,14 @@ import {
   findFreeSlots,
   createEvent,
 } from "@/lib/google-calendar";
-import { searchMessages, getThread } from "@/lib/gmail";
+import {
+  searchMessages,
+  getThread,
+  createDraft,
+  sendEmail,
+  getReplyContext,
+  archiveThread,
+} from "@/lib/gmail";
 
 const ok = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
@@ -705,6 +712,105 @@ const handler = createMcpHandler(
         if (!isGoogleServerConfigured) return ok(NO_GOOGLE);
         const token = await getGoogleAccessToken();
         return ok(await getThread(token, threadId));
+      },
+    );
+
+    // ---- Email actions (Donna; confirm-gated, sends always confirm) ----
+    server.registerTool(
+      "draft_email",
+      {
+        title: "Draft email",
+        description: `Save a Gmail draft (does NOT send). ${CONFIRM_NOTE}`,
+        inputSchema: {
+          to: z.string().describe("Recipient email(s), comma-separated."),
+          subject: z.string(),
+          body: z.string(),
+          cc: z.string().optional(),
+          confirm: z.boolean().optional(),
+        },
+      },
+      async ({ to, subject, body, cc, confirm }) => {
+        if (!isGoogleServerConfigured) return ok(NO_GOOGLE);
+        if (!confirm)
+          return ok({ pending: true, action: "draft_email", email: { to, cc, subject, body }, note: "Re-run with confirm=true to save the draft." });
+        const token = await getGoogleAccessToken();
+        const draft = await createDraft(token, { to, subject, body, cc });
+        return ok({ drafted: true, draftId: draft.id });
+      },
+    );
+
+    server.registerTool(
+      "send_email",
+      {
+        title: "Send email",
+        description: `Send an email now. Always show the full message and get explicit approval first. ${CONFIRM_NOTE}`,
+        inputSchema: {
+          to: z.string().describe("Recipient email(s), comma-separated."),
+          subject: z.string(),
+          body: z.string(),
+          cc: z.string().optional(),
+          confirm: z.boolean().optional(),
+        },
+      },
+      async ({ to, subject, body, cc, confirm }) => {
+        if (!isGoogleServerConfigured) return ok(NO_GOOGLE);
+        if (!confirm)
+          return ok({ pending: true, action: "send_email", email: { to, cc, subject, body }, note: "This sends a real email. Re-run with confirm=true only after the user approves." });
+        const token = await getGoogleAccessToken();
+        const sent = await sendEmail(token, { to, subject, body, cc });
+        return ok({ sent: true, to, subject, messageId: sent.id });
+      },
+    );
+
+    server.registerTool(
+      "reply_to_email",
+      {
+        title: "Reply to email thread",
+        description: `Reply to an existing thread (from search_email/get_email_thread). Recipient, subject, and threading are derived from the thread. ${CONFIRM_NOTE}`,
+        inputSchema: {
+          threadId: z.string(),
+          body: z.string(),
+          confirm: z.boolean().optional(),
+        },
+      },
+      async ({ threadId, body, confirm }) => {
+        if (!isGoogleServerConfigured) return ok(NO_GOOGLE);
+        const token = await getGoogleAccessToken();
+        const ctx = await getReplyContext(token, threadId);
+        if (!confirm)
+          return ok({ pending: true, action: "reply_to_email", email: { to: ctx.to, subject: ctx.subject, body }, note: "This sends a real reply. Re-run with confirm=true only after the user approves." });
+        const sent = await sendEmail(
+          token,
+          {
+            to: ctx.to,
+            subject: ctx.subject,
+            body,
+            inReplyTo: ctx.inReplyTo,
+            references: ctx.references,
+          },
+          threadId,
+        );
+        return ok({ sent: true, to: ctx.to, subject: ctx.subject, messageId: sent.id });
+      },
+    );
+
+    server.registerTool(
+      "archive_email",
+      {
+        title: "Archive email thread",
+        description: `Remove a thread from the inbox. ${CONFIRM_NOTE}`,
+        inputSchema: {
+          threadId: z.string(),
+          confirm: z.boolean().optional(),
+        },
+      },
+      async ({ threadId, confirm }) => {
+        if (!isGoogleServerConfigured) return ok(NO_GOOGLE);
+        if (!confirm)
+          return ok({ pending: true, action: "archive_email", threadId, note: "Re-run with confirm=true to archive." });
+        const token = await getGoogleAccessToken();
+        await archiveThread(token, threadId);
+        return ok({ archived: true, threadId });
       },
     );
   },
