@@ -141,6 +141,15 @@ export default function Mail() {
   const [replyBody, setReplyBody] = useState("");
   const [sending, setSending] = useState(false);
   const [drafting, setDrafting] = useState(false);
+  const replyRef = useRef<HTMLTextAreaElement>(null);
+
+  // Grow the reply box to fit its content so a drafted email shows in full.
+  useEffect(() => {
+    const el = replyRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [replyBody, selectedId]);
   const [composing, setComposing] = useState(false);
   const [tripMenuOpen, setTripMenuOpen] = useState(false);
   const [tripList, setTripList] = useState<Trip[]>([]);
@@ -419,11 +428,12 @@ export default function Mail() {
                 Reply to {senderName(thread.messages[thread.messages.length - 1]?.from || "")}
               </div>
               <textarea
+                ref={replyRef}
                 value={replyBody}
                 onChange={(e) => setReplyBody(e.target.value)}
                 rows={4}
                 placeholder="Write a reply, or jot a few notes and let Leo draft it in your voice…"
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                className="w-full min-h-[6rem] border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none overflow-hidden"
               />
               <div className="flex items-center justify-between mt-2">
                 <button
@@ -673,6 +683,15 @@ function ComposeModal({
   const [sending, setSending] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+
+  // Grow the message box to fit its content so a drafted email shows in full.
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [body]);
 
   const draftWithLeo = async () => {
     setDrafting(true);
@@ -750,11 +769,12 @@ function ComposeModal({
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <textarea
+            ref={bodyRef}
             value={body}
             onChange={(e) => setBody(e.target.value)}
             rows={8}
             placeholder="Write your message, or jot a few notes and let Leo draft it in your voice…"
-            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+            className="w-full min-h-[12rem] max-h-[60vh] overflow-y-auto border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
           />
           {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
