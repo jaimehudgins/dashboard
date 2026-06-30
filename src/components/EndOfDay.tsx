@@ -14,9 +14,18 @@ import {
   CircleDot,
   ArrowRight,
   Star,
+  Plus,
+  Search,
+  X,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Task } from "@/types";
+import {
+  FocusItem,
+  fetchFocusItems,
+  addFocusItem,
+  deleteFocusItem,
+} from "@/lib/focus-items";
 
 const PRIORITY_RANK: Record<Task["priority"], number> = {
   critical: 0,
@@ -46,6 +55,43 @@ export default function EndOfDay({ onOpenZenMode }: EndOfDayProps) {
         focusDate: isFocusedTomorrow(t) ? null : tomorrowStart,
       },
     });
+
+  // Tomorrow's focus: starred tasks + free-form focus notes.
+  const tomorrowYMD = format(tomorrowStart, "yyyy-MM-dd");
+  const [focusItems, setFocusItems] = useState<FocusItem[]>([]);
+  const [noteText, setNoteText] = useState("");
+  const [taskSearch, setTaskSearch] = useState("");
+
+  useEffect(() => {
+    fetchFocusItems(tomorrowYMD).then(setFocusItems);
+  }, [tomorrowYMD]);
+
+  const starredTasks = state.tasks.filter(
+    (t) => t.status !== "completed" && !t.parentTaskId && isFocusedTomorrow(t),
+  );
+  const matchingTasks = taskSearch.trim()
+    ? state.tasks
+        .filter(
+          (t) =>
+            t.status !== "completed" &&
+            !t.parentTaskId &&
+            !isFocusedTomorrow(t) &&
+            t.title.toLowerCase().includes(taskSearch.trim().toLowerCase()),
+        )
+        .slice(0, 6)
+    : [];
+
+  const addNote = async () => {
+    const text = noteText.trim();
+    if (!text) return;
+    const item = await addFocusItem(tomorrowYMD, text);
+    if (item) setFocusItems((prev) => [...prev, item]);
+    setNoteText("");
+  };
+  const removeNote = async (id: string) => {
+    setFocusItems((prev) => prev.filter((i) => i.id !== id));
+    await deleteFocusItem(id);
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -361,6 +407,136 @@ export default function EndOfDay({ onOpenZenMode }: EndOfDayProps) {
             <p className="text-sm text-slate-400 py-4">
               Nothing due tomorrow. A clear runway.
             </p>
+          )}
+        </div>
+      </div>
+
+      {/* Tomorrow's focus — star any task or jot an intention */}
+      <div className="bg-white border border-indigo-200 rounded-xl p-6 shadow-sm">
+        <h3 className="text-lg font-semibold text-slate-900 mb-1 flex items-center gap-2">
+          <Star className="text-amber-400 fill-amber-400" size={20} />
+          Tomorrow&rsquo;s focus
+        </h3>
+        <p className="text-sm text-slate-500 mb-4">
+          What you&rsquo;ll lead with tomorrow — star any task (even one not due
+          for weeks) or add an intention that isn&rsquo;t a task. These show up
+          in your Morning Brief.
+        </p>
+
+        {/* Current focus */}
+        {starredTasks.length > 0 || focusItems.length > 0 ? (
+          <div className="space-y-2 mb-5">
+            {starredTasks.map((t) => (
+              <div
+                key={t.id}
+                className="flex items-center gap-2.5 px-3 py-2.5 bg-amber-50 border border-amber-100 rounded-lg"
+              >
+                <Star
+                  size={15}
+                  className="fill-amber-400 text-amber-400 flex-shrink-0"
+                />
+                <span className="flex-1 text-sm text-slate-800 truncate">
+                  {t.title}
+                </span>
+                <button
+                  onClick={() => toggleFocus(t)}
+                  className="text-slate-300 hover:text-red-500 transition-colors"
+                  aria-label="Unstar"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            ))}
+            {focusItems.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center gap-2.5 px-3 py-2.5 bg-indigo-50 border border-indigo-100 rounded-lg"
+              >
+                <Target size={15} className="text-indigo-400 flex-shrink-0" />
+                <span className="flex-1 text-sm text-slate-800">
+                  {item.text}
+                </span>
+                <button
+                  onClick={() => removeNote(item.id)}
+                  className="text-slate-300 hover:text-red-500 transition-colors"
+                  aria-label="Remove"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-400 mb-5">
+            Nothing chosen yet. Star a task or add an intention below.
+          </p>
+        )}
+
+        {/* Add a free-form intention */}
+        <div className="flex items-center gap-2 mb-3">
+          <input
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") addNote();
+            }}
+            placeholder="Add an intention (e.g. “Block 2 hours for the board deck”)…"
+            className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-200"
+          />
+          <button
+            onClick={addNote}
+            disabled={!noteText.trim()}
+            className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <Plus size={15} />
+            Add
+          </button>
+        </div>
+
+        {/* Star an existing task */}
+        <div className="relative">
+          <Search
+            size={15}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+          />
+          <input
+            value={taskSearch}
+            onChange={(e) => setTaskSearch(e.target.value)}
+            placeholder="Search a task to star…"
+            className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-200"
+          />
+          {taskSearch.trim() && (
+            <div className="mt-1 border border-slate-200 rounded-lg divide-y divide-slate-100 overflow-hidden max-h-52 overflow-y-auto">
+              {matchingTasks.length > 0 ? (
+                matchingTasks.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => {
+                      toggleFocus(t);
+                      setTaskSearch("");
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-amber-50 transition-colors"
+                  >
+                    <Star
+                      size={14}
+                      className="text-slate-300 flex-shrink-0"
+                    />
+                    <span className="flex-1 text-sm text-slate-700 truncate">
+                      {t.title}
+                    </span>
+                    {t.dueDate && (
+                      <span className="text-xs text-slate-400 flex-shrink-0">
+                        {format(new Date(t.dueDate), "MMM d")}
+                      </span>
+                    )}
+                  </button>
+                ))
+              ) : (
+                <p className="px-3 py-2 text-sm text-slate-400">
+                  No matching tasks.
+                </p>
+              )}
+            </div>
           )}
         </div>
       </div>

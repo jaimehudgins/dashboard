@@ -2,9 +2,14 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import { format, startOfDay } from "date-fns";
-import { Target } from "lucide-react";
+import { Target, CheckCircle2, Circle } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Task } from "@/types";
+import {
+  FocusItem,
+  fetchFocusItems,
+  toggleFocusItem,
+} from "@/lib/focus-items";
 import DailyQuote from "./DailyQuote";
 import EnergyNudge from "./EnergyNudge";
 import SmartInsights from "./SmartInsights";
@@ -24,6 +29,19 @@ export default function MorningBrief({ onOpenZenMode }: MorningBriefProps) {
   }, []);
 
   const momentum = getMomentumScore();
+
+  // Free-form focus notes chosen at End of Day for today.
+  const [focusNotes, setFocusNotes] = useState<FocusItem[]>([]);
+  useEffect(() => {
+    fetchFocusItems(format(new Date(), "yyyy-MM-dd")).then(setFocusNotes);
+  }, []);
+
+  const toggleNote = (item: FocusItem) => {
+    setFocusNotes((prev) =>
+      prev.map((i) => (i.id === item.id ? { ...i, done: !i.done } : i)),
+    );
+    toggleFocusItem(item.id, !item.done);
+  };
 
   // Tasks chosen at End of Day as today's focus.
   const focusTasks = useMemo(() => {
@@ -68,13 +86,43 @@ export default function MorningBrief({ onOpenZenMode }: MorningBriefProps) {
       <TodayAgenda />
 
       {/* Today's focus — chosen at End of Day */}
-      {focusTasks.length > 0 && (
+      {(focusTasks.length > 0 || focusNotes.length > 0) && (
         <div>
           <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
             <Target size={14} className="text-indigo-500" />
             Today&rsquo;s focus
           </h2>
           <div className="bg-white border border-indigo-200 rounded-xl divide-y divide-slate-100 overflow-hidden">
+            {focusNotes.map((item) => (
+              <div
+                key={item.id}
+                className="w-full flex items-center gap-3 px-4 py-3"
+              >
+                <button
+                  onClick={() => toggleNote(item)}
+                  className="flex-shrink-0 text-indigo-400 hover:text-indigo-600 transition-colors"
+                  aria-label={item.done ? "Mark not done" : "Mark done"}
+                >
+                  {item.done ? (
+                    <CheckCircle2 size={16} className="text-emerald-500" />
+                  ) : (
+                    <Circle size={16} />
+                  )}
+                </button>
+                <span
+                  className={`flex-1 text-sm ${
+                    item.done
+                      ? "text-slate-400 line-through"
+                      : "font-medium text-slate-800"
+                  }`}
+                >
+                  {item.text}
+                </span>
+                <span className="text-xs text-slate-400 flex-shrink-0">
+                  Intention
+                </span>
+              </div>
+            ))}
             {focusTasks.map((t) => {
               const project = state.projects.find((p) => p.id === t.projectId);
               return (
