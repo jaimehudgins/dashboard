@@ -240,6 +240,39 @@ function decodeBody(payload: any): string {
   return "";
 }
 
+// Drop quoted reply chains / forwarded blocks so a sent message reflects only
+// what the user actually wrote — used to model their writing voice.
+function ownTextOnly(text: string): string {
+  const out: string[] = [];
+  for (const line of text.split("\n")) {
+    const t = line.trim();
+    if (/^On\b.*\bwrote:\s*$/.test(t)) break;
+    if (/^-{2,}\s*Forwarded message/i.test(t)) break;
+    if (/^From:\s/.test(t) && out.length > 2) break;
+    if (t.startsWith(">")) continue;
+    out.push(line);
+  }
+  return out.join("\n").trim().slice(0, 1500);
+}
+
+// A few of the user's recent sent messages (their own words only), used as
+// voice samples when drafting a reply.
+export async function getSentSamples(
+  token: string,
+  max = 5,
+): Promise<string[]> {
+  const list = await gmailFetch(
+    token,
+    `/messages?q=${encodeURIComponent("in:sent -in:chats")}&maxResults=${Math.min(max, 10)}`,
+  );
+  const ids: { id: string }[] = list.messages || [];
+  const bodies = await mapLimit(ids, 5, async (m) => {
+    const msg = await gmailFetch(token, `/messages/${m.id}?format=full`);
+    return ownTextOnly(decodeBody(msg.payload));
+  });
+  return bodies.filter((b) => b.length > 40).slice(0, max);
+}
+
 export interface GmailThreadSummary {
   id: string;
   from: string;

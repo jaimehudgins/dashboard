@@ -140,6 +140,7 @@ export default function Mail() {
 
   const [replyBody, setReplyBody] = useState("");
   const [sending, setSending] = useState(false);
+  const [drafting, setDrafting] = useState(false);
   const [composing, setComposing] = useState(false);
   const [tripMenuOpen, setTripMenuOpen] = useState(false);
   const [tripList, setTripList] = useState<Trip[]>([]);
@@ -265,6 +266,29 @@ export default function Mail() {
       loadThreads(activeView);
     }
     loadViews();
+  };
+
+  const draftWithLeo = async () => {
+    if (!selectedId) return;
+    setDrafting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/mail/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          threadId: selectedId,
+          notes: replyBody.trim() || undefined,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Draft failed");
+      setReplyBody(d.draft);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Draft failed");
+    } finally {
+      setDrafting(false);
+    }
   };
 
   const sendReply = async () => {
@@ -398,13 +422,30 @@ export default function Mail() {
                 value={replyBody}
                 onChange={(e) => setReplyBody(e.target.value)}
                 rows={4}
-                placeholder="Write a reply…"
+                placeholder="Write a reply, or jot a few notes and let Leo draft it in your voice…"
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
               />
-              <div className="flex justify-end mt-2">
+              <div className="flex items-center justify-between mt-2">
+                <button
+                  onClick={draftWithLeo}
+                  disabled={drafting || sending}
+                  title="Leo drafts a reply in your voice. Add a few notes first to steer it."
+                  className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-60 rounded-lg transition-colors"
+                >
+                  {drafting ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : (
+                    <Sparkles size={15} />
+                  )}
+                  {drafting
+                    ? "Drafting…"
+                    : replyBody.trim()
+                      ? "Draft from notes"
+                      : "Draft with Leo"}
+                </button>
                 <button
                   onClick={sendReply}
-                  disabled={sending || !replyBody.trim()}
+                  disabled={sending || drafting || !replyBody.trim()}
                   className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 rounded-lg transition-colors"
                 >
                   {sending ? (
