@@ -30,6 +30,8 @@ const mdComponents = {
   h3: (p: any) => <h3 className="text-sm font-semibold mt-2 mb-1" {...p} />,
 };
 
+type Destination = "task" | "quick_task" | "note" | "backlog" | "ignore";
+
 interface ExtractedTask {
   id: string;
   task: string;
@@ -38,8 +40,33 @@ interface ExtractedTask {
   partner_name: string | null;
   source_quote: string | null;
   status: "pending" | "confirmed" | "dismissed";
-  routed_to: "crm" | "dashboard" | null;
+  routed_to: string | null;
+  confidence: "high" | "low" | null;
+  suggested_destination: Destination | null;
 }
+
+interface Draft {
+  task: string;
+  due_date: string;
+  destination: Destination;
+}
+
+const DEST_LABELS: Record<Destination, string> = {
+  task: "Task",
+  quick_task: "Quick task",
+  note: "Note",
+  backlog: "Backlog",
+  ignore: "Ignore",
+};
+
+const ROUTED_LABEL: Record<string, string> = {
+  task: "Added to Tasks",
+  crm: "Added to CRM",
+  quick_task: "Added to Quick Tasks",
+  note: "Saved as Note",
+  backlog: "Added to Backlog",
+  ignored: "Ignored",
+};
 
 interface Meeting {
   id: string;
@@ -64,6 +91,26 @@ export default function Margaret() {
   } | null>(null);
   const [loadingTranscript, setLoadingTranscript] = useState(false);
   const [partnerFilter, setPartnerFilter] = useState("all");
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+
+  // Seed an editable draft per pending item from Margaret's suggestion.
+  const seedDrafts = useCallback((ms: Meeting[]) => {
+    setDrafts((prev) => {
+      const next = { ...prev };
+      for (const m of ms) {
+        for (const t of m.tasks) {
+          if (t.status === "pending" && !next[t.id]) {
+            next[t.id] = {
+              task: t.task,
+              due_date: t.due_date || "",
+              destination: t.suggested_destination || "task",
+            };
+          }
+        }
+      }
+      return next;
+    });
+  }, []);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -73,10 +120,13 @@ export default function Margaret() {
         if (!r.ok) throw new Error(d.error || "Failed to load meetings");
         return d;
       })
-      .then((d) => setMeetings(d.meetings || []))
+      .then((d) => {
+        setMeetings(d.meetings || []);
+        seedDrafts(d.meetings || []);
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [seedDrafts]);
 
   useEffect(() => {
     load();
@@ -97,37 +147,51 @@ export default function Margaret() {
     }
   };
 
-  const act = async (
+  const setDraft = (id: string, patch: Partial<Draft>) =>
+    setDrafts((d) => ({ ...d, [id]: { ...d[id], ...patch } }));
+
+  const applyResult = (
     meetingId: string,
-    task: ExtractedTask,
-    action: "confirm" | "dismiss",
-  ) => {
+    taskId: string,
+    status: "confirmed" | "dismissed",
+    routedTo: string | null,
+  ) =>
+    setMeetings((prev) =>
+      prev.map((m) =>
+        m.id !== meetingId
+          ? m
+          : {
+              ...m,
+              tasks: m.tasks.map((t) =>
+                t.id !== taskId ? t : { ...t, status, routed_to: routedTo },
+              ),
+            },
+      ),
+    );
+
+  const route = async (meetingId: string, task: ExtractedTask) => {
+    const draft = drafts[task.id];
+    if (!draft) return;
     setBusy((b) => new Set(b).add(task.id));
     try {
       const r = await fetch("/api/granola/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: task.id, action }),
+        body: JSON.stringify({
+          id: task.id,
+          action: "route",
+          destination: draft.destination,
+          task: draft.task,
+          due_date: draft.due_date || null,
+        }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Action failed");
-      setMeetings((prev) =>
-        prev.map((m) =>
-          m.id !== meetingId
-            ? m
-            : {
-                ...m,
-                tasks: m.tasks.map((t) =>
-                  t.id !== task.id
-                    ? t
-                    : {
-                        ...t,
-                        status: action === "confirm" ? "confirmed" : "dismissed",
-                        routed_to: action === "confirm" ? d.routedTo : null,
-                      },
-                ),
-              },
-        ),
+      applyResult(
+        meetingId,
+        task.id,
+        draft.destination === "ignore" ? "dismissed" : "confirmed",
+        d.routedTo,
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Action failed");
@@ -137,6 +201,32 @@ export default function Margaret() {
         n.delete(task.id);
         return n;
       });
+    }
+  };
+
+  const dismiss = async (meetingId: string, task: ExtractedTask) => {
+    setBusy((b) => new Set(b).add(task.id));
+    try {
+      await fetch("/api/granola/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: task.id, action: "dismiss" }),
+      });
+      applyResult(meetingId, task.id, "dismissed", null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Action failed");
+    } finally {
+      setBusy((b) => {
+        const n = new Set(b);
+        n.delete(task.id);
+        return n;
+      });
+    }
+  };
+
+  const routeAll = async (m: Meeting) => {
+    for (const t of m.tasks.filter((x) => x.status === "pending")) {
+      await route(m.id, t);
     }
   };
 
@@ -285,9 +375,22 @@ export default function Margaret() {
                   )}
                 </div>
 
-                {/* Tasks */}
+                {/* Items to route */}
                 {m.tasks.length > 0 && (
                   <div className="mt-4 space-y-2">
+                    {pending.length > 0 && (
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium text-slate-500">
+                          {pending.length} to review
+                        </span>
+                        <button
+                          onClick={() => routeAll(m)}
+                          className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
+                        >
+                          Create all suggested →
+                        </button>
+                      </div>
+                    )}
                     {m.tasks.map((t) => {
                       const isBusy = busy.has(t.id);
                       if (t.status === "dismissed") {
@@ -312,68 +415,105 @@ export default function Margaret() {
                               className="text-emerald-500 flex-shrink-0"
                             />
                             <span className="flex-1 text-slate-700">{t.task}</span>
-                            <span className="text-xs text-emerald-700 inline-flex items-center gap-1 flex-shrink-0">
-                              {t.routed_to === "crm" ? (
-                                <>
-                                  <Building2 size={11} /> Added to CRM
-                                </>
-                              ) : (
-                                <>
-                                  <ListTodo size={11} /> Added to Tasks
-                                </>
-                              )}
+                            <span className="text-xs text-emerald-700 flex-shrink-0">
+                              {ROUTED_LABEL[t.routed_to || ""] || "Added"}
                             </span>
                           </div>
                         );
                       }
+                      const draft = drafts[t.id];
+                      if (!draft) return null;
+                      const showDue =
+                        draft.destination === "task" ||
+                        draft.destination === "quick_task";
+                      const partnerTask =
+                        draft.destination === "task" && t.partner_id;
                       return (
                         <div
                           key={t.id}
-                          className="flex items-start gap-2 px-3 py-2.5 bg-slate-50 rounded-lg"
+                          className="px-3 py-2.5 bg-slate-50 rounded-lg"
                         >
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-slate-800">{t.task}</p>
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
-                              {t.due_date && (
-                                <span className="text-xs text-amber-700">
-                                  Due {format(new Date(t.due_date), "MMM d")}
-                                </span>
-                              )}
-                              <span className="text-xs text-slate-400">
-                                →{" "}
-                                {t.partner_id
-                                  ? `${t.partner_name} (CRM)`
-                                  : "your tasks"}
+                          <div className="flex items-start gap-2">
+                            <input
+                              value={draft.task}
+                              onChange={(e) =>
+                                setDraft(t.id, { task: e.target.value })
+                              }
+                              className="flex-1 min-w-0 text-sm text-slate-800 bg-transparent border-b border-transparent hover:border-slate-200 focus:border-indigo-300 focus:outline-none py-0.5"
+                            />
+                            {t.confidence === "low" && (
+                              <span
+                                title="Lower confidence — Margaret wasn't sure this is a firm task"
+                                className="flex-shrink-0 text-[10px] font-medium text-amber-600 bg-amber-50 border border-amber-100 rounded px-1.5 py-0.5"
+                              >
+                                maybe
                               </span>
-                            </div>
-                            {t.source_quote && (
-                              <p className="text-xs text-slate-400 italic mt-1 truncate">
-                                “{t.source_quote}”
-                              </p>
                             )}
                           </div>
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            <button
-                              onClick={() => act(m.id, t, "confirm")}
-                              disabled={isBusy}
-                              title="Confirm — add this task"
-                              className="p-1.5 text-emerald-600 hover:bg-emerald-100 rounded-md disabled:opacity-50 transition-colors"
+
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <select
+                              value={draft.destination}
+                              onChange={(e) =>
+                                setDraft(t.id, {
+                                  destination: e.target.value as Destination,
+                                })
+                              }
+                              className="text-xs border border-slate-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300"
                             >
-                              {isBusy ? (
-                                <Loader2 size={15} className="animate-spin" />
-                              ) : (
-                                <Check size={15} />
-                              )}
-                            </button>
-                            <button
-                              onClick={() => act(m.id, t, "dismiss")}
-                              disabled={isBusy}
-                              title="Dismiss"
-                              className="p-1.5 text-slate-400 hover:bg-slate-200 rounded-md disabled:opacity-50 transition-colors"
-                            >
-                              <X size={15} />
-                            </button>
+                              {(
+                                Object.keys(DEST_LABELS) as Destination[]
+                              ).map((d) => (
+                                <option key={d} value={d}>
+                                  {DEST_LABELS[d]}
+                                </option>
+                              ))}
+                            </select>
+                            {showDue && (
+                              <input
+                                type="date"
+                                value={draft.due_date}
+                                onChange={(e) =>
+                                  setDraft(t.id, { due_date: e.target.value })
+                                }
+                                className="text-xs border border-slate-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                              />
+                            )}
+                            {partnerTask && (
+                              <span className="text-xs text-emerald-700 inline-flex items-center gap-1">
+                                <Building2 size={11} />
+                                {t.partner_name} (CRM)
+                              </span>
+                            )}
+                            <div className="flex items-center gap-1 ml-auto">
+                              <button
+                                onClick={() => route(m.id, t)}
+                                disabled={isBusy}
+                                title="Create — route this item"
+                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:opacity-50 transition-colors"
+                              >
+                                {isBusy ? (
+                                  <Loader2 size={13} className="animate-spin" />
+                                ) : (
+                                  <Check size={13} />
+                                )}
+                                Create
+                              </button>
+                              <button
+                                onClick={() => dismiss(m.id, t)}
+                                disabled={isBusy}
+                                title="Dismiss"
+                                className="p-1 text-slate-400 hover:bg-slate-200 rounded-md disabled:opacity-50 transition-colors"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
                           </div>
+                          {t.source_quote && (
+                            <p className="text-xs text-slate-400 italic mt-1.5 truncate">
+                              “{t.source_quote}”
+                            </p>
+                          )}
                         </div>
                       );
                     })}

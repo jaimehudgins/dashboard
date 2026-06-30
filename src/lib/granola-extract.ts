@@ -16,14 +16,16 @@ const EXTRACT_SCHEMA = {
     },
     tasks: {
       type: "array",
-      description: "Commitments or action items Jaime took on. Empty if none.",
+      description:
+        "Items worth capturing from this meeting (commitments, decisions, ideas). Empty if none.",
       items: {
         type: "object",
         additionalProperties: false,
         properties: {
           task: {
             type: "string",
-            description: "A concrete thing Jaime said he would do.",
+            description:
+              "The item as a short, imperative line (e.g. 'Send Ryan the vision doc').",
           },
           due_date: {
             type: "string",
@@ -34,8 +36,26 @@ const EXTRACT_SCHEMA = {
             type: "string",
             description: "The short transcript line this was drawn from.",
           },
+          confidence: {
+            type: "string",
+            enum: ["high", "low"],
+            description:
+              "high = an explicit, concrete commitment Jaime clearly owns; low = sounds like an action but is hypothetical, vague, or possibly someone else's.",
+          },
+          suggested_destination: {
+            type: "string",
+            enum: ["task", "quick_task", "note", "backlog", "ignore"],
+            description:
+              "Best home: task = a real to-do Jaime owns with weight; quick_task = a small/quick to-do; note = a decision/fact/context worth remembering, not an action; backlog = an idea or maybe-someday floated for later; ignore = chit-chat, not worth keeping.",
+          },
         },
-        required: ["task", "due_date", "source_quote"],
+        required: [
+          "task",
+          "due_date",
+          "source_quote",
+          "confidence",
+          "suggested_destination",
+        ],
       },
     },
   },
@@ -68,9 +88,17 @@ async function fetchPartners(): Promise<PartnerRef[]> {
   return (data || []).map((p) => ({ id: p.id as string, name: p.name as string }));
 }
 
+interface ExtractedItem {
+  task: string;
+  due_date: string;
+  source_quote: string;
+  confidence: "high" | "low";
+  suggested_destination: "task" | "quick_task" | "note" | "backlog" | "ignore";
+}
+
 interface ExtractResult {
   partnerName: string;
-  tasks: { task: string; due_date: string; source_quote: string }[];
+  tasks: ExtractedItem[];
 }
 
 async function extractFromTranscript(
@@ -90,14 +118,24 @@ async function extractFromTranscript(
       .filter(Boolean)
       .join(", ") || "unknown";
 
-  const system = `You are Margaret, the meeting-notes agent for Jaime, a partnerships/curriculum lead at Willow. You read a meeting transcript and pull out ONLY the concrete commitments JAIME took on — things he said he would do, send, follow up on, or decide. In the transcript, Jaime's own words are labeled "Jaime:" and everyone else is "Them:".
+  const system = `You are Margaret, the meeting-notes agent for Jaime, a partnerships/curriculum lead at Willow. You read a meeting transcript and surface the items worth capturing, then CLASSIFY each so it can be routed to the right home. In the transcript, Jaime's own words are labeled "Jaime:" and everyone else is "Them:".
 
-Rules:
-- Extract only Jaime's commitments/action items, not other people's, and not vague intentions.
-- If the meeting is personal/social or has no clear commitments from Jaime, return an empty tasks array.
-- due_date: only set it when a deadline is stated or clearly implied (resolve relative dates against today, ${todayISO}); otherwise empty string.
-- source_quote: the short line the task came from.
-- partner_name: ONLY set this when an EXTERNAL attendee (email NOT @${INTERNAL_DOMAIN}) belongs to one of the partner organizations below — return that partner's EXACT name. Meetings with only Willow staff (all @${INTERNAL_DOMAIN}) are internal: return an empty string. When unsure, empty string.
+What to surface: things Jaime committed to, decisions made, and ideas/possibilities floated. Skip pure chit-chat. A personal/social meeting with nothing worth keeping returns an empty array.
+
+For EACH item set:
+- confidence: "high" only for an explicit, concrete commitment Jaime clearly owns; otherwise "low".
+- suggested_destination — the single best home:
+  - "task": a real to-do Jaime owns with weight (e.g. "Send Ryan the vision doc").
+  - "quick_task": a small, quick to-do.
+  - "note": a decision, fact, or piece of context worth remembering — NOT an action (e.g. "Decided to rename 'saved items' to 'Bookmarks'").
+  - "backlog": an idea or maybe-someday floated for later (e.g. "Could add a training-school flow eventually").
+  - "ignore": not worth keeping.
+- Do NOT force everything into a task. If something only "sounds like" a task but is hypothetical, vague, or someone else's, classify it low confidence and route it to note/backlog/ignore.
+- task: phrase the item as a short imperative line.
+- due_date: only when a deadline is stated or clearly implied (resolve relative dates against today, ${todayISO}); otherwise empty string.
+- source_quote: the short line it came from.
+
+partner_name (meeting-level): ONLY set it when an EXTERNAL attendee (email NOT @${INTERNAL_DOMAIN}) belongs to one of the partner organizations below — return that partner's EXACT name. Meetings with only Willow staff (all @${INTERNAL_DOMAIN}) are internal: return an empty string. When unsure, empty string.
 
 Willow CRM partner roster:
 ${roster}`;
@@ -209,15 +247,25 @@ export async function extractPendingMeetings(
       : null;
     const rows = result.tasks
       .filter((t) => t.task && t.task.trim())
-      .map((t) => ({
-        meeting_id: m.id,
-        task: t.task.trim(),
-        due_date: /^\d{4}-\d{2}-\d{2}$/.test(t.due_date) ? t.due_date : null,
-        partner_id: partner?.id ?? null,
-        partner_name: partner?.name ?? null,
-        source_quote: t.source_quote || null,
-        status: "pending",
-      }));
+      // Drop pure noise; everything else is a routable candidate.
+      .filter((t) => t.suggested_destination !== "ignore")
+      .map((t) => {
+        const dest =
+          t.suggested_destination === "task" && partner
+            ? "task" // partner routing handled at confirm time
+            : t.suggested_destination;
+        return {
+          meeting_id: m.id,
+          task: t.task.trim(),
+          due_date: /^\d{4}-\d{2}-\d{2}$/.test(t.due_date) ? t.due_date : null,
+          partner_id: partner?.id ?? null,
+          partner_name: partner?.name ?? null,
+          source_quote: t.source_quote || null,
+          confidence: t.confidence === "high" ? "high" : "low",
+          suggested_destination: dest,
+          status: "pending",
+        };
+      });
     if (rows.length > 0) {
       const { error } = await supabase
         .from("granola_extracted_tasks")

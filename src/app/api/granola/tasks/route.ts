@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { confirmExtractedTask, dismissExtractedTask } from "@/lib/granola-route";
+import {
+  routeExtractedTask,
+  dismissExtractedTask,
+  type Destination,
+} from "@/lib/granola-route";
 
 // POST /api/granola/tasks
-//   { id, action: "confirm", task?, due_date?, partner_id?, partner_name? }
+//   { id, action: "route", destination, task?, due_date?, partner_id?, partner_name? }
 //   { id, action: "dismiss" }
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -14,6 +18,7 @@ export async function POST(req: Request) {
   let body: {
     id?: string;
     action?: string;
+    destination?: Destination;
     task?: string;
     due_date?: string | null;
     partner_id?: string | null;
@@ -36,8 +41,9 @@ export async function POST(req: Request) {
       await dismissExtractedTask(body.id);
       return NextResponse.json({ ok: true });
     }
-    if (body.action === "confirm") {
-      const result = await confirmExtractedTask(body.id, {
+    if (body.action === "route" || body.action === "confirm") {
+      const result = await routeExtractedTask(body.id, {
+        destination: body.destination,
         task: body.task,
         due_date: body.due_date,
         partner_id: body.partner_id,
