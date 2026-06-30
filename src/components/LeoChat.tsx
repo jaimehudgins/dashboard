@@ -2,6 +2,35 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { Send, Loader2, Wrench, MessageSquare } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
+// Tailwind preflight strips list/heading styling, so restore it per element.
+const mdComponents = {
+  p: (p: any) => <p className="mb-2 last:mb-0" {...p} />,
+  ul: (p: any) => <ul className="list-disc pl-5 mb-2 last:mb-0 space-y-1" {...p} />,
+  ol: (p: any) => <ol className="list-decimal pl-5 mb-2 last:mb-0 space-y-1" {...p} />,
+  li: (p: any) => <li className="leading-snug" {...p} />,
+  strong: (p: any) => <strong className="font-semibold text-slate-900" {...p} />,
+  em: (p: any) => <em className="italic" {...p} />,
+  a: (p: any) => (
+    <a
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-indigo-600 underline"
+      {...p}
+    />
+  ),
+  h1: (p: any) => <h1 className="text-base font-bold mt-3 mb-1" {...p} />,
+  h2: (p: any) => <h2 className="text-sm font-bold mt-3 mb-1" {...p} />,
+  h3: (p: any) => <h3 className="text-sm font-semibold mt-2 mb-1" {...p} />,
+  code: (p: any) => (
+    <code className="bg-slate-100 rounded px-1 py-0.5 text-xs font-mono" {...p} />
+  ),
+  blockquote: (p: any) => (
+    <blockquote className="border-l-2 border-slate-200 pl-3 text-slate-600 my-2" {...p} />
+  ),
+};
 
 interface ChatMsg {
   role: "user" | "assistant";
@@ -100,9 +129,17 @@ export default function LeoChat() {
                   : "bg-white border border-slate-200 text-slate-800"
               }`}
             >
-              <div className="text-sm whitespace-pre-wrap leading-relaxed">
-                {m.content}
-              </div>
+              {m.role === "user" ? (
+                <div className="text-sm whitespace-pre-wrap leading-relaxed">
+                  {m.content}
+                </div>
+              ) : (
+                <div className="text-sm leading-relaxed">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+                    {m.content}
+                  </ReactMarkdown>
+                </div>
+              )}
               {m.toolsUsed && m.toolsUsed.length > 0 && (
                 <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-slate-100 text-xs text-slate-400">
                   <Wrench size={11} />
