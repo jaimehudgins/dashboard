@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { syncGranola, isGranolaConfigured } from "@/lib/granola";
+import { extractPendingMeetings } from "@/lib/granola-extract";
+
+export const maxDuration = 300;
 
 // Manual Granola sync, gated by the logged-in session (not CRON_SECRET).
 // Backs the "Sync now" action in the Margaret UI; also usable in the browser
-// while signed in. GET and POST both run a sync.
+// while signed in. GET and POST both sync then extract.
 async function run() {
   if (!isGranolaConfigured) {
     return NextResponse.json(
@@ -14,8 +17,9 @@ async function run() {
     );
   }
   try {
-    const result = await syncGranola();
-    return NextResponse.json({ ok: true, ...result });
+    const sync = await syncGranola();
+    const extract = await extractPendingMeetings();
+    return NextResponse.json({ ok: true, ...sync, ...extract });
   } catch (err) {
     console.error("Granola manual sync error:", err);
     return NextResponse.json(
