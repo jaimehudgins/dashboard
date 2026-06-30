@@ -47,6 +47,7 @@ import {
   NotebookPen,
   Lightbulb,
   PenLine,
+  Scale,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Project } from "@/types";
@@ -80,6 +81,7 @@ const navItems = [
   { href: "/archive", label: "Work History", icon: Calendar },
   { href: "/notes", label: "Note Catcher", icon: StickyNote },
   { href: "/sam", label: "Writing", icon: PenLine },
+  { href: "/decisions", label: "Decisions", icon: Scale },
   { href: "/backlog", label: "Backlog", icon: Lightbulb },
   { href: "/review", label: "Big Block of Cheese Day", icon: TrendingUp },
   { href: "/curriculum", label: "Curriculum Tracker", icon: GraduationCap },

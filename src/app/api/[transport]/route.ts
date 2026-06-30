@@ -40,6 +40,12 @@ import {
   searchTranscripts,
   meetingsForPartner,
 } from "@/lib/granola-search";
+import {
+  fetchDecisions,
+  createDecision,
+  dueForReview,
+  daysSince,
+} from "@/lib/decisions";
 
 const ok = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
@@ -460,6 +466,80 @@ const handler = createMcpHandler(
         };
         await createTask(task);
         return ok({ created: true, id: task.id, title });
+      },
+    );
+
+    // ---- Decision log ----
+    server.registerTool(
+      "list_decisions",
+      {
+        title: "List decisions",
+        description:
+          "List logged decisions, newest first. Set dueForReviewOnly to get just the open ones that are 30+ days old (ready for a retrospective).",
+        inputSchema: {
+          dueForReviewOnly: z.boolean().optional(),
+          limit: z.number().int().min(1).max(100).optional(),
+        },
+      },
+      async ({ dueForReviewOnly, limit = 25 }) => {
+        const all = await fetchDecisions();
+        const rows = dueForReviewOnly ? dueForReview(all) : all;
+        return ok(
+          rows.slice(0, limit).map((d) => ({
+            decision: d.decision,
+            choice: d.choice,
+            reasoning: d.reasoning,
+            decided: d.decided_at,
+            daysSince: daysSince(d.decided_at),
+            status: d.status,
+            expected: d.expected_outcome,
+            actual: d.actual_outcome,
+          })),
+        );
+      },
+    );
+
+    server.registerTool(
+      "log_decision",
+      {
+        title: "Log a decision",
+        description: `Record a decision in the decision log — the call made and the reasoning, for later retrospective. ${CONFIRM_NOTE}`,
+        inputSchema: {
+          decision: z.string().describe("The decision, short."),
+          context: z.string().optional().describe("Why it came up."),
+          options: z.string().optional().describe("Options considered."),
+          choice: z.string().optional().describe("What was chosen."),
+          reasoning: z.string().optional(),
+          expected_outcome: z.string().optional(),
+          confirm: z.boolean().optional(),
+        },
+      },
+      async ({
+        decision,
+        context,
+        options,
+        choice,
+        reasoning,
+        expected_outcome,
+        confirm,
+      }) => {
+        if (!confirm)
+          return ok({
+            pending: true,
+            action: "log_decision",
+            decision: { decision, choice: choice || null, reasoning: reasoning || null },
+            note: "Re-run with confirm=true to save.",
+          });
+        const d = await createDecision({
+          decision,
+          context,
+          options,
+          choice,
+          reasoning,
+          expected_outcome,
+          decided_at: new Date().toISOString().slice(0, 10),
+        });
+        return ok({ created: !!d, id: d?.id, decision });
       },
     );
 
