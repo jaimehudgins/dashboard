@@ -45,6 +45,7 @@ import {
   MessageSquare,
   Mail,
   NotebookPen,
+  Lightbulb,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Project } from "@/types";
@@ -76,6 +77,7 @@ const navItems = [
   { href: "/", label: "Situation Room", icon: Command },
   { href: "/archive", label: "Work History", icon: Calendar },
   { href: "/notes", label: "Note Catcher", icon: StickyNote },
+  { href: "/backlog", label: "Backlog", icon: Lightbulb },
   { href: "/review", label: "Big Block of Cheese Day", icon: TrendingUp },
   { href: "/curriculum", label: "Curriculum Tracker", icon: GraduationCap },
 ];
