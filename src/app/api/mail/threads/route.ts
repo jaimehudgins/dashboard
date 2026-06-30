@@ -75,7 +75,7 @@ export async function GET(req: Request) {
       { labelIds: ["INBOX", labelId] },
       25,
     );
-    return NextResponse.json({ threads });
+    return NextResponse.json({ threads: await withUrgency(threads) });
   } catch (err) {
     console.error("Mail threads error:", err);
     return NextResponse.json({ error: "Failed to load mail" }, { status: 500 });
