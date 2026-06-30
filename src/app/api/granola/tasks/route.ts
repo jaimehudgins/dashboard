@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import {
   routeExtractedTask,
+  routeManualItem,
   dismissExtractedTask,
   type Destination,
 } from "@/lib/granola-route";
@@ -10,6 +11,7 @@ import {
 // POST /api/granola/tasks
 //   { id, action: "route", destination, task?, due_date?, partner_id?, partner_name? }
 //   { id, action: "dismiss" }
+//   { action: "manual", meetingId, task, destination, due_date?, partner_id? }
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) {
@@ -23,20 +25,39 @@ export async function POST(req: Request) {
     due_date?: string | null;
     partner_id?: string | null;
     partner_name?: string | null;
+    meetingId?: string;
   };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  if (!body.id || !body.action) {
-    return NextResponse.json(
-      { error: "id and action required" },
-      { status: 400 },
-    );
-  }
 
   try {
+    if (body.action === "manual") {
+      if (!body.meetingId || !body.task?.trim() || !body.destination) {
+        return NextResponse.json(
+          { error: "meetingId, task and destination required" },
+          { status: 400 },
+        );
+      }
+      const result = await routeManualItem({
+        meetingId: body.meetingId,
+        text: body.task,
+        destination: body.destination as Exclude<Destination, "ignore">,
+        due_date: body.due_date,
+        partner_id: body.partner_id,
+      });
+      return NextResponse.json({ ok: true, ...result });
+    }
+
+    if (!body.id || !body.action) {
+      return NextResponse.json(
+        { error: "id and action required" },
+        { status: 400 },
+      );
+    }
+
     if (body.action === "dismiss") {
       await dismissExtractedTask(body.id);
       return NextResponse.json({ ok: true });

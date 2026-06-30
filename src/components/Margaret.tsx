@@ -18,6 +18,7 @@ import {
   Building2,
   ListTodo,
   Trash2,
+  Plus,
 } from "lucide-react";
 
 const mdComponents = {
@@ -233,6 +234,80 @@ export default function Margaret() {
   const routeAll = async (m: Meeting) => {
     for (const t of m.tasks.filter((x) => x.status === "pending")) {
       await route(m.id, t);
+    }
+  };
+
+  // Manual "add an item Margaret missed" per meeting.
+  const [addForms, setAddForms] = useState<Record<string, Draft>>({});
+  const openAdd = (id: string) =>
+    setAddForms((f) => ({
+      ...f,
+      [id]: { task: "", due_date: "", destination: "task" },
+    }));
+  const closeAdd = (id: string) =>
+    setAddForms((f) => {
+      const n = { ...f };
+      delete n[id];
+      return n;
+    });
+  const setAddField = (id: string, patch: Partial<Draft>) =>
+    setAddForms((f) => ({ ...f, [id]: { ...f[id], ...patch } }));
+
+  const submitManual = async (m: Meeting) => {
+    const form = addForms[m.id];
+    if (!form?.task.trim()) return;
+    const partnerId = m.tasks.find((t) => t.partner_id)?.partner_id ?? null;
+    const partnerName = m.tasks.find((t) => t.partner_name)?.partner_name ?? null;
+    setBusy((b) => new Set(b).add(`add-${m.id}`));
+    try {
+      const r = await fetch("/api/granola/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "manual",
+          meetingId: m.id,
+          task: form.task.trim(),
+          destination: form.destination,
+          due_date: form.due_date || null,
+          partner_id: form.destination === "task" ? partnerId : null,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Add failed");
+      // Show it as a confirmed receipt on the card.
+      setMeetings((prev) =>
+        prev.map((x) =>
+          x.id !== m.id
+            ? x
+            : {
+                ...x,
+                tasks: [
+                  ...x.tasks,
+                  {
+                    id: `manual-${Date.now()}`,
+                    task: form.task.trim(),
+                    due_date: form.due_date || null,
+                    partner_id: partnerId,
+                    partner_name: partnerName,
+                    source_quote: null,
+                    status: "confirmed",
+                    routed_to: d.routedTo,
+                    confidence: null,
+                    suggested_destination: null,
+                  },
+                ],
+              },
+        ),
+      );
+      closeAdd(m.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Add failed");
+    } finally {
+      setBusy((b) => {
+        const n = new Set(b);
+        n.delete(`add-${m.id}`);
+        return n;
+      });
     }
   };
 
@@ -542,6 +617,67 @@ export default function Margaret() {
                   </div>
                 )}
 
+                {/* Add an item Margaret missed */}
+                {addForms[m.id] && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2 bg-indigo-50/50 border border-indigo-100 rounded-lg px-3 py-2.5">
+                    <input
+                      autoFocus
+                      value={addForms[m.id].task}
+                      onChange={(e) => setAddField(m.id, { task: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") submitManual(m);
+                        if (e.key === "Escape") closeAdd(m.id);
+                      }}
+                      placeholder="Add a task Margaret missed…"
+                      className="flex-1 min-w-[12rem] text-sm bg-white border border-slate-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                    />
+                    <select
+                      value={addForms[m.id].destination}
+                      onChange={(e) =>
+                        setAddField(m.id, {
+                          destination: e.target.value as Destination,
+                        })
+                      }
+                      className="text-xs border border-slate-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                    >
+                      <option value="task">Task</option>
+                      <option value="quick_task">Quick task</option>
+                      <option value="backlog">Backlog</option>
+                    </select>
+                    {(addForms[m.id].destination === "task" ||
+                      addForms[m.id].destination === "quick_task") && (
+                      <input
+                        type="date"
+                        value={addForms[m.id].due_date}
+                        onChange={(e) =>
+                          setAddField(m.id, { due_date: e.target.value })
+                        }
+                        className="text-xs border border-slate-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                      />
+                    )}
+                    <button
+                      onClick={() => submitManual(m)}
+                      disabled={
+                        !addForms[m.id].task.trim() || busy.has(`add-${m.id}`)
+                      }
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:opacity-50 transition-colors"
+                    >
+                      {busy.has(`add-${m.id}`) ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : (
+                        <Check size={13} />
+                      )}
+                      Add
+                    </button>
+                    <button
+                      onClick={() => closeAdd(m.id)}
+                      className="p-1 text-slate-400 hover:bg-slate-200 rounded-md"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
                 {/* Footer actions */}
                 <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-100 text-xs">
                   {m.summary && (
@@ -564,8 +700,19 @@ export default function Margaret() {
                     <FileText size={13} />
                     Transcript
                   </button>
-                  {m.tasks.length === 0 && (
-                    <span className="text-slate-400">No commitments found</span>
+                  {!addForms[m.id] && (
+                    <button
+                      onClick={() => openAdd(m.id)}
+                      className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 font-medium"
+                    >
+                      <Plus size={13} />
+                      Add item
+                    </button>
+                  )}
+                  {m.tasks.length === 0 && !addForms[m.id] && (
+                    <span className="text-slate-400 ml-auto">
+                      Nothing flagged
+                    </span>
                   )}
                 </div>
 
