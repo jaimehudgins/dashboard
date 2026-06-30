@@ -187,15 +187,16 @@ export async function getNote(id: string): Promise<GranolaNote | null> {
 }
 
 // Pull Granola notes and cache full meeting metadata + transcripts. Lists the
-// last 30 days (cheap, metadata-only), then fetches full content for any
-// meeting we don't yet have a transcript for — self-healing and incremental.
-export async function syncGranola(): Promise<{
-  fetched: number;
-  total: number;
-}> {
-  const createdAfter = new Date(
-    Date.now() - 30 * 24 * 60 * 60 * 1000,
-  ).toISOString();
+// window (default last 30 days, metadata-only), then fetches full content for
+// any meeting we don't yet have a transcript for — self-healing and
+// incremental. `markExtracted` skips task extraction for the caught meetings
+// (used for historical backfill — we want the context, not stale action items).
+export async function syncGranola(
+  opts: { createdAfter?: string; markExtracted?: boolean } = {},
+): Promise<{ fetched: number; total: number }> {
+  const createdAfter =
+    opts.createdAfter ??
+    new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const refs = await listRefsSince(createdAfter);
 
   const { data: have } = await supabase
@@ -216,19 +217,21 @@ export async function syncGranola(): Promise<{
     }
     if (!note) return;
 
-    const { error } = await supabase.from("granola_meetings").upsert(
-      {
-        id: note.id,
-        title: note.title,
-        summary: note.summary,
-        owner_name: note.ownerName,
-        owner_email: note.ownerEmail,
-        attendees: note.attendees,
-        meeting_date: note.meetingDate,
-        synced_at: new Date().toISOString(),
-      },
-      { onConflict: "id" },
-    );
+    const meetingRow: Record<string, unknown> = {
+      id: note.id,
+      title: note.title,
+      summary: note.summary,
+      owner_name: note.ownerName,
+      owner_email: note.ownerEmail,
+      attendees: note.attendees,
+      meeting_date: note.meetingDate,
+      synced_at: new Date().toISOString(),
+    };
+    if (opts.markExtracted) meetingRow.tasks_extracted = true;
+
+    const { error } = await supabase
+      .from("granola_meetings")
+      .upsert(meetingRow, { onConflict: "id" });
     if (error) {
       console.warn("granola upsert meeting:", note.id, error.message);
       return;
@@ -243,4 +246,16 @@ export async function syncGranola(): Promise<{
   });
 
   return { fetched, total: refs.length };
+}
+
+// One-time historical backfill: cache everything Granola has (summaries +
+// transcripts) for search/context, WITHOUT extracting tasks from old meetings.
+export async function backfillGranola(): Promise<{
+  fetched: number;
+  total: number;
+}> {
+  return syncGranola({
+    createdAfter: new Date("2015-01-01T00:00:00.000Z").toISOString(),
+    markExtracted: true,
+  });
 }

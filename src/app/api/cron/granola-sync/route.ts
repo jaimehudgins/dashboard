@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { syncGranola, isGranolaConfigured } from "@/lib/granola";
+import {
+  syncGranola,
+  backfillGranola,
+  isGranolaConfigured,
+} from "@/lib/granola";
 import { extractPendingMeetings } from "@/lib/granola-extract";
 
 export const maxDuration = 300;
@@ -7,6 +11,7 @@ export const maxDuration = 300;
 // Scheduled Granola pull (every 2 hours): cache new meetings + transcripts,
 // then extract Jaime's commitments from any unprocessed transcript.
 // Guarded by CRON_SECRET when set (Vercel sends Authorization: Bearer <secret>).
+//   ?backfill=1 — one-time historical pull (context only, no extraction).
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
   if (secret && req.headers.get("authorization") !== `Bearer ${secret}`) {
@@ -19,6 +24,10 @@ export async function GET(req: Request) {
     );
   }
   try {
+    if (new URL(req.url).searchParams.get("backfill") === "1") {
+      const result = await backfillGranola();
+      return NextResponse.json({ ok: true, backfill: true, ...result });
+    }
     const sync = await syncGranola();
     const extract = await extractPendingMeetings();
     return NextResponse.json({ ok: true, ...sync, ...extract });
