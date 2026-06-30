@@ -17,6 +17,7 @@ import {
   Sparkles,
   ShieldCheck,
   X,
+  Users,
 } from "lucide-react";
 import CharacterQuote from "./CharacterQuote";
 import { crmSupabase, isCrmConfigured } from "@/lib/crm-supabase";
@@ -354,6 +355,21 @@ function Editor({
               <ShieldCheck size={15} />
             )}
             Voice check
+          </button>
+          <button
+            onClick={() => {
+              try {
+                localStorage.setItem("leo.writersroom.draft", content);
+              } catch {
+                /* ignore */
+              }
+              window.location.href = "/writers-room";
+            }}
+            disabled={!content.trim()}
+            className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 disabled:opacity-50"
+          >
+            <Users size={15} />
+            Writers&rsquo; Room
           </button>
           <button
             onClick={() => setPreview((p) => !p)}

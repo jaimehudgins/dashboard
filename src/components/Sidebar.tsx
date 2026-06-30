@@ -83,6 +83,7 @@ const navItems = [
   { href: "/archive", label: "Work History", icon: Calendar },
   { href: "/notes", label: "Note Catcher", icon: StickyNote },
   { href: "/sam", label: "Writing", icon: PenLine },
+  { href: "/writers-room", label: "Writers' Room", icon: Users },
   { href: "/decisions", label: "Decisions", icon: Scale },
   { href: "/cj", label: "Field Intel", icon: Radio },
   { href: "/backlog", label: "Backlog", icon: Lightbulb },
