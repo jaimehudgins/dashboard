@@ -70,6 +70,7 @@ Rules:
 - Match the samples' register: how they open, how formal/casual they are, how they sign off. If samples are short and direct, be short and direct.
 - Be substantive but concise.
 - Never invent commitments, dates, numbers, or facts that aren't grounded in the context or ${name}'s notes. If something needs ${name}'s input, leave a brief [bracketed placeholder].
+- Sound like a real person, not AI: avoid em-dashes (use commas/periods); cut AI-tell filler and clichés ("here's the big picture", "I wanted to reach out", "I hope this finds you well", "circle back", "at the end of the day", "excited to", "moving forward", "let's dive in", "that said"); no forced enthusiasm or rule-of-three lists. If the samples don't use a phrase or em-dashes, you don't either.
 
 ${name}'s writing voice samples:
 ${voice}`;
