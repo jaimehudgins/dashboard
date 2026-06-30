@@ -35,6 +35,7 @@ import {
   getReplyContext,
   archiveThread,
 } from "@/lib/gmail";
+import { listMeetings, searchTranscripts } from "@/lib/granola-search";
 
 const ok = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
@@ -261,6 +262,41 @@ const handler = createMcpHandler(
         }
         return ok(rows);
       },
+    );
+
+    // ---- Meetings (Margaret — cached Granola meetings/transcripts) ----
+    server.registerTool(
+      "list_meetings",
+      {
+        title: "List meetings",
+        description:
+          "List recent meetings captured from Granola, newest first, with date, attendees, and the meeting summary. Use this to see what meetings happened or to find a meeting's id.",
+        inputSchema: {
+          limit: z.number().int().min(1).max(50).optional(),
+        },
+      },
+      async ({ limit = 15 }) => ok(await listMeetings(limit)),
+    );
+
+    server.registerTool(
+      "search_transcripts",
+      {
+        title: "Search meeting transcripts",
+        description:
+          "Search across meeting transcripts for what was said about a topic. Returns the best-matching meetings with short excerpts. Use this to answer questions like 'what did Sarah say about her budget?' — pass the topic words as `query` and the person's name (if any) as `person`.",
+        inputSchema: {
+          query: z
+            .string()
+            .describe("Topic/keywords to look for in transcripts."),
+          person: z
+            .string()
+            .optional()
+            .describe(
+              "Optional: limit to meetings involving this person (name or email).",
+            ),
+        },
+      },
+      async ({ query, person }) => ok(await searchTranscripts(query, person)),
     );
 
     // ---- Persistent memory (dashboard Supabase `memory` table) ----
