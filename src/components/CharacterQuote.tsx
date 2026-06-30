@@ -45,6 +45,14 @@ const QUOTES: Record<string, { name: string; lines: string[] }> = {
       "Education is the silver bullet.",
     ],
   },
+  mrsl: {
+    name: "Mrs. Landingham",
+    lines: [
+      "I know where everything is.",
+      "It's right where you left it, dear.",
+      "Did you really think I wouldn't have a copy?",
+    ],
+  },
 };
 
 function dayOfYear(date: Date): number {

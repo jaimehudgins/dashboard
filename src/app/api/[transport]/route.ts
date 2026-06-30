@@ -46,6 +46,7 @@ import {
   dueForReview,
   daysSince,
 } from "@/lib/decisions";
+import { searchDrive } from "@/lib/drive";
 
 const ok = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
@@ -310,6 +311,34 @@ const handler = createMcpHandler(
         },
       },
       async ({ query, person }) => ok(await searchTranscripts(query, person)),
+    );
+
+    // ---- Drive (Mrs. L) ----
+    server.registerTool(
+      "search_drive",
+      {
+        title: "Search Google Drive",
+        description:
+          "Search the user's Google Drive by file name and full-text content (curriculum docs, notes, retreat materials). Empty query returns recently modified files. Returns name, type, modified date, and a link.",
+        inputSchema: {
+          query: z.string().optional().describe("Name/content to search for."),
+          limit: z.number().int().min(1).max(50).optional(),
+        },
+      },
+      async ({ query = "", limit = 20 }) => {
+        if (!isGoogleServerConfigured)
+          return ok({ error: "Google not connected" });
+        const token = await getGoogleAccessToken();
+        const files = await searchDrive(token, query, limit);
+        return ok(
+          files.map((f) => ({
+            name: f.name,
+            type: f.type,
+            modified: f.modifiedTime?.slice(0, 10),
+            link: f.webViewLink,
+          })),
+        );
+      },
     );
 
     // ---- Persistent memory (dashboard Supabase `memory` table) ----

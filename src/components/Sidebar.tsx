@@ -48,6 +48,7 @@ import {
   Lightbulb,
   PenLine,
   Scale,
+  FolderSearch,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Project } from "@/types";
@@ -85,6 +86,7 @@ const navItems = [
   { href: "/backlog", label: "Backlog", icon: Lightbulb },
   { href: "/review", label: "Big Block of Cheese Day", icon: TrendingUp },
   { href: "/curriculum", label: "Curriculum Tracker", icon: GraduationCap },
+  { href: "/mrsl", label: "Drive", icon: FolderSearch },
 ];
 
 interface SortableProjectItemProps {
