@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import {
   listAllEvents,
+  listCalendars,
+  ownedCalendars,
   createEvent,
   CalendarApiError,
   EventInput,
@@ -73,13 +75,26 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  if (!input.calendarId || !input.title || !input.start || !input.end) {
+  if (!input.title || !input.start || !input.end) {
     return NextResponse.json(
-      { error: "calendarId, title, start and end are required" },
+      { error: "title, start and end are required" },
       { status: 400 },
     );
   }
   try {
+    // Default to the user's primary (owned) calendar when none is given.
+    if (!input.calendarId) {
+      const cals = await listCalendars(token);
+      const owned = ownedCalendars(cals);
+      const primary = owned.find((c) => c.primary) || owned[0];
+      if (!primary) {
+        return NextResponse.json(
+          { error: "No writable calendar found." },
+          { status: 400 },
+        );
+      }
+      input.calendarId = primary.id;
+    }
     const created = await createEvent(token, input);
     return NextResponse.json({ event: created });
   } catch (err) {

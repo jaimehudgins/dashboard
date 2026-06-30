@@ -14,6 +14,9 @@ import {
   X,
   Pencil,
   ListPlus,
+  CalendarPlus,
+  CalendarCheck,
+  Loader2,
 } from "lucide-react";
 import {
   crmSupabase,
@@ -39,6 +42,8 @@ interface Trip {
   notes?: string;
   packing: PackItem[];
   partnerIds?: string[]; // CRM partners this trip is about
+  calendarEventId?: string; // linked Google Calendar event
+  calendarEventLink?: string;
 }
 
 type TripFields = Pick<Trip, "destination" | "start" | "end" | "notes">;
@@ -132,6 +137,27 @@ export default function Travel() {
     dispatch({ type: "ADD_TASK", payload: task });
   };
 
+  // Create an all-day Google Calendar event spanning the trip and link it.
+  const addToCalendar = async (trip: Trip) => {
+    const res = await fetch("/api/calendar/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: `Travel: ${trip.destination}`,
+        allDay: true,
+        start: trip.start,
+        end: trip.end,
+        location: trip.destination,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to add to calendar");
+    updateTrip(trip.id, {
+      calendarEventId: data.event?.id,
+      calendarEventLink: data.event?.htmlLink,
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -196,6 +222,7 @@ export default function Travel() {
             onDelete={deleteTrip}
             onEdit={() => setEditingId(trip.id)}
             onAddPrepTask={() => addPrepTask(trip)}
+            onAddToCalendar={() => addToCalendar(trip)}
           />
         ),
       )}
@@ -328,6 +355,7 @@ function TripCard({
   onDelete,
   onEdit,
   onAddPrepTask,
+  onAddToCalendar,
 }: {
   trip: Trip;
   partners: CrmPartner[];
@@ -335,9 +363,24 @@ function TripCard({
   onDelete: (id: string) => void;
   onEdit: () => void;
   onAddPrepTask: () => void;
+  onAddToCalendar: () => Promise<void>;
 }) {
   const [newItem, setNewItem] = useState("");
   const [prepAdded, setPrepAdded] = useState(false);
+  const [calBusy, setCalBusy] = useState(false);
+  const [calError, setCalError] = useState(false);
+
+  const handleAddToCalendar = async () => {
+    setCalBusy(true);
+    setCalError(false);
+    try {
+      await onAddToCalendar();
+    } catch {
+      setCalError(true);
+    } finally {
+      setCalBusy(false);
+    }
+  };
 
   const selected = useMemo(
     () => new Set(trip.partnerIds || []),
@@ -415,6 +458,30 @@ function TripCard({
           )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
+          {trip.calendarEventId ? (
+            <a
+              href={trip.calendarEventLink || "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+            >
+              <CalendarCheck size={14} />
+              On calendar
+            </a>
+          ) : (
+            <button
+              onClick={handleAddToCalendar}
+              disabled={calBusy}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-sky-600 hover:bg-sky-50 disabled:opacity-60 rounded-lg transition-colors"
+            >
+              {calBusy ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <CalendarPlus size={14} />
+              )}
+              {calError ? "Retry" : "Add to calendar"}
+            </button>
+          )}
           <button
             onClick={() => {
               onAddPrepTask();
