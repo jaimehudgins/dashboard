@@ -45,6 +45,8 @@ interface UnifiedRow {
 
 interface Props {
   onFocusTask?: (task: Task) => void;
+  initialDueFilter?: DueFilter;
+  compact?: boolean; // hide the filter bar (focused widget, e.g. the brief)
 }
 
 type SortKey = "dueDate" | "title" | "status" | "priority" | "area";
@@ -52,6 +54,7 @@ type SortDir = "asc" | "desc";
 
 const DUE_FILTERS = [
   { id: "all", label: "All" },
+  { id: "soon", label: "Due Soon" },
   { id: "overdue", label: "Overdue" },
   { id: "today", label: "Today" },
   { id: "week", label: "This Week" },
@@ -60,7 +63,11 @@ const DUE_FILTERS = [
 
 type DueFilter = (typeof DUE_FILTERS)[number]["id"];
 
-export default function UnifiedTaskTable({ onFocusTask }: Props) {
+export default function UnifiedTaskTable({
+  onFocusTask,
+  initialDueFilter,
+  compact = false,
+}: Props) {
   const { state, dispatch } = useApp();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [editingPartner, setEditingPartner] = useState<UnifiedRow | null>(null);
@@ -73,7 +80,7 @@ export default function UnifiedTaskTable({ onFocusTask }: Props) {
   const [loadingPartner, setLoadingPartner] = useState(true);
 
   const [search, setSearch] = useState("");
-  const [dueFilter, setDueFilter] = useState<DueFilter>("all");
+  const [dueFilter, setDueFilter] = useState<DueFilter>(initialDueFilter ?? "all");
   const [areaFilter, setAreaFilter] = useState<string>("all"); // "all" | areaId | "partner" | "unassigned"
   const [statusFilter, setStatusFilter] = useState<string>("active"); // "all" | "active" | "completed"
   const [sortKey, setSortKey] = useState<SortKey>("dueDate");
@@ -296,6 +303,9 @@ export default function UnifiedTaskTable({ onFocusTask }: Props) {
         const d = r.dueDate ? startOfDay(r.dueDate) : null;
         if (dueFilter === "nodate") {
           if (d) return false;
+        } else if (dueFilter === "soon") {
+          // Overdue or due within the next two days.
+          if (!d || d > addDays(today, 2)) return false;
         } else if (dueFilter === "overdue") {
           if (!d || d >= today) return false;
         } else if (dueFilter === "today") {
@@ -465,6 +475,7 @@ export default function UnifiedTaskTable({ onFocusTask }: Props) {
       </div>
 
       {/* Filters */}
+      {!compact && (
       <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 space-y-2">
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative flex-1 min-w-[180px]">
@@ -522,6 +533,7 @@ export default function UnifiedTaskTable({ onFocusTask }: Props) {
           ))}
         </div>
       </div>
+      )}
 
       {/* Table */}
       <div className="overflow-auto max-h-[640px]">

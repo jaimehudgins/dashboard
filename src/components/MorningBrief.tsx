@@ -55,12 +55,24 @@ export default function MorningBrief({ onOpenZenMode }: MorningBriefProps) {
       {/* Today's calendar */}
       <TodayAgenda />
 
-      {/* Today's tasks */}
+      {/* Due soon — overdue or due in the next couple days */}
       <div>
-        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">
-          Today
-        </h2>
-        <UnifiedTaskTable onFocusTask={onOpenZenMode} />
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">
+            Due soon
+          </h2>
+          <a
+            href="/"
+            className="text-xs font-medium text-indigo-600 hover:underline"
+          >
+            See all tasks →
+          </a>
+        </div>
+        <UnifiedTaskTable
+          onFocusTask={onOpenZenMode}
+          initialDueFilter="soon"
+          compact
+        />
       </div>
 
       {/* Smart Insights */}
