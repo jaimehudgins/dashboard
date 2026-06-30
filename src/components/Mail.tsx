@@ -13,7 +13,10 @@ import {
   X,
   RefreshCw,
   Sparkles,
+  Plane,
+  Check,
 } from "lucide-react";
+import { Trip, loadTrips, attachEmailToTrip } from "@/lib/trips";
 
 type Urgency = "now" | "question" | "later" | null;
 
@@ -138,6 +141,22 @@ export default function Mail() {
   const [replyBody, setReplyBody] = useState("");
   const [sending, setSending] = useState(false);
   const [composing, setComposing] = useState(false);
+  const [tripMenuOpen, setTripMenuOpen] = useState(false);
+  const [tripList, setTripList] = useState<Trip[]>([]);
+  const [attachedTo, setAttachedTo] = useState<string | null>(null);
+
+  const addToTrip = (trip: Trip) => {
+    if (!thread || !selectedId) return;
+    const m = thread.messages[0];
+    attachEmailToTrip(trip.id, {
+      threadId: selectedId,
+      subject: m?.subject || "",
+      from: m?.from || "",
+      date: m?.date || "",
+    });
+    setAttachedTo(trip.id);
+    setTimeout(() => setTripMenuOpen(false), 900);
+  };
 
   const loadViews = useCallback(() => {
     fetch("/api/mail/views")
@@ -211,6 +230,8 @@ export default function Mail() {
     setSelectedUrgency(threads.find((t) => t.id === id)?.urgency ?? null);
     setThread(null);
     setReplyBody("");
+    setTripMenuOpen(false);
+    setAttachedTo(null);
     setLoadingThread(true);
     fetch(`/api/mail/thread?id=${id}`)
       .then(async (r) => {
@@ -272,13 +293,56 @@ export default function Mail() {
             <ArrowLeft size={16} />
             Inbox
           </button>
-          <button
-            onClick={() => archive(selectedId)}
-            className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
-          >
-            <Archive size={15} />
-            Archive
-          </button>
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setTripList(loadTrips());
+                  setAttachedTo(null);
+                  setTripMenuOpen((o) => !o);
+                }}
+                className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
+              >
+                <Plane size={15} />
+                Add to trip
+              </button>
+              {tripMenuOpen && (
+                <div className="absolute right-0 top-full mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-lg z-20 py-1 max-h-72 overflow-y-auto">
+                  {tripList.length === 0 ? (
+                    <div className="px-3 py-2 text-xs text-slate-400">
+                      No trips yet — add one on the Travel page.
+                    </div>
+                  ) : (
+                    tripList.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => addToTrip(t)}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between gap-2"
+                      >
+                        <span className="truncate text-slate-700">
+                          {t.destination}
+                        </span>
+                        {attachedTo === t.id ? (
+                          <Check size={15} className="text-green-600 flex-shrink-0" />
+                        ) : (
+                          <span className="text-xs text-slate-400 flex-shrink-0">
+                            {format(new Date(t.start), "MMM d")}
+                          </span>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => archive(selectedId)}
+              className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
+            >
+              <Archive size={15} />
+              Archive
+            </button>
+          </div>
         </div>
 
         {loadingThread && (

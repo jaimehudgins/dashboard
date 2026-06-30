@@ -17,6 +17,7 @@ import {
   CalendarPlus,
   CalendarCheck,
   Loader2,
+  Mail,
 } from "lucide-react";
 import {
   crmSupabase,
@@ -25,39 +26,20 @@ import {
 } from "@/lib/crm-supabase";
 import { useApp } from "@/store/store";
 import { Task } from "@/types";
+import {
+  Trip,
+  loadTrips,
+  saveTrips,
+  tripUid as uid,
+} from "@/lib/trips";
 
 const CRM_URL = "https://willow-crm-three.vercel.app";
-const STORAGE_KEY = "leo.trips";
-
-interface PackItem {
-  id: string;
-  text: string;
-  done: boolean;
-}
-interface Trip {
-  id: string;
-  destination: string;
-  start: string; // YYYY-MM-DD
-  end: string;
-  notes?: string;
-  packing: PackItem[];
-  partnerIds?: string[]; // CRM partners this trip is about
-  calendarEventId?: string; // linked Google Calendar event
-  calendarEventLink?: string;
-}
 
 type TripFields = Pick<Trip, "destination" | "start" | "end" | "notes">;
 
-const uid = () =>
-  `${Date.now().toString(36)}-${Math.floor(performance.now()).toString(36)}`;
-
-function loadTrips(): Trip[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as Trip[]) : [];
-  } catch {
-    return [];
-  }
+function senderName(from: string): string {
+  const m = from.match(/^\s*"?([^"<]+?)"?\s*<.*>/);
+  return (m ? m[1] : from.replace(/<.*>/, "")).trim() || from;
 }
 
 function cityToken(destination: string): string {
@@ -80,7 +62,7 @@ export default function Travel() {
 
   // Persist whenever trips change (after hydration).
   useEffect(() => {
-    if (hydrated) localStorage.setItem(STORAGE_KEY, JSON.stringify(trips));
+    if (hydrated) saveTrips(trips);
   }, [trips, hydrated]);
 
   // Pull partners from the CRM for destination briefings.
@@ -655,6 +637,53 @@ function TripCard({
           )}
         </div>
       </div>
+
+      {trip.emails && trip.emails.length > 0 && (
+        <div className="px-5 py-4 border-t border-slate-100">
+          <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+            <Mail size={15} className="text-slate-400" />
+            Attached emails
+            <span className="text-xs text-slate-400">
+              ({trip.emails.length})
+            </span>
+          </h3>
+          <div className="space-y-1.5">
+            {trip.emails.map((e) => (
+              <div
+                key={e.threadId}
+                className="flex items-center gap-2 group text-sm"
+              >
+                <a
+                  href={`https://mail.google.com/mail/u/0/#all/${e.threadId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 min-w-0 flex items-baseline gap-2 hover:underline"
+                >
+                  <span className="truncate text-slate-800">
+                    {e.subject || "(no subject)"}
+                  </span>
+                  <span className="text-xs text-slate-400 truncate flex-shrink-0">
+                    {senderName(e.from)}
+                  </span>
+                </a>
+                <button
+                  onClick={() =>
+                    onUpdate(trip.id, {
+                      emails: (trip.emails || []).filter(
+                        (x) => x.threadId !== e.threadId,
+                      ),
+                    })
+                  }
+                  className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all flex-shrink-0"
+                  aria-label="Remove email"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
