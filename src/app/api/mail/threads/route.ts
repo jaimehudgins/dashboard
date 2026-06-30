@@ -3,11 +3,32 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { listThreads, ensureLeoLabels } from "@/lib/gmail";
 import { LEO_LABEL_NAMES, LeoBucket } from "@/lib/mail-views";
-import { fetchUrgency } from "@/lib/mail-urgency";
+import {
+  fetchUrgency,
+  classifyUrgency,
+  saveUrgency,
+} from "@/lib/mail-urgency";
 import type { GmailThreadSummary } from "@/lib/gmail";
 
 async function withUrgency(threads: GmailThreadSummary[]) {
   const urgency = await fetchUrgency(threads.map((t) => t.id));
+  // Lazily rate any displayed thread that hasn't been classified yet, so every
+  // view (not just the recently-sorted inbox window) shows the glyph.
+  const missing = threads.filter((t) => !urgency[t.id]);
+  if (missing.length > 0) {
+    const judged = await classifyUrgency(
+      missing.map((t) => ({
+        id: t.id,
+        from: t.from,
+        subject: t.subject,
+        snippet: t.snippet,
+      })),
+    );
+    if (judged.size > 0) {
+      await saveUrgency(judged);
+      for (const [id, u] of judged) urgency[id] = u;
+    }
+  }
   return threads.map((t) => ({ ...t, urgency: urgency[t.id] || null }));
 }
 
