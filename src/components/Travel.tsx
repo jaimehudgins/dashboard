@@ -47,12 +47,12 @@ function cityToken(destination: string): string {
 }
 
 export default function Travel() {
-  const { dispatch } = useApp();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [partners, setPartners] = useState<CrmPartner[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [prepTrip, setPrepTrip] = useState<Trip | null>(null);
 
   // Load trips from localStorage once on mount.
   useEffect(() => {
@@ -104,20 +104,6 @@ export default function Travel() {
   const deleteTrip = (id: string) =>
     setTrips((prev) => prev.filter((t) => t.id !== id));
 
-  // Drop a prep task onto the main task list, due by the trip's start.
-  const addPrepTask = (trip: Trip) => {
-    const task: Task = {
-      id: crypto.randomUUID(),
-      title: `Prep for ${trip.destination} trip`,
-      priority: "medium",
-      status: "pending",
-      projectId: null,
-      dueDate: new Date(`${trip.start}T12:00:00`),
-      createdAt: new Date(),
-      focusMinutes: 0,
-    };
-    dispatch({ type: "ADD_TASK", payload: task });
-  };
 
   // Create an all-day Google Calendar event spanning the trip and link it.
   const addToCalendar = async (trip: Trip) => {
@@ -203,7 +189,7 @@ export default function Travel() {
             onUpdate={updateTrip}
             onDelete={deleteTrip}
             onEdit={() => setEditingId(trip.id)}
-            onAddPrepTask={() => addPrepTask(trip)}
+            onAddPrepTask={() => setPrepTrip(trip)}
             onAddToCalendar={() => addToCalendar(trip)}
           />
         ),
@@ -240,6 +226,150 @@ export default function Travel() {
           </div>
         </div>
       )}
+
+      {prepTrip && (
+        <PrepTaskModal trip={prepTrip} onClose={() => setPrepTrip(null)} />
+      )}
+    </div>
+  );
+}
+
+/* --------------------------- Prep task modal --------------------------- */
+
+function PrepTaskModal({
+  trip,
+  onClose,
+}: {
+  trip: Trip;
+  onClose: () => void;
+}) {
+  const { state, dispatch } = useApp();
+  const [title, setTitle] = useState(`Prep for ${trip.destination} trip`);
+  const [dueDate, setDueDate] = useState(trip.start);
+  const [priority, setPriority] = useState<Task["priority"]>("medium");
+  const [areaId, setAreaId] = useState<string>("");
+  const [description, setDescription] = useState("");
+
+  const create = () => {
+    if (!title.trim()) return;
+    const task: Task = {
+      id: crypto.randomUUID(),
+      title: title.trim(),
+      description: description.trim() || undefined,
+      priority,
+      status: "pending",
+      projectId: null,
+      dueDate: dueDate ? new Date(`${dueDate}T12:00:00`) : undefined,
+      createdAt: new Date(),
+      focusMinutes: 0,
+      areaId: areaId || undefined,
+    };
+    dispatch({ type: "ADD_TASK", payload: task });
+    onClose();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-xl max-w-md w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-5 border-b border-slate-100">
+          <h2 className="text-lg font-semibold text-slate-900">Prep task</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="p-5 space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              Task
+            </label>
+            <input
+              autoFocus
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">
+                Due
+              </label>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">
+                Priority
+              </label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as Task["priority"])}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              >
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              Area
+            </label>
+            <select
+              value={areaId}
+              onChange={(e) => setAreaId(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+            >
+              <option value="">No area</option>
+              {state.areas.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              Notes
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              placeholder="Anything to remember for this prep…"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 p-5 border-t border-slate-100">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={create}
+            disabled={!title.trim()}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 rounded-lg"
+          >
+            <ListPlus size={15} />
+            Add task
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -348,7 +478,6 @@ function TripCard({
   onAddToCalendar: () => Promise<void>;
 }) {
   const [newItem, setNewItem] = useState("");
-  const [prepAdded, setPrepAdded] = useState(false);
   const [calBusy, setCalBusy] = useState(false);
   const [calError, setCalError] = useState(false);
 
@@ -465,15 +594,11 @@ function TripCard({
             </button>
           )}
           <button
-            onClick={() => {
-              onAddPrepTask();
-              setPrepAdded(true);
-            }}
-            disabled={prepAdded}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50 disabled:text-green-600 disabled:hover:bg-transparent rounded-lg transition-colors"
+            onClick={onAddPrepTask}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
           >
-            {prepAdded ? <Check size={14} /> : <ListPlus size={14} />}
-            {prepAdded ? "Prep task added" : "Add prep task"}
+            <ListPlus size={14} />
+            Add prep task
           </button>
           <button
             onClick={onEdit}
