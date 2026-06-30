@@ -67,8 +67,8 @@ interface SidebarProps {
 
 const navItems = [
   { href: "/chat", label: "Chat with Leo", icon: MessageSquare },
-  { href: "/mail", label: "Donna (Mail)", icon: Mail },
-  { href: "/meetings", label: "Margaret (Meetings)", icon: NotebookPen },
+  { href: "/mail", label: "Mail", icon: Mail },
+  { href: "/meetings", label: "Meetings", icon: NotebookPen },
   { href: "/brief", label: "Morning Brief", icon: Sunrise },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/travel", label: "Travel", icon: Plane },

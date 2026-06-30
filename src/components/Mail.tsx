@@ -20,6 +20,7 @@ import {
 import { Trip, loadTrips, attachEmailToTrip } from "@/lib/trips";
 import { useApp } from "@/store/store";
 import { Task, QuickTask } from "@/types";
+import CharacterQuote from "./CharacterQuote";
 
 type Urgency = "now" | "question" | "later" | null;
 
@@ -598,7 +599,7 @@ export default function Mail() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Donna</h1>
-            <p className="text-slate-500 text-sm">Your inbox, inside Leo.</p>
+            <CharacterQuote character="donna" />
           </div>
         </div>
         <div className="flex items-center gap-2">

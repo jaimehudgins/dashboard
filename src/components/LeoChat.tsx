@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Send, Loader2, Wrench, MessageSquare } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import CharacterQuote from "./CharacterQuote";
 
 // Tailwind preflight strips list/heading styling, so restore it per element.
 const mdComponents = {
@@ -123,7 +124,7 @@ export default function LeoChat() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Leo</h1>
-          <p className="text-slate-500 text-sm">What can I do for you?</p>
+          <CharacterQuote character="leo" />
         </div>
         {messages.length > 0 && (
           <button

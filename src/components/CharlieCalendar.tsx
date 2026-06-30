@@ -38,6 +38,7 @@ import { GcalEvent, GcalCalendar, isOwnedCalendar } from "@/lib/google-calendar"
 import EventEditor from "./EventEditor";
 import FindTimeModal from "./FindTimeModal";
 import AskCharlieModal from "./AskCharlieModal";
+import CharacterQuote from "./CharacterQuote";
 
 type View = "day" | "week" | "month";
 const HOUR_PX = 48;
@@ -243,6 +244,7 @@ export default function CharlieCalendar({ onSelectEvent }: CharlieCalendarProps)
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Charlie</h1>
             <p className="text-slate-500 text-sm">{title}</p>
+            <CharacterQuote character="charlie" />
           </div>
         </div>
 
