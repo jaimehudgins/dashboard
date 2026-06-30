@@ -53,6 +53,14 @@ const QUOTES: Record<string, { name: string; lines: string[] }> = {
       "Did you really think I wouldn't have a copy?",
     ],
   },
+  cj: {
+    name: "CJ",
+    lines: [
+      "Here's what you need to know before it breaks.",
+      "I read everything so you don't have to.",
+      "Full lid? Not while the field's still moving.",
+    ],
+  },
 };
 
 function dayOfYear(date: Date): number {
