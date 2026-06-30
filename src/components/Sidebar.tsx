@@ -43,6 +43,7 @@ import {
   CalendarDays,
   Plane,
   MessageSquare,
+  Mail,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Project } from "@/types";
@@ -64,6 +65,7 @@ interface SidebarProps {
 
 const navItems = [
   { href: "/chat", label: "Chat with Leo", icon: MessageSquare },
+  { href: "/mail", label: "Donna (Mail)", icon: Mail },
   { href: "/brief", label: "Morning Brief", icon: Sunrise },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/travel", label: "Travel", icon: Plane },
