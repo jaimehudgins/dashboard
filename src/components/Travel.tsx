@@ -497,6 +497,7 @@ function TripCard({
     () => new Set(trip.partnerIds || []),
     [trip.partnerIds],
   );
+  const [showAllPartners, setShowAllPartners] = useState(false);
   const togglePartner = (id: string) => {
     const next = new Set(selected);
     if (next.has(id)) next.delete(id);
@@ -697,7 +698,15 @@ function TripCard({
             </p>
           ) : (
             <div className="space-y-2">
-              {matches.map((p) => {
+              {(() => {
+                const collapsible = matches.length > 4;
+                const untied = matches.filter((p) => !selected.has(p.id));
+                const visible =
+                  !collapsible || showAllPartners
+                    ? matches
+                    : matches.filter((p) => selected.has(p.id));
+                return visible;
+              })().map((p) => {
                 const isOn = selected.has(p.id);
                 return (
                   <div
@@ -758,6 +767,22 @@ function TripCard({
                   </div>
                 );
               })}
+              {matches.length > 4 && (
+                <button
+                  onClick={() => setShowAllPartners((s) => !s)}
+                  className="text-xs font-medium text-indigo-600 hover:text-indigo-800 pl-1"
+                >
+                  {showAllPartners
+                    ? "Show fewer"
+                    : `Show ${
+                        matches.filter((p) => !selected.has(p.id)).length
+                      } more partner${
+                        matches.filter((p) => !selected.has(p.id)).length === 1
+                          ? ""
+                          : "s"
+                      }`}
+                </button>
+              )}
             </div>
           )}
         </div>
