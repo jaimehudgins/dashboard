@@ -57,6 +57,7 @@ const DUE_FILTERS = [
   { id: "soon", label: "Due Soon" },
   { id: "overdue", label: "Overdue" },
   { id: "today", label: "Today" },
+  { id: "tomorrow", label: "Tomorrow" },
   { id: "week", label: "This Week" },
   { id: "nodate", label: "No Date" },
 ] as const;
@@ -310,6 +311,8 @@ export default function UnifiedTaskTable({
           if (!d || d >= today) return false;
         } else if (dueFilter === "today") {
           if (!d || d.getTime() !== today.getTime()) return false;
+        } else if (dueFilter === "tomorrow") {
+          if (!d || d.getTime() !== addDays(today, 1).getTime()) return false;
         } else if (dueFilter === "week") {
           if (!d || d < today || d > weekEnd) return false;
         }
@@ -475,8 +478,8 @@ export default function UnifiedTaskTable({
       </div>
 
       {/* Filters */}
-      {!compact && (
       <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 space-y-2">
+        {!compact && (
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative flex-1 min-w-[180px]">
             <Search
@@ -516,6 +519,7 @@ export default function UnifiedTaskTable({
             <option value="all">All Statuses</option>
           </select>
         </div>
+        )}
 
         <div className="flex items-center gap-1 flex-wrap">
           {DUE_FILTERS.map((f) => (
@@ -533,7 +537,6 @@ export default function UnifiedTaskTable({
           ))}
         </div>
       </div>
-      )}
 
       {/* Table */}
       <div className="overflow-auto max-h-[640px]">

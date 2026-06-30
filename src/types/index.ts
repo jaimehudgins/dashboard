@@ -25,6 +25,7 @@ export interface Task {
   status: TaskStatus;
   projectId: string | null;
   dueDate?: Date;
+  focusDate?: Date; // day intentionally chosen to work on it (set at EOD)
   createdAt: Date;
   completedAt?: Date;
   focusMinutes: number;

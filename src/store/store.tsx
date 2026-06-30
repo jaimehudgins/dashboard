@@ -64,6 +64,7 @@ type Action =
   | { type: "ADD_TASK"; payload: Task }
   | { type: "UPDATE_TASK"; payload: Task }
   | { type: "DELETE_TASK"; payload: string }
+  | { type: "SET_TASK_FOCUS"; payload: { taskId: string; focusDate: Date | null } }
   | {
       type: "REORDER_TASKS";
       payload: { projectId?: string; taskIds: string[] };
@@ -199,6 +200,17 @@ function appReducer(state: AppState, action: Action): AppState {
         ...state,
         tasks: [...state.tasks, newTask],
         activityLogs: [...state.activityLogs, activityLog],
+      };
+    }
+
+    case "SET_TASK_FOCUS": {
+      return {
+        ...state,
+        tasks: state.tasks.map((t) =>
+          t.id === action.payload.taskId
+            ? { ...t, focusDate: action.payload.focusDate ?? undefined }
+            : t,
+        ),
       };
     }
 
@@ -875,6 +887,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             break;
           case "UPDATE_TASK":
             await db.updateTask(action.payload);
+            break;
+          case "SET_TASK_FOCUS":
+            await db.setTaskFocus(
+              action.payload.taskId,
+              action.payload.focusDate
+                ? action.payload.focusDate.toISOString().split("T")[0]
+                : null,
+            );
             break;
           case "DELETE_TASK":
             // Clean up related data before deleting the task

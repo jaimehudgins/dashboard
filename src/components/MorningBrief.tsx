@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { format } from "date-fns";
+import React, { useEffect, useState, useMemo } from "react";
+import { format, startOfDay } from "date-fns";
 import { Target } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Task } from "@/types";
@@ -16,7 +16,7 @@ interface MorningBriefProps {
 }
 
 export default function MorningBrief({ onOpenZenMode }: MorningBriefProps) {
-  const { getMomentumScore } = useApp();
+  const { state, getMomentumScore } = useApp();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -24,6 +24,18 @@ export default function MorningBrief({ onOpenZenMode }: MorningBriefProps) {
   }, []);
 
   const momentum = getMomentumScore();
+
+  // Tasks chosen at End of Day as today's focus.
+  const focusTasks = useMemo(() => {
+    const today = startOfDay(new Date()).getTime();
+    return state.tasks.filter(
+      (t) =>
+        t.status !== "completed" &&
+        !t.parentTaskId &&
+        t.focusDate &&
+        startOfDay(new Date(t.focusDate)).getTime() === today,
+    );
+  }, [state.tasks]);
 
   return (
     <div className="space-y-8">
@@ -54,6 +66,38 @@ export default function MorningBrief({ onOpenZenMode }: MorningBriefProps) {
 
       {/* Today's calendar */}
       <TodayAgenda />
+
+      {/* Today's focus — chosen at End of Day */}
+      {focusTasks.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <Target size={14} className="text-indigo-500" />
+            Today&rsquo;s focus
+          </h2>
+          <div className="bg-white border border-indigo-200 rounded-xl divide-y divide-slate-100 overflow-hidden">
+            {focusTasks.map((t) => {
+              const project = state.projects.find((p) => p.id === t.projectId);
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => onOpenZenMode?.(t)}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-50/50 text-left transition-colors"
+                >
+                  <Target size={15} className="text-indigo-400 flex-shrink-0" />
+                  <span className="flex-1 text-sm font-medium text-slate-800 truncate">
+                    {t.title}
+                  </span>
+                  {project && (
+                    <span className="text-xs text-slate-400 flex-shrink-0">
+                      {project.name}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Due soon — overdue or due in the next couple days */}
       <div>

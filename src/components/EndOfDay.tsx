@@ -13,6 +13,7 @@ import {
   Sunset,
   CircleDot,
   ArrowRight,
+  Star,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Task } from "@/types";
@@ -29,8 +30,22 @@ interface EndOfDayProps {
 }
 
 export default function EndOfDay({ onOpenZenMode }: EndOfDayProps) {
-  const { state, getTodayFocusMinutes, getMomentumScore } = useApp();
+  const { state, getTodayFocusMinutes, getMomentumScore, dispatch } = useApp();
   const [mounted, setMounted] = useState(false);
+
+  // Pick tomorrow's focus: star tasks → they lead tomorrow's Morning Brief.
+  const tomorrowStart = startOfDay(addDays(new Date(), 1));
+  const isFocusedTomorrow = (t: Task) =>
+    !!t.focusDate &&
+    startOfDay(new Date(t.focusDate)).getTime() === tomorrowStart.getTime();
+  const toggleFocus = (t: Task) =>
+    dispatch({
+      type: "SET_TASK_FOCUS",
+      payload: {
+        taskId: t.id,
+        focusDate: isFocusedTomorrow(t) ? null : tomorrowStart,
+      },
+    });
 
   useEffect(() => {
     setMounted(true);
@@ -242,7 +257,8 @@ export default function EndOfDay({ onOpenZenMode }: EndOfDayProps) {
             Open Loops
           </h3>
           <p className="text-sm text-slate-500 mb-4">
-            The few things still pulling at your attention.
+            The few things still pulling at your attention. Star one to focus on
+            it tomorrow.
           </p>
           {openLoops.length > 0 ? (
             <div className="space-y-2">
@@ -251,21 +267,38 @@ export default function EndOfDay({ onOpenZenMode }: EndOfDayProps) {
                   (p) => p.id === task.projectId,
                 );
                 return (
-                  <button
+                  <div
                     key={task.id}
-                    onClick={() => onOpenZenMode?.(task)}
-                    className="w-full flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100 rounded-lg text-left transition-colors"
+                    className="flex items-center gap-2 p-3 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors"
                   >
-                    <CircleDot size={16} className="text-rose-400 flex-shrink-0" />
-                    <span className="text-slate-900 flex-1 truncate">
-                      {task.title}
-                    </span>
-                    {project && (
-                      <span className="text-xs text-slate-500 flex-shrink-0">
-                        {project.name}
+                    <button
+                      onClick={() => toggleFocus(task)}
+                      title="Focus on this tomorrow"
+                      className="flex-shrink-0"
+                    >
+                      <Star
+                        size={16}
+                        className={
+                          isFocusedTomorrow(task)
+                            ? "fill-amber-400 text-amber-400"
+                            : "text-slate-300 hover:text-amber-400"
+                        }
+                      />
+                    </button>
+                    <button
+                      onClick={() => onOpenZenMode?.(task)}
+                      className="flex-1 flex items-center gap-2 min-w-0 text-left"
+                    >
+                      <span className="text-slate-900 flex-1 truncate">
+                        {task.title}
                       </span>
-                    )}
-                  </button>
+                      {project && (
+                        <span className="text-xs text-slate-500 flex-shrink-0">
+                          {project.name}
+                        </span>
+                      )}
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -296,9 +329,22 @@ export default function EndOfDay({ onOpenZenMode }: EndOfDayProps) {
                 return (
                   <div
                     key={task.id}
-                    className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg"
+                    className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg"
                   >
-                    <Clock size={16} className="text-indigo-400 flex-shrink-0" />
+                    <button
+                      onClick={() => toggleFocus(task)}
+                      title="Focus on this tomorrow"
+                      className="flex-shrink-0"
+                    >
+                      <Star
+                        size={16}
+                        className={
+                          isFocusedTomorrow(task)
+                            ? "fill-amber-400 text-amber-400"
+                            : "text-slate-300 hover:text-amber-400"
+                        }
+                      />
+                    </button>
                     <span className="text-slate-900 flex-1 truncate">
                       {task.title}
                     </span>

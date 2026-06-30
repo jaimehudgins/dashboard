@@ -34,6 +34,7 @@ function toTask(row: Record<string, unknown>): Task {
     status: row.status as Task["status"],
     projectId: (row.project_id as string | null) ?? null,
     dueDate: row.due_date ? new Date(row.due_date as string) : undefined,
+    focusDate: row.focus_date ? new Date(row.focus_date as string) : undefined,
     createdAt: new Date(row.created_at as string),
     completedAt: row.completed_at
       ? new Date(row.completed_at as string)
@@ -330,6 +331,19 @@ export async function updateTask(task: Task): Promise<void> {
 export async function deleteTask(taskId: string): Promise<void> {
   const { error } = await supabase.from("tasks").delete().eq("id", taskId);
 
+  if (error) throw error;
+}
+
+// Set/clear a task's focus date (the day chosen to work on it). Kept separate
+// from updateTask so normal task writes don't require the focus_date column.
+export async function setTaskFocus(
+  taskId: string,
+  focusDate: string | null,
+): Promise<void> {
+  const { error } = await supabase
+    .from("tasks")
+    .update({ focus_date: focusDate })
+    .eq("id", taskId);
   if (error) throw error;
 }
 
