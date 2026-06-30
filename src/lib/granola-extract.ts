@@ -3,64 +3,9 @@ import { supabase } from "./supabase";
 import { crmSupabase, isCrmConfigured } from "./crm-supabase";
 import { anthropic, isAnthropicConfigured } from "./anthropic";
 
-// Claude returns, per meeting, which partner it was with (from the roster) and
-// the commitments Jaime made.
-const EXTRACT_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    partner_name: {
-      type: "string",
-      description:
-        "The exact partner name from the provided roster this meeting was with, or an empty string if none apply.",
-    },
-    tasks: {
-      type: "array",
-      description:
-        "Items worth capturing from this meeting (commitments, decisions, ideas). Empty if none.",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          task: {
-            type: "string",
-            description:
-              "The item as a short, imperative line (e.g. 'Send Ryan the vision doc').",
-          },
-          due_date: {
-            type: "string",
-            description:
-              "ISO date YYYY-MM-DD if a deadline was stated or clearly implied, else empty string.",
-          },
-          source_quote: {
-            type: "string",
-            description: "The short transcript line this was drawn from.",
-          },
-          confidence: {
-            type: "string",
-            enum: ["high", "low"],
-            description:
-              "high = an explicit, concrete commitment Jaime clearly owns; low = sounds like an action but is hypothetical, vague, or possibly someone else's.",
-          },
-          suggested_destination: {
-            type: "string",
-            enum: ["task", "quick_task", "backlog", "ignore"],
-            description:
-              "Best home: task = a real to-do Jaime owns with weight; quick_task = a small/quick to-do; backlog = an idea or maybe-someday floated, worth parking for later; ignore = not worth keeping.",
-          },
-        },
-        required: [
-          "task",
-          "due_date",
-          "source_quote",
-          "confidence",
-          "suggested_destination",
-        ],
-      },
-    },
-  },
-  required: ["partner_name", "tasks"],
-};
+// Margaret sources task candidates from Granola's own "Next Steps" section
+// (accurate, owner-attributed, no transcript re-derivation). A tiny Claude call
+// identifies the CRM partner so a Task can route to the team-visible CRM.
 
 // Willow staff email domain — attendees here are internal, not partners.
 const INTERNAL_DOMAIN = "willowed.org";
@@ -88,98 +33,7 @@ async function fetchPartners(): Promise<PartnerRef[]> {
   return (data || []).map((p) => ({ id: p.id as string, name: p.name as string }));
 }
 
-interface ExtractedItem {
-  task: string;
-  due_date: string;
-  source_quote: string;
-  confidence: "high" | "low";
-  suggested_destination: "task" | "quick_task" | "backlog" | "ignore";
-}
-
-interface ExtractResult {
-  partnerName: string;
-  tasks: ExtractedItem[];
-}
-
-async function extractFromTranscript(
-  meeting: { title: string; summary: string; attendees: Attendee[] },
-  transcript: string,
-  partners: PartnerRef[],
-  todayISO: string,
-): Promise<ExtractResult | null> {
-  if (!isAnthropicConfigured) return null;
-
-  const roster = partners.length
-    ? partners.map((p) => `- ${p.name}`).join("\n")
-    : "(no partners on file)";
-  const attendees =
-    meeting.attendees
-      .map((a) => (a.email ? `${a.name} <${a.email}>` : a.name))
-      .filter(Boolean)
-      .join(", ") || "unknown";
-
-  const system = `You are Margaret, the meeting-notes agent for Jaime, a partnerships/curriculum lead at Willow. You read a meeting transcript and surface only the items that need to LEAVE the meeting — actions Jaime should take and ideas worth parking — then CLASSIFY each. In the transcript, Jaime's own words are labeled "Jaime:" and everyone else is "Them:".
-
-IMPORTANT: Do NOT extract facts, contacts, numbers, decisions, or context just to "remember" them — those already live in the meeting summary, which is saved and searchable. Only surface things that require an action or are a forward-looking idea to revisit. A meeting with nothing to act on returns an empty array.
-
-Be strict and CONSOLIDATE — this is the most common mistake:
-- A task is ONE discrete next step with a clear done-state. If several actions are part of the same next step or the same upcoming conversation with one person, combine them into a SINGLE task. Topics to cover, agenda points, and anything that will happen *inside* a planned meeting are NOT separate tasks — they fold into that one follow-up.
-- Never output a fact, status, or "note that…" line as a task OR quick_task. quick_task is still a real to-do (just a small one), never a place for notes.
-- Prefer few, high-signal items. When in doubt, leave it out. Most meetings have 1–3 real tasks, not 5+.
-
-Worked example — a call where Jaime agrees to set up time with Rachel, and they'll cover rollout timing and senior goals in that call, and Rachel handles invoicing:
-→ ONE task: "Follow up with Rachel to plan the rollout (timing, senior goals)". NOT separate tasks for "discuss entry point" and "set goals" — those happen in the follow-up. The invoicing detail is a fact → omit entirely.
-
-For EACH item set:
-- confidence: "high" only for an explicit, concrete commitment Jaime clearly owns; otherwise "low".
-- suggested_destination — the single best home:
-  - "task": a real to-do Jaime owns with weight (e.g. "Send Ryan the vision doc").
-  - "quick_task": a small, quick to-do.
-  - "backlog": an idea or maybe-someday possibility floated, worth parking to revisit later (e.g. "Could add a training-school flow eventually").
-  - "ignore": not worth keeping.
-- Do NOT force things into tasks. If something only "sounds like" a task but is hypothetical or vague, mark it low confidence; if it's a someday-idea, route it to backlog; if it's neither an action nor a real idea, ignore it.
-- task: phrase the item as a short imperative line.
-- due_date: only when a deadline is stated or clearly implied (resolve relative dates against today, ${todayISO}); otherwise empty string.
-- source_quote: the short line it came from.
-
-partner_name (meeting-level): ONLY set it when an EXTERNAL attendee (email NOT @${INTERNAL_DOMAIN}) belongs to one of the partner organizations below — return that partner's EXACT name. Meetings with only Willow staff (all @${INTERNAL_DOMAIN}) are internal: return an empty string. When unsure, empty string.
-
-Willow CRM partner roster:
-${roster}`;
-
-  const user = `Meeting: ${meeting.title}
-Attendees: ${attendees}
-
-Summary:
-${(meeting.summary || "(none)").slice(0, 2000)}
-
-Transcript:
-${transcript.slice(0, 16000)}`;
-
-  try {
-    const resp = await anthropic.messages.create({
-      model: "claude-opus-4-8",
-      max_tokens: 1500,
-      system,
-      output_config: { format: { type: "json_schema", schema: EXTRACT_SCHEMA } },
-      messages: [{ role: "user", content: user }],
-    } as Anthropic.MessageCreateParamsNonStreaming);
-    const text = resp.content.find((b) => b.type === "text");
-    const parsed = JSON.parse(text && "text" in text ? text.text : "{}");
-    return {
-      partnerName: typeof parsed.partner_name === "string" ? parsed.partner_name : "",
-      tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
-    };
-  } catch (err) {
-    console.warn("granola extract:", (err as Error).message);
-    return null;
-  }
-}
-
-function matchPartner(
-  name: string,
-  partners: PartnerRef[],
-): PartnerRef | null {
+function matchPartner(name: string, partners: PartnerRef[]): PartnerRef | null {
   const n = name.trim().toLowerCase();
   if (!n) return null;
   return (
@@ -192,13 +46,172 @@ function matchPartner(
   );
 }
 
-// Extract tasks for meetings that have a transcript but haven't been processed.
-// Confirm-gated: tasks land as status "pending" for the user to review.
+/* ------------------------- Next Steps parsing ------------------------- */
+
+interface NextStep {
+  text: string;
+  detail: string;
+}
+
+function cleanLine(s: string): string {
+  return s
+    .replace(/\*\*/g, "")
+    .replace(/^[-*]\s+/, "")
+    .replace(/\\([_~*])/g, "$1")
+    .trim();
+}
+
+const SHARED_OWNERS = new Set(["team", "all", "everyone", "both", "group", "us"]);
+
+function isMine(owner: string | null): boolean {
+  if (!owner) return true; // unattributed → keep
+  if (/jaime|jh\b/.test(owner)) return true;
+  return SHARED_OWNERS.has(owner); // shared items include Jaime
+}
+
+// Pull the "Next Steps" (incl. "Handoff and Next Steps") section out of a
+// Granola summary and return the bullets owned by Jaime or unattributed.
+// `attendeeNames` (lowercased first names) disambiguate a "Name:" prefix owner
+// from an ordinary "Word:" lead-in like "Timing:".
+function parseNextSteps(summary: string, attendeeNames: Set<string>): NextStep[] {
+  if (!summary) return [];
+  const lines = summary.split("\n");
+  const startIdx = lines.findIndex(
+    (l) => /^#{1,6}\s/.test(l) && /next steps/i.test(l),
+  );
+  if (startIdx < 0) return [];
+
+  // Section runs until the next header.
+  const section: string[] = [];
+  for (let i = startIdx + 1; i < lines.length; i++) {
+    if (/^#{1,6}\s/.test(lines[i])) break;
+    section.push(lines[i]);
+  }
+
+  const steps: NextStep[] = [];
+  let current: { main: string; detail: string[] } | null = null;
+  const flush = () => {
+    if (!current) return;
+    let main = current.main;
+    let owner: string | null = null;
+
+    // Suffix owner "(Name)" — only if it looks like a name (≤3 words, no comma).
+    const suffix = main.match(/\(([^)]+)\)\s*$/);
+    if (suffix) {
+      const inside = suffix[1].trim();
+      if (!inside.includes(",") && inside.split(/\s+/).length <= 3) {
+        owner = inside.toLowerCase();
+        main = main.replace(/\(([^)]+)\)\s*$/, "");
+      }
+    }
+    // Prefix owner "Name:" — only when the word matches an attendee / shared
+    // word (so "Timing:" or "Curriculum:" stay part of the text).
+    if (!owner) {
+      const prefix = cleanLine(main).match(/^([A-Za-z][\w.]*(?:\s+[A-Za-z][\w.]*)?):\s+/);
+      if (prefix) {
+        const cand = prefix[1].trim().toLowerCase();
+        const candFirst = cand.split(/\s+/)[0];
+        if (
+          attendeeNames.has(candFirst) ||
+          /jaime/.test(cand) ||
+          SHARED_OWNERS.has(candFirst)
+        ) {
+          owner = cand;
+          main = cleanLine(main).replace(prefix[0], "");
+        }
+      }
+    }
+
+    if (isMine(owner)) {
+      const text = cleanLine(main);
+      if (text) {
+        steps.push({
+          text,
+          detail: current.detail
+            .map((d) => cleanLine(d))
+            .filter(Boolean)
+            .join(" ")
+            .slice(0, 400),
+        });
+      }
+    }
+    current = null;
+  };
+
+  for (const raw of section) {
+    // Only a column-0 bullet starts a new item; indented lines (incl. nested
+    // sub-bullets) are detail of the current item.
+    const topBullet = /^[-*]\s+/.test(raw);
+    if (topBullet) {
+      flush();
+      current = { main: raw.trim(), detail: [] };
+    } else if (current && raw.trim()) {
+      current.detail.push(raw.trim());
+    }
+  }
+  flush();
+  return steps;
+}
+
+/* ------------------------- Partner identification ------------------------- */
+
+const PARTNER_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    partner_name: {
+      type: "string",
+      description:
+        "The exact partner name from the roster this meeting is with, or an empty string if none match.",
+    },
+  },
+  required: ["partner_name"],
+};
+
+// Tiny Claude call: given external attendees + the roster, which partner is
+// this? Only runs when an external (non-Willow) attendee is present.
+async function identifyPartner(
+  attendees: Attendee[],
+  partners: PartnerRef[],
+): Promise<PartnerRef | null> {
+  const external = attendees.filter(
+    (a) => a.email && !a.email.toLowerCase().endsWith(`@${INTERNAL_DOMAIN}`),
+  );
+  if (external.length === 0 || partners.length === 0 || !isAnthropicConfigured)
+    return null;
+
+  const roster = partners.map((p) => `- ${p.name}`).join("\n");
+  const who = external.map((a) => a.email || a.name).join(", ");
+  const system = `Given external meeting attendees and a roster of Willow's partner organizations, return the EXACT partner name (from the roster) this meeting is with, matching by the attendee's email domain / organization. If none match, return an empty string.`;
+  const user = `External attendees: ${who}\n\nPartner roster:\n${roster}`;
+
+  try {
+    const resp = await anthropic.messages.create({
+      model: "claude-opus-4-8",
+      max_tokens: 120,
+      system,
+      output_config: { format: { type: "json_schema", schema: PARTNER_SCHEMA } },
+      messages: [{ role: "user", content: user }],
+    } as Anthropic.MessageCreateParamsNonStreaming);
+    const text = resp.content.find((b) => b.type === "text");
+    const parsed = JSON.parse(text && "text" in text ? text.text : "{}");
+    return matchPartner(
+      typeof parsed.partner_name === "string" ? parsed.partner_name : "",
+      partners,
+    );
+  } catch (err) {
+    console.warn("granola identifyPartner:", (err as Error).message);
+    return null;
+  }
+}
+
+/* ------------------------------ Pipeline ------------------------------ */
+
+// Build task candidates from Granola's Next Steps for meetings not yet
+// processed. Candidates land as status "pending" for the user to route.
 export async function extractPendingMeetings(
   max = 15,
 ): Promise<{ processed: number; tasksFound: number }> {
-  if (!isAnthropicConfigured) return { processed: 0, tasksFound: 0 };
-
   const { data: meetings } = await supabase
     .from("granola_meetings")
     .select("id, title, summary, attendees, tasks_extracted")
@@ -208,14 +221,11 @@ export async function extractPendingMeetings(
   if (!meetings || meetings.length === 0) return { processed: 0, tasksFound: 0 };
 
   const partners = await fetchPartners();
-  const todayISO = new Date().toISOString().slice(0, 10);
   let processed = 0;
   let tasksFound = 0;
 
   for (const m of meetings) {
-    // Atomically CLAIM the meeting (flip false→true). If another overlapping
-    // run already claimed it, claimed is empty → skip, so it can't be
-    // double-extracted (which would create near-duplicate tasks).
+    // Atomically CLAIM the meeting so overlapping runs can't double-process.
     const { data: claimed } = await supabase
       .from("granola_meetings")
       .update({ tasks_extracted: true })
@@ -230,77 +240,42 @@ export async function extractPendingMeetings(
         .update({ tasks_extracted: false })
         .eq("id", m.id);
 
-    const { data: tr } = await supabase
-      .from("granola_transcripts")
-      .select("transcript")
-      .eq("meeting_id", m.id)
-      .maybeSingle();
-    const transcript = (tr?.transcript as string) || "";
-    if (!transcript) {
-      // No transcript to work from — stays claimed (marked) so we don't loop.
+    const attendees = (m.attendees as Attendee[]) || [];
+    const attendeeNames = new Set(
+      attendees
+        .map((a) => (a.name || "").trim().split(/\s+/)[0].toLowerCase())
+        .filter(Boolean),
+    );
+    const steps = parseNextSteps((m.summary as string) || "", attendeeNames);
+    if (steps.length === 0) {
+      // No Next Steps section / nothing owned by Jaime — stays claimed.
       processed++;
       continue;
     }
 
-    const attendees = (m.attendees as Attendee[]) || [];
-    const result = await extractFromTranscript(
-      {
-        title: (m.title as string) || "",
-        summary: (m.summary as string) || "",
-        attendees,
-      },
-      transcript,
-      partners,
-      todayISO,
-    );
-    if (!result) {
+    const partner = await identifyPartner(attendees, partners);
+
+    const rows = steps.map((s) => ({
+      meeting_id: m.id,
+      task: s.text,
+      due_date: null as string | null,
+      partner_id: partner?.id ?? null,
+      partner_name: partner?.name ?? null,
+      source_quote: s.detail || null,
+      confidence: "high",
+      suggested_destination: "task",
+      status: "pending",
+    }));
+
+    const { error } = await supabase
+      .from("granola_extracted_tasks")
+      .insert(rows);
+    if (error) {
+      console.warn("granola insert tasks:", m.id, error.message);
       await unclaim(); // release so it retries next run
       continue;
     }
-
-    // Backstop: only allow a partner match if an external (non-Willow)
-    // attendee was present — internal staff meetings never link to a partner.
-    const hasExternal = attendees.some(
-      (a) =>
-        a.email &&
-        !a.email.toLowerCase().endsWith(`@${INTERNAL_DOMAIN}`),
-    );
-    const partner = hasExternal
-      ? matchPartner(result.partnerName, partners)
-      : null;
-    const rows = result.tasks
-      .filter((t) => t.task && t.task.trim())
-      // Drop pure noise; everything else is a routable candidate.
-      .filter((t) => t.suggested_destination !== "ignore")
-      .map((t) => {
-        const dest =
-          t.suggested_destination === "task" && partner
-            ? "task" // partner routing handled at confirm time
-            : t.suggested_destination;
-        return {
-          meeting_id: m.id,
-          task: t.task.trim(),
-          due_date: /^\d{4}-\d{2}-\d{2}$/.test(t.due_date) ? t.due_date : null,
-          partner_id: partner?.id ?? null,
-          partner_name: partner?.name ?? null,
-          source_quote: t.source_quote || null,
-          confidence: t.confidence === "high" ? "high" : "low",
-          suggested_destination: dest,
-          status: "pending",
-        };
-      });
-    if (rows.length > 0) {
-      const { error } = await supabase
-        .from("granola_extracted_tasks")
-        .insert(rows);
-      if (error) {
-        console.warn("granola insert tasks:", m.id, error.message);
-        await unclaim(); // release so it retries next run
-        continue;
-      }
-      tasksFound += rows.length;
-    }
-    // Already marked extracted by the claim above.
+    tasksFound += rows.length;
     processed++;
   }
 
