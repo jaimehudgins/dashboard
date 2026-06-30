@@ -52,6 +52,7 @@ import {
   Radio,
   Sprout,
   Slack as SlackIcon,
+  Github,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Project } from "@/types";
@@ -93,6 +94,7 @@ const navItems = [
   { href: "/review", label: "Big Block of Cheese Day", icon: TrendingUp },
   { href: "/curriculum", label: "Curriculum Tracker", icon: GraduationCap },
   { href: "/curriculum-signal", label: "Curriculum Signal", icon: Sprout },
+  { href: "/curriculum-repo", label: "Curriculum Repo", icon: Github },
   { href: "/mrsl", label: "Drive", icon: FolderSearch },
 ];
 

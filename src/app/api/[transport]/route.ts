@@ -48,6 +48,7 @@ import {
 } from "@/lib/decisions";
 import { searchDrive } from "@/lib/drive";
 import { searchSlack, isSlackConfigured } from "@/lib/slack";
+import { searchCurriculumRepo, isGithubConfigured } from "@/lib/github";
 
 const ok = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
@@ -364,6 +365,23 @@ const handler = createMcpHandler(
             link: h.permalink,
           })),
         );
+      },
+    );
+
+    // ---- Curriculum repo (GitHub) ----
+    server.registerTool(
+      "search_curriculum_repo",
+      {
+        title: "Search curriculum repo",
+        description:
+          "Search lesson content, agent instructions, and skills in the curriculum GitHub repo. Returns matching files with paths and links.",
+        inputSchema: { query: z.string().describe("Code/content to search for.") },
+      },
+      async ({ query }) => {
+        if (!isGithubConfigured)
+          return ok({ error: "Curriculum repo not connected" });
+        const hits = await searchCurriculumRepo(query, 25);
+        return ok(hits);
       },
     );
 
