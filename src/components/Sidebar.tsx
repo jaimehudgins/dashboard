@@ -60,6 +60,7 @@ import ZenMode from "./ZenMode";
 import { useKeyboardShortcuts } from "./KeyboardShortcuts";
 import { useTheme } from "./ThemeProvider";
 import { Task } from "@/types";
+import NotificationManager from "./NotificationManager";
 
 interface SidebarProps {
   children: React.ReactNode;
@@ -327,6 +328,7 @@ export default function Sidebar({ children }: SidebarProps) {
               </span>
             </div>
           </div>
+          <NotificationManager />
         </div>
       </aside>
 
