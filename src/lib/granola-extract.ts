@@ -44,9 +44,9 @@ const EXTRACT_SCHEMA = {
           },
           suggested_destination: {
             type: "string",
-            enum: ["task", "quick_task", "note", "backlog", "ignore"],
+            enum: ["task", "quick_task", "backlog", "ignore"],
             description:
-              "Best home: task = a real to-do Jaime owns with weight; quick_task = a small/quick to-do; note = a decision/fact/context worth remembering, not an action; backlog = an idea or maybe-someday floated for later; ignore = chit-chat, not worth keeping.",
+              "Best home: task = a real to-do Jaime owns with weight; quick_task = a small/quick to-do; backlog = an idea or maybe-someday floated, worth parking for later; ignore = not worth keeping.",
           },
         },
         required: [
@@ -93,7 +93,7 @@ interface ExtractedItem {
   due_date: string;
   source_quote: string;
   confidence: "high" | "low";
-  suggested_destination: "task" | "quick_task" | "note" | "backlog" | "ignore";
+  suggested_destination: "task" | "quick_task" | "backlog" | "ignore";
 }
 
 interface ExtractResult {
@@ -118,19 +118,18 @@ async function extractFromTranscript(
       .filter(Boolean)
       .join(", ") || "unknown";
 
-  const system = `You are Margaret, the meeting-notes agent for Jaime, a partnerships/curriculum lead at Willow. You read a meeting transcript and surface the items worth capturing, then CLASSIFY each so it can be routed to the right home. In the transcript, Jaime's own words are labeled "Jaime:" and everyone else is "Them:".
+  const system = `You are Margaret, the meeting-notes agent for Jaime, a partnerships/curriculum lead at Willow. You read a meeting transcript and surface only the items that need to LEAVE the meeting — actions Jaime should take and ideas worth parking — then CLASSIFY each. In the transcript, Jaime's own words are labeled "Jaime:" and everyone else is "Them:".
 
-What to surface: things Jaime committed to, decisions made, and ideas/possibilities floated. Skip pure chit-chat. A personal/social meeting with nothing worth keeping returns an empty array.
+IMPORTANT: Do NOT extract facts, contacts, numbers, decisions, or context just to "remember" them — those already live in the meeting summary, which is saved and searchable. Only surface things that require an action or are a forward-looking idea to revisit. A meeting with nothing to act on returns an empty array.
 
 For EACH item set:
 - confidence: "high" only for an explicit, concrete commitment Jaime clearly owns; otherwise "low".
 - suggested_destination — the single best home:
   - "task": a real to-do Jaime owns with weight (e.g. "Send Ryan the vision doc").
   - "quick_task": a small, quick to-do.
-  - "note": a decision, fact, or piece of context worth remembering — NOT an action (e.g. "Decided to rename 'saved items' to 'Bookmarks'").
-  - "backlog": an idea or maybe-someday floated for later (e.g. "Could add a training-school flow eventually").
+  - "backlog": an idea or maybe-someday possibility floated, worth parking to revisit later (e.g. "Could add a training-school flow eventually").
   - "ignore": not worth keeping.
-- Do NOT force everything into a task. If something only "sounds like" a task but is hypothetical, vague, or someone else's, classify it low confidence and route it to note/backlog/ignore.
+- Do NOT force things into tasks. If something only "sounds like" a task but is hypothetical or vague, mark it low confidence; if it's a someday-idea, route it to backlog; if it's neither an action nor a real idea, ignore it.
 - task: phrase the item as a short imperative line.
 - due_date: only when a deadline is stated or clearly implied (resolve relative dates against today, ${todayISO}); otherwise empty string.
 - source_quote: the short line it came from.

@@ -52,10 +52,9 @@ interface Draft {
   destination: Destination;
 }
 
-const DEST_LABELS: Record<Destination, string> = {
+const DEST_LABELS: Record<Exclude<Destination, "note">, string> = {
   task: "Task",
   quick_task: "Quick task",
-  note: "Note",
   backlog: "Backlog",
   ignore: "Ignore",
 };
@@ -482,7 +481,10 @@ export default function Margaret() {
                               className="text-xs border border-slate-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300"
                             >
                               {(
-                                Object.keys(DEST_LABELS) as Destination[]
+                                Object.keys(DEST_LABELS) as Exclude<
+                                  Destination,
+                                  "note"
+                                >[]
                               ).map((d) => (
                                 <option key={d} value={d}>
                                   {DEST_LABELS[d]}
