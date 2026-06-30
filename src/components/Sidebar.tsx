@@ -71,7 +71,7 @@ const navItems = [
   { href: "/travel", label: "Travel", icon: Plane },
   { href: "/eod", label: "End of Day", icon: Sunset },
   { href: "/partner-tasks", label: "Partner Tasks", icon: Users },
-  { href: "/", label: "Command Center", icon: Command },
+  { href: "/", label: "Situation Room", icon: Command },
   { href: "/archive", label: "Work History", icon: Calendar },
   { href: "/notes", label: "Note Catcher", icon: StickyNote },
   { href: "/review", label: "Big Block of Cheese Day", icon: TrendingUp },
