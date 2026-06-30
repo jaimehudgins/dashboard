@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { Plus, Zap, ClipboardList } from "lucide-react";
+import React, { useRef, useState } from "react";
+import { Plus, Zap, ClipboardList, Mic } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Priority } from "@/types";
 import TaskCreateModal from "./TaskCreateModal";
@@ -16,6 +16,43 @@ export default function QuickCapture() {
   const [target, setTarget] = useState<CaptureTarget>({ type: "unassigned" });
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { state, dispatch } = useApp();
+
+  // Voice capture via the Web Speech API (Chrome/Safari).
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const baselineRef = useRef("");
+
+  const toggleMic = () => {
+    const SR =
+      (typeof window !== "undefined" &&
+        ((window as any).SpeechRecognition ||
+          (window as any).webkitSpeechRecognition)) ||
+      null;
+    if (!SR) {
+      alert("Voice input isn't supported in this browser. Try Chrome or Safari.");
+      return;
+    }
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    baselineRef.current = input.trim() ? `${input.trim()} ` : "";
+    const rec = new SR();
+    rec.lang = "en-US";
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.onresult = (e: any) => {
+      let s = "";
+      for (let i = 0; i < e.results.length; i++)
+        s += e.results[i][0].transcript;
+      setInput(baselineRef.current + s);
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    recognitionRef.current = rec;
+    rec.start();
+    setListening(true);
+  };
 
   const activeProjects = state.projects.filter((p) => !p.archived);
   const areas = state.areas;
@@ -115,10 +152,25 @@ export default function QuickCapture() {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Brain dump... Press Enter to capture"
+                placeholder={
+                  listening ? "Listening… speak now" : "Brain dump... Press Enter to capture"
+                }
                 aria-label="Quick capture input"
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-4 pr-11 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
               />
+              <button
+                type="button"
+                onClick={toggleMic}
+                title={listening ? "Stop" : "Speak to capture"}
+                aria-label={listening ? "Stop voice capture" : "Voice capture"}
+                className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md transition-colors ${
+                  listening
+                    ? "text-white bg-red-500 animate-pulse"
+                    : "text-slate-400 hover:text-indigo-600 hover:bg-slate-100"
+                }`}
+              >
+                <Mic size={16} />
+              </button>
             </div>
 
             {/* Target Selector */}
