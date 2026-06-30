@@ -19,6 +19,8 @@ import {
   ListTodo,
   Trash2,
   Plus,
+  Sparkles,
+  Send,
 } from "lucide-react";
 
 const mdComponents = {
@@ -309,6 +311,70 @@ export default function Margaret() {
         n.delete(`add-${m.id}`);
         return n;
       });
+    }
+  };
+
+  // Draft a post-meeting follow-up email in the user's voice.
+  const [drafting, setDrafting] = useState<string | null>(null);
+  const [followUp, setFollowUp] = useState<{
+    title: string;
+    to: string;
+    subject: string;
+    body: string;
+  } | null>(null);
+  const [sendingFu, setSendingFu] = useState(false);
+  const [fuError, setFuError] = useState<string | null>(null);
+  const [fuSent, setFuSent] = useState(false);
+
+  const draftFollowUp = async (m: Meeting) => {
+    setDrafting(m.id);
+    setError(null);
+    try {
+      const r = await fetch("/api/granola/draft-followup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ meetingId: m.id }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Draft failed");
+      setFollowUp({
+        title: m.title,
+        to: d.to || "",
+        subject: d.subject || "",
+        body: d.body || "",
+      });
+      setFuSent(false);
+      setFuError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Draft failed");
+    } finally {
+      setDrafting(null);
+    }
+  };
+
+  const sendFollowUp = async () => {
+    if (!followUp) return;
+    setSendingFu(true);
+    setFuError(null);
+    try {
+      const r = await fetch("/api/mail/actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "send",
+          to: followUp.to,
+          subject: followUp.subject,
+          body: followUp.body,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Send failed");
+      setFuSent(true);
+      setTimeout(() => setFollowUp(null), 1200);
+    } catch (e) {
+      setFuError(e instanceof Error ? e.message : "Send failed");
+    } finally {
+      setSendingFu(false);
     }
   };
 
@@ -751,6 +817,18 @@ export default function Margaret() {
                     <FileText size={13} />
                     Transcript
                   </button>
+                  <button
+                    onClick={() => draftFollowUp(m)}
+                    disabled={drafting === m.id}
+                    className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 font-medium disabled:opacity-60"
+                  >
+                    {drafting === m.id ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <Sparkles size={13} />
+                    )}
+                    Draft follow-up
+                  </button>
                   {!addForms[m.id] && (
                     <button
                       onClick={() => openAdd(m.id)}
@@ -777,6 +855,90 @@ export default function Margaret() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Follow-up draft modal */}
+      {followUp && (
+        <div
+          className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4"
+          onClick={() => setFollowUp(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl max-w-xl w-full max-h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-5 border-b border-slate-100">
+              <h2 className="font-semibold text-slate-900 flex items-center gap-2">
+                <Sparkles size={16} className="text-indigo-500" />
+                Follow-up draft
+              </h2>
+              <button
+                onClick={() => setFollowUp(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-5 space-y-3 overflow-y-auto">
+              <p className="text-xs text-slate-500">
+                In your voice, from the notes for &ldquo;{followUp.title}&rdquo;.
+                Edit anything before sending.
+              </p>
+              <input
+                value={followUp.to}
+                onChange={(e) =>
+                  setFollowUp({ ...followUp, to: e.target.value })
+                }
+                placeholder="To"
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+              <input
+                value={followUp.subject}
+                onChange={(e) =>
+                  setFollowUp({ ...followUp, subject: e.target.value })
+                }
+                placeholder="Subject"
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+              <textarea
+                value={followUp.body}
+                onChange={(e) =>
+                  setFollowUp({ ...followUp, body: e.target.value })
+                }
+                rows={12}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none"
+              />
+              {fuError && <p className="text-sm text-red-600">{fuError}</p>}
+            </div>
+            <div className="flex items-center justify-end gap-2 p-5 border-t border-slate-100">
+              <button
+                onClick={() => setFollowUp(null)}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={sendFollowUp}
+                disabled={
+                  sendingFu ||
+                  fuSent ||
+                  !followUp.to.trim() ||
+                  !followUp.body.trim()
+                }
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 rounded-lg"
+              >
+                {sendingFu ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : fuSent ? (
+                  <CheckCircle2 size={15} />
+                ) : (
+                  <Send size={15} />
+                )}
+                {fuSent ? "Sent" : "Send"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
