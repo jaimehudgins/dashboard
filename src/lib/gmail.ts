@@ -382,6 +382,22 @@ export async function fetchInboxForClassify(
   });
 }
 
+// Raw text/html part (decoded), with <script> stripped as defense in depth.
+// The browser renders this inside a no-scripts sandboxed iframe.
+function decodeHtmlBody(payload: any): string {
+  let html: string | null = null;
+  const walk = (p: any) => {
+    if (!p) return;
+    if (p.mimeType === "text/html" && p.body?.data && html === null) {
+      html = decodeData(p.body.data);
+    }
+    for (const part of p.parts || []) walk(part);
+  };
+  walk(payload);
+  if (!html) return "";
+  return (html as string).replace(/<script[\s\S]*?<\/script>/gi, "");
+}
+
 export async function getThread(
   token: string,
   threadId: string,
@@ -394,6 +410,7 @@ export async function getThread(
     date: string;
     snippet: string;
     body: string;
+    html: string;
   }[];
 }> {
   const thread = await gmailFetch(token, `/threads/${threadId}?format=full`);
@@ -408,6 +425,7 @@ export async function getThread(
         date: header(h, "Date"),
         snippet: msg.snippet || "",
         body: decodeBody(msg.payload).slice(0, 20000),
+        html: decodeHtmlBody(msg.payload).slice(0, 400000),
       };
     }),
   };

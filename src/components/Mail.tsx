@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { format } from "date-fns";
 import {
   Mail as MailIcon,
@@ -74,6 +74,35 @@ interface ThreadMessage {
   date: string;
   snippet: string;
   body: string;
+  html: string;
+}
+
+// Renders untrusted email HTML inside a no-scripts sandboxed iframe so it
+// looks like the real email but can't run code or leak CSS into Leo.
+function EmailFrame({ html }: { html: string }) {
+  const ref = useRef<HTMLIFrameElement>(null);
+  const doc = `<!DOCTYPE html><html><head><meta charset="utf-8"><base target="_blank"><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#334155;font-size:14px;line-height:1.55;margin:0;padding:0;word-wrap:break-word;overflow-wrap:break-word;}img{max-width:100%;height:auto;}a{color:#4f46e5;}table{max-width:100%;}</style></head><body>${html}</body></html>`;
+  const resize = () => {
+    const f = ref.current;
+    const b = f?.contentWindow?.document?.body;
+    if (f && b) f.style.height = `${b.scrollHeight + 16}px`;
+  };
+  return (
+    <iframe
+      ref={ref}
+      sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+      srcDoc={doc}
+      onLoad={() => {
+        resize();
+        // Re-measure after late image loads.
+        setTimeout(resize, 600);
+        setTimeout(resize, 1600);
+      }}
+      title="Email content"
+      className="w-full"
+      style={{ border: 0, width: "100%", minHeight: 60 }}
+    />
+  );
 }
 interface FullThread {
   id: string;
@@ -275,9 +304,13 @@ export default function Mail() {
                       {m.date && format(new Date(m.date), "MMM d, h:mm a")}
                     </span>
                   </div>
-                  <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
-                    {m.body || m.snippet}
-                  </div>
+                  {m.html ? (
+                    <EmailFrame html={m.html} />
+                  ) : (
+                    <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
+                      {m.body || m.snippet}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

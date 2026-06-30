@@ -711,7 +711,19 @@ const handler = createMcpHandler(
       async ({ threadId }) => {
         if (!isGoogleServerConfigured) return ok(NO_GOOGLE);
         const token = await getGoogleAccessToken();
-        return ok(await getThread(token, threadId));
+        const t = await getThread(token, threadId);
+        // Return text bodies only — the raw HTML is for the inbox UI, not Claude.
+        return ok({
+          id: t.id,
+          messages: t.messages.map((m) => ({
+            from: m.from,
+            to: m.to,
+            subject: m.subject,
+            date: m.date,
+            snippet: m.snippet,
+            body: m.body,
+          })),
+        });
       },
     );
 
