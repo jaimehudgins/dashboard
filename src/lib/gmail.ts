@@ -199,20 +199,45 @@ export async function searchMessages(
   return summaries;
 }
 
+function decodeData(data: string): string {
+  return Buffer.from(data, "base64url").toString("utf8");
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<\/(p|div|tr|li|h[1-6]|table)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+// Decode a message body: prefer text/plain, fall back to (stripped) text/html.
 function decodeBody(payload: any): string {
-  // Prefer text/plain; walk parts recursively.
-  const walk = (p: any): string | null => {
-    if (!p) return null;
-    if (p.mimeType === "text/plain" && p.body?.data) {
-      return Buffer.from(p.body.data, "base64").toString("utf8");
+  let plain: string | null = null;
+  let html: string | null = null;
+  const walk = (p: any) => {
+    if (!p) return;
+    if (p.mimeType === "text/plain" && p.body?.data && plain === null) {
+      plain = decodeData(p.body.data);
+    } else if (p.mimeType === "text/html" && p.body?.data && html === null) {
+      html = decodeData(p.body.data);
     }
-    for (const part of p.parts || []) {
-      const found = walk(part);
-      if (found) return found;
-    }
-    return null;
+    for (const part of p.parts || []) walk(part);
   };
-  return (walk(payload) || "").trim();
+  walk(payload);
+  if (plain) return (plain as string).trim();
+  if (html) return stripHtml(html as string);
+  return "";
 }
 
 export interface GmailThreadSummary {
@@ -382,7 +407,7 @@ export async function getThread(
         subject: header(h, "Subject"),
         date: header(h, "Date"),
         snippet: msg.snippet || "",
-        body: decodeBody(msg.payload).slice(0, 4000),
+        body: decodeBody(msg.payload).slice(0, 20000),
       };
     }),
   };
