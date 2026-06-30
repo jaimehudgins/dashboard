@@ -7,6 +7,12 @@ import {
   modifyThreadLabels,
 } from "@/lib/gmail";
 import { emailDomain, isNotificationMail, LeoBucket } from "@/lib/mail-views";
+import {
+  classifyUrgency,
+  fetchUrgency,
+  saveUrgency,
+  Urgency,
+} from "@/lib/mail-urgency";
 
 const NEWSLETTER_CATEGORIES = [
   "CATEGORY_PROMOTIONS",
@@ -116,6 +122,26 @@ export async function classifyInbox(
     await modifyThreadLabels(token, d.id, [leo[d.bucket]]);
     applied[d.bucket] = (applied[d.bucket] || 0) + 1;
   }
+
+  // Urgency (🔥 / ❓ / 🕒): backfill any inbox thread without a stored value.
+  const existing = await fetchUrgency(threads.map((t) => t.id));
+  const need = threads.filter((t) => !existing[t.id]);
+  const urgencyMap = new Map<string, Urgency>();
+  const candidates: typeof need = [];
+  for (const t of need) {
+    if (
+      isNotificationMail(t.from, t.subject) ||
+      t.listUnsub ||
+      t.labelIds.some((l) => NEWSLETTER_CATEGORIES.includes(l))
+    ) {
+      urgencyMap.set(t.id, "later"); // auto-mail rarely needs action
+    } else {
+      candidates.push(t);
+    }
+  }
+  const judged = await classifyUrgency(candidates);
+  for (const [id, u] of judged) urgencyMap.set(id, u);
+  await saveUrgency(urgencyMap);
 
   return { classified: decided.length, applied };
 }

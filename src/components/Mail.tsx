@@ -15,6 +15,8 @@ import {
   Sparkles,
 } from "lucide-react";
 
+type Urgency = "now" | "question" | "later" | null;
+
 interface ThreadSummary {
   id: string;
   from: string;
@@ -23,6 +25,47 @@ interface ThreadSummary {
   snippet: string;
   unread: boolean;
   messageCount: number;
+  urgency?: Urgency;
+}
+
+// Bucket accent colors for the view chips.
+const VIEW_COLORS: Record<string, string> = {
+  all: "bg-slate-600",
+  current: "bg-emerald-500",
+  potential: "bg-amber-500",
+  willow: "bg-indigo-500",
+  newsletter: "bg-slate-400",
+  notifications: "bg-sky-500",
+  other: "bg-slate-400",
+};
+
+const URGENCY: Record<
+  Exclude<Urgency, null>,
+  { emoji: string; label: string; cls: string }
+> = {
+  now: { emoji: "🔥", label: "Needs attention", cls: "" },
+  question: { emoji: "❓", label: "Question", cls: "" },
+  later: { emoji: "🕒", label: "Can wait", cls: "opacity-40" },
+};
+
+const AVATAR_COLORS = [
+  "bg-rose-100 text-rose-700",
+  "bg-amber-100 text-amber-700",
+  "bg-emerald-100 text-emerald-700",
+  "bg-sky-100 text-sky-700",
+  "bg-indigo-100 text-indigo-700",
+  "bg-fuchsia-100 text-fuchsia-700",
+  "bg-teal-100 text-teal-700",
+];
+function avatarFor(name: string): { initials: string; cls: string } {
+  const clean = name.replace(/<.*>/, "").trim() || name;
+  const parts = clean.split(/\s+/).filter(Boolean);
+  const initials = (
+    (parts[0]?.[0] || "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")
+  ).toUpperCase();
+  let hash = 0;
+  for (let i = 0; i < clean.length; i++) hash = (hash * 31 + clean.charCodeAt(i)) >>> 0;
+  return { initials: initials || "?", cls: AVATAR_COLORS[hash % AVATAR_COLORS.length] };
 }
 interface ThreadMessage {
   from: string;
@@ -312,30 +355,31 @@ export default function Mail() {
 
       {/* View chips with unread counters */}
       <div className="flex flex-wrap items-center gap-1.5">
-        {views.map((v) => (
-          <button
-            key={v.key}
-            onClick={() => selectView(v.key)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-full border transition-colors ${
-              activeView === v.key && !search
-                ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                : "border-slate-200 text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            {v.label}
-            {v.unread > 0 && (
-              <span
-                className={`text-xs font-semibold rounded-full px-1.5 min-w-[18px] text-center ${
-                  activeView === v.key && !search
-                    ? "bg-indigo-600 text-white"
-                    : "bg-slate-200 text-slate-700"
-                }`}
-              >
-                {v.unread}
-              </span>
-            )}
-          </button>
-        ))}
+        {views.map((v) => {
+          const color = VIEW_COLORS[v.key] || "bg-slate-400";
+          const active = activeView === v.key && !search;
+          return (
+            <button
+              key={v.key}
+              onClick={() => selectView(v.key)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-full border transition-colors ${
+                active
+                  ? "border-slate-300 bg-white text-slate-900 shadow-sm"
+                  : "border-transparent bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${color}`} />
+              {v.label}
+              {v.unread > 0 && (
+                <span
+                  className={`text-xs font-semibold rounded-full px-1.5 min-w-[18px] text-center text-white ${color}`}
+                >
+                  {v.unread}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Search */}
@@ -377,54 +421,78 @@ export default function Mail() {
         </div>
       ) : (
         <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 overflow-hidden">
-          {threads.map((t) => (
-            <div
-              key={t.id}
-              className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 cursor-pointer group"
-              onClick={() => openThread(t.id)}
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span
+          {threads.map((t) => {
+            const av = avatarFor(t.from);
+            const u = t.urgency ? URGENCY[t.urgency] : null;
+            return (
+              <div
+                key={t.id}
+                className={`flex items-stretch gap-3 pr-4 py-3 cursor-pointer group transition-colors hover:bg-slate-50 ${
+                  t.unread ? "bg-indigo-50/40" : ""
+                }`}
+                onClick={() => openThread(t.id)}
+              >
+                <div
+                  className={`w-1 rounded-r-full ${
+                    t.unread ? "bg-indigo-500" : "bg-transparent"
+                  }`}
+                />
+                <div
+                  className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 self-center ${av.cls}`}
+                >
+                  {av.initials}
+                </div>
+                <div className="flex-1 min-w-0 self-center">
+                  <div className="flex items-center gap-1.5">
+                    {u && (
+                      <span title={u.label} className={`text-sm leading-none ${u.cls}`}>
+                        {u.emoji}
+                      </span>
+                    )}
+                    <span
+                      className={`text-sm truncate ${
+                        t.unread
+                          ? "font-semibold text-slate-900"
+                          : "text-slate-700"
+                      }`}
+                    >
+                      {senderName(t.from)}
+                    </span>
+                    {t.messageCount > 1 && (
+                      <span className="text-xs text-slate-400">
+                        {t.messageCount}
+                      </span>
+                    )}
+                  </div>
+                  <div
                     className={`text-sm truncate ${
-                      t.unread ? "font-semibold text-slate-900" : "text-slate-700"
+                      t.unread ? "font-medium text-slate-800" : "text-slate-600"
                     }`}
                   >
-                    {senderName(t.from)}
+                    {t.subject || "(no subject)"}
+                  </div>
+                  <div className="text-xs text-slate-400 truncate">
+                    {t.snippet}
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1.5 flex-shrink-0 self-center">
+                  <span className="text-xs text-slate-400">
+                    {fmtDate(t.date)}
                   </span>
-                  {t.messageCount > 1 && (
-                    <span className="text-xs text-slate-400">
-                      {t.messageCount}
-                    </span>
-                  )}
-                  {t.unread && (
-                    <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full flex-shrink-0" />
-                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      archive(t.id);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-slate-600 transition-all"
+                    title="Archive"
+                  >
+                    <Archive size={15} />
+                  </button>
                 </div>
-                <div
-                  className={`text-sm truncate ${
-                    t.unread ? "font-medium text-slate-800" : "text-slate-600"
-                  }`}
-                >
-                  {t.subject || "(no subject)"}
-                </div>
-                <div className="text-xs text-slate-400 truncate">{t.snippet}</div>
               </div>
-              <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                <span className="text-xs text-slate-400">{fmtDate(t.date)}</span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    archive(t.id);
-                  }}
-                  className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-slate-600 transition-all"
-                  title="Archive"
-                >
-                  <Archive size={15} />
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

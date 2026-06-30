@@ -3,6 +3,13 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { listThreads, ensureLeoLabels } from "@/lib/gmail";
 import { LEO_LABEL_NAMES, LeoBucket } from "@/lib/mail-views";
+import { fetchUrgency } from "@/lib/mail-urgency";
+import type { GmailThreadSummary } from "@/lib/gmail";
+
+async function withUrgency(threads: GmailThreadSummary[]) {
+  const urgency = await fetchUrgency(threads.map((t) => t.id));
+  return threads.map((t) => ({ ...t, urgency: urgency[t.id] || null }));
+}
 
 // GET /api/mail/threads?view=all|current|potential|newsletter|willow|other&q=
 export async function GET(req: Request) {
@@ -19,12 +26,12 @@ export async function GET(req: Request) {
     // Free-text search overrides the view.
     if (q) {
       const threads = await listThreads(token, { q }, 25);
-      return NextResponse.json({ threads });
+      return NextResponse.json({ threads: await withUrgency(threads) });
     }
 
     if (view === "all") {
       const threads = await listThreads(token, { labelIds: ["INBOX"] }, 25);
-      return NextResponse.json({ threads });
+      return NextResponse.json({ threads: await withUrgency(threads) });
     }
 
     const leo = await ensureLeoLabels(token);
@@ -35,7 +42,7 @@ export async function GET(req: Request) {
         .map((n) => `-label:"${n}"`)
         .join(" ");
       const threads = await listThreads(token, { q: `in:inbox ${names}` }, 25);
-      return NextResponse.json({ threads });
+      return NextResponse.json({ threads: await withUrgency(threads) });
     }
 
     const labelId = leo[view as LeoBucket];

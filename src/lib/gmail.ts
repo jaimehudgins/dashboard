@@ -324,6 +324,7 @@ export interface ClassifyThread {
   id: string;
   from: string;
   subject: string;
+  snippet: string;
   labelIds: string[];
   listUnsub: boolean;
 }
@@ -349,6 +350,7 @@ export async function fetchInboxForClassify(
       id: t.id,
       from: header(h, "From"),
       subject: header(h, "Subject"),
+      snippet: last?.snippet || "",
       labelIds,
       listUnsub: !!header(h, "List-Unsubscribe"),
     };
