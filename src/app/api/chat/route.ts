@@ -37,9 +37,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "messages is required" }, { status: 400 });
   }
 
-  const url = new URL(req.url);
-  const base = `${url.protocol}//${url.host}`;
-  const token = process.env.MCP_TOKEN;
+  // Resolve our own origin robustly behind Vercel's proxy.
+  const host = req.headers.get("host");
+  const proto = req.headers.get("x-forwarded-proto") || "https";
+  const base = host ? `${proto}://${host}` : new URL(req.url).origin;
+  const token = process.env.MCP_TOKEN?.trim();
 
   const today = new Date().toISOString().split("T")[0];
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -113,8 +115,9 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("Chat error:", err);
+    const detail = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
-      { error: "Leo ran into a problem answering that." },
+      { error: `Leo ran into a problem: ${detail}` },
       { status: 500 },
     );
   }
