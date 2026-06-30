@@ -5,10 +5,12 @@ import { authOptions } from "@/lib/auth";
 import { getThread, getSentSamples } from "@/lib/gmail";
 import { anthropic, isAnthropicConfigured } from "@/lib/anthropic";
 
-// POST /api/mail/draft  { threadId, notes? }
-// Drafts a reply in the user's own voice. `notes` (optional) are the user's
-// jotted intent/bullets that Leo expands into a full reply. The draft is
-// returned for the user to edit before sending — nothing is sent here.
+// POST /api/mail/draft
+//   reply:   { threadId, notes? }    — drafts a reply to the thread
+//   compose: { to?, subject?, notes } — drafts a brand-new email
+// `notes` are the user's jotted intent/bullets that Leo expands in their own
+// voice. The draft is returned for the user to edit before sending — nothing
+// is sent here.
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.accessToken || session.error === "RefreshAccessTokenError") {
@@ -23,28 +25,33 @@ export async function POST(req: Request) {
   const token = session.accessToken;
   const name = session.user?.name || "Jaime";
 
-  let body: { threadId?: string; notes?: string };
+  let body: {
+    threadId?: string;
+    notes?: string;
+    to?: string;
+    subject?: string;
+  };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  if (!body.threadId) {
-    return NextResponse.json({ error: "threadId required" }, { status: 400 });
+  const isReply = !!body.threadId;
+  // Composing a new email needs at least a hint of what to say.
+  if (!isReply && !body.notes?.trim() && !body.subject?.trim()) {
+    return NextResponse.json(
+      { error: "Add a subject or a few notes so Leo knows what to write." },
+      { status: 400 },
+    );
   }
 
   try {
     const [thread, samples] = await Promise.all([
-      getThread(token, body.threadId),
+      isReply
+        ? getThread(token, body.threadId!)
+        : Promise.resolve(null),
       getSentSamples(token, 5).catch(() => [] as string[]),
     ]);
-
-    const convo = thread.messages
-      .map(
-        (m) =>
-          `From: ${m.from}\nDate: ${m.date}\nSubject: ${m.subject}\n\n${m.body.slice(0, 4000)}`,
-      )
-      .join("\n\n--- next message ---\n\n");
 
     const voice = samples.length
       ? samples
@@ -52,20 +59,42 @@ export async function POST(req: Request) {
           .join("\n\n")
       : "(No samples available. Use a warm, concise, professional tone.)";
 
-    const system = `You are Leo, ${name}'s chief of staff. You draft email replies in ${name}'s own voice — matching the tone, warmth, sentence length, greeting and sign-off style of the writing samples below. Write as ${name} (first person), not about ${name}.
+    const task = isReply
+      ? `You draft email replies in ${name}'s own voice`
+      : `You draft new emails in ${name}'s own voice`;
+
+    const system = `You are Leo, ${name}'s chief of staff. ${task} — matching the tone, warmth, sentence length, greeting and sign-off style of the writing samples below. Write as ${name} (first person), not about ${name}.
 
 Rules:
-- Output ONLY the reply body text, ready to paste into the reply box. No subject line, no "Here's a draft", no commentary, no markdown.
+- Output ONLY the email body text, ready to paste into the message box. No subject line, no "Here's a draft", no commentary, no markdown.
 - Match the samples' register: how they open, how formal/casual they are, how they sign off. If samples are short and direct, be short and direct.
-- Reply to the most recent message in the thread. Be substantive but concise.
-- Never invent commitments, dates, numbers, or facts that aren't grounded in the thread or the user's notes. If something needs ${name}'s input, leave a brief [bracketed placeholder].
+- Be substantive but concise.
+- Never invent commitments, dates, numbers, or facts that aren't grounded in the context or ${name}'s notes. If something needs ${name}'s input, leave a brief [bracketed placeholder].
 
 ${name}'s writing voice samples:
 ${voice}`;
 
-    const userPrompt = body.notes?.trim()
-      ? `Email thread to reply to:\n\n${convo}\n\n---\n\n${name}'s notes for this reply (expand these into a full reply in their voice):\n${body.notes.trim()}`
-      : `Email thread to reply to:\n\n${convo}\n\n---\n\nDraft ${name}'s reply to the most recent message.`;
+    let userPrompt: string;
+    if (isReply && thread) {
+      const convo = thread.messages
+        .map(
+          (m) =>
+            `From: ${m.from}\nDate: ${m.date}\nSubject: ${m.subject}\n\n${m.body.slice(0, 4000)}`,
+        )
+        .join("\n\n--- next message ---\n\n");
+      userPrompt = body.notes?.trim()
+        ? `Email thread to reply to:\n\n${convo}\n\n---\n\n${name}'s notes for this reply (expand these into a full reply in their voice):\n${body.notes.trim()}`
+        : `Email thread to reply to:\n\n${convo}\n\n---\n\nDraft ${name}'s reply to the most recent message.`;
+    } else {
+      const parts = [`Draft a new email from ${name}.`];
+      if (body.to?.trim()) parts.push(`Recipient: ${body.to.trim()}`);
+      if (body.subject?.trim()) parts.push(`Subject: ${body.subject.trim()}`);
+      if (body.notes?.trim())
+        parts.push(
+          `${name}'s notes on what to say (expand into a full email in their voice):\n${body.notes.trim()}`,
+        );
+      userPrompt = parts.join("\n\n");
+    }
 
     const response = await anthropic.messages.create({
       model: "claude-opus-4-8",

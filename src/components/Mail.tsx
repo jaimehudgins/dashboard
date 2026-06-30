@@ -671,7 +671,31 @@ function ComposeModal({
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
+  const [drafting, setDrafting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const draftWithLeo = async () => {
+    setDrafting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/mail/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: to.trim() || undefined,
+          subject: subject.trim() || undefined,
+          notes: body.trim() || undefined,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Draft failed");
+      setBody(d.draft);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Draft failed");
+    } finally {
+      setDrafting(false);
+    }
+  };
 
   const send = async () => {
     if (!to.trim() || !body.trim()) return;
@@ -729,12 +753,30 @@ function ComposeModal({
             value={body}
             onChange={(e) => setBody(e.target.value)}
             rows={8}
-            placeholder="Write your message…"
+            placeholder="Write your message, or jot a few notes and let Leo draft it in your voice…"
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
           />
           {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
-        <div className="flex items-center justify-end gap-2 p-5 border-t border-slate-100">
+        <div className="flex items-center justify-between gap-2 p-5 border-t border-slate-100">
+          <button
+            onClick={draftWithLeo}
+            disabled={drafting || sending || (!body.trim() && !subject.trim())}
+            title="Leo drafts the email in your voice. Add a subject or a few notes to steer it."
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-60 rounded-lg transition-colors"
+          >
+            {drafting ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <Sparkles size={15} />
+            )}
+            {drafting
+              ? "Drafting…"
+              : body.trim()
+                ? "Draft from notes"
+                : "Draft with Leo"}
+          </button>
+          <div className="flex items-center gap-2">
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
@@ -749,6 +791,7 @@ function ComposeModal({
             {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
             Send
           </button>
+          </div>
         </div>
       </div>
     </div>
