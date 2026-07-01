@@ -114,7 +114,9 @@ function parseNextSteps(summary: string, attendeeNames: Set<string>): NextStep[]
   let current: { main: string; detail: string[] } | null = null;
   const flush = () => {
     if (!current) return;
-    let main = current.main;
+    // Clean markdown FIRST so a bold-wrapped owner tag like
+    // "**Build … (Priscilla)**" ends in ")" and is detectable.
+    let main = cleanLine(current.main);
     let owner: string | null = null;
 
     // Suffix owner "(Name)" — only if it looks like a name (≤3 words, no comma).
@@ -123,13 +125,13 @@ function parseNextSteps(summary: string, attendeeNames: Set<string>): NextStep[]
       const inside = suffix[1].trim();
       if (!inside.includes(",") && inside.split(/\s+/).length <= 3) {
         owner = inside.toLowerCase();
-        main = main.replace(/\(([^)]+)\)\s*$/, "");
+        main = main.replace(/\(([^)]+)\)\s*$/, "").trim();
       }
     }
     // Prefix owner "Name:" — only when the word matches an attendee / shared
     // word (so "Timing:" or "Curriculum:" stay part of the text).
     if (!owner) {
-      const prefix = cleanLine(main).match(/^([A-Za-z][\w.]*(?:\s+[A-Za-z][\w.]*)?):\s+/);
+      const prefix = main.match(/^([A-Za-z][\w.]*(?:\s+[A-Za-z][\w.]*)?):\s+/);
       if (prefix) {
         const cand = prefix[1].trim().toLowerCase();
         const candFirst = cand.split(/\s+/)[0];
@@ -139,7 +141,7 @@ function parseNextSteps(summary: string, attendeeNames: Set<string>): NextStep[]
           SHARED_OWNERS.has(candFirst)
         ) {
           owner = cand;
-          main = cleanLine(main).replace(prefix[0], "");
+          main = main.replace(prefix[0], "");
         }
       }
     }
