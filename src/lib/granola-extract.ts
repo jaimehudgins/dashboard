@@ -135,11 +135,15 @@ function parseNextSteps(summary: string, attendeeNames: Set<string>): NextStep[]
       if (prefix) {
         const cand = prefix[1].trim().toLowerCase();
         const candFirst = cand.split(/\s+/)[0];
-        if (
-          attendeeNames.has(candFirst) ||
-          /jaime/.test(cand) ||
-          SHARED_OWNERS.has(candFirst)
-        ) {
+        // Tolerate spelling variants (Priscilla vs Priscila) with a 4-char
+        // prefix match against attendees — while keeping topic lead-ins like
+        // "Timing:"/"Platform:" as text.
+        const matchesAttendee =
+          candFirst.length >= 3 &&
+          [...attendeeNames].some(
+            (a) => a.length >= 3 && a.slice(0, 4) === candFirst.slice(0, 4),
+          );
+        if (matchesAttendee || /jaime/.test(cand) || SHARED_OWNERS.has(candFirst)) {
           owner = cand;
           main = main.replace(prefix[0], "");
         }
