@@ -10,6 +10,11 @@ import { anthropic, isAnthropicConfigured } from "./anthropic";
 // Willow staff email domain — attendees here are internal, not partners.
 const INTERNAL_DOMAIN = "willowed.org";
 
+// Temporary catch-up boundary requested by Jaime. Meetings before the start
+// of Aug 20, 2026 in America/Chicago remain searchable context, but their
+// historical next steps should not enter the active review queue.
+const REVIEW_CUTOFF = new Date("2026-08-20T05:00:00.000Z");
+
 interface PartnerRef {
   id: string;
   name: string;
@@ -242,7 +247,7 @@ export async function extractPendingMeetings(
 ): Promise<{ processed: number; tasksFound: number }> {
   const { data: meetings } = await supabase
     .from("granola_meetings")
-    .select("id, title, summary, attendees, tasks_extracted")
+    .select("id, title, summary, attendees, meeting_date, tasks_extracted")
     .eq("tasks_extracted", false)
     .order("meeting_date", { ascending: false })
     .limit(max);
@@ -267,6 +272,18 @@ export async function extractPendingMeetings(
         .from("granola_meetings")
         .update({ tasks_extracted: false })
         .eq("id", m.id);
+
+    const meetingDate = m.meeting_date
+      ? new Date(m.meeting_date as string)
+      : null;
+    if (
+      meetingDate &&
+      !Number.isNaN(meetingDate.getTime()) &&
+      meetingDate < REVIEW_CUTOFF
+    ) {
+      processed++;
+      continue;
+    }
 
     const attendees = (m.attendees as Attendee[]) || [];
     const attendeeNames = new Set(
