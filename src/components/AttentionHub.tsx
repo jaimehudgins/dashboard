@@ -21,6 +21,7 @@ import {
 
 type Urgency = "now" | "question" | "later" | null;
 type Destination = "task" | "quick_task" | "backlog";
+type DismissReason = "not_mine" | "not_a_task" | "already_handled";
 
 interface MailThread {
   id: string;
@@ -257,19 +258,28 @@ export default function AttentionHub() {
     }
   };
 
-  const dismissTask = async (meeting: Meeting, task: ExtractedTask) => {
+  const dismissTask = async (
+    meeting: Meeting,
+    task: ExtractedTask,
+    reason: DismissReason,
+  ) => {
     setBusy((current) => new Set(current).add(task.id));
     setReceipt(null);
     try {
       const response = await fetch("/api/granola/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: task.id, action: "dismiss" }),
+        body: JSON.stringify({ id: task.id, action: "dismiss", reason }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not dismiss item");
       removeCandidate(meeting.id, task.id);
-      setReceipt("Dismissed. Leo will not create that task.");
+      const receiptByReason: Record<DismissReason, string> = {
+        not_mine: "Dismissed as someone else’s commitment.",
+        not_a_task: "Dismissed as context, not a task.",
+        already_handled: "Marked already handled. No new task was created.",
+      };
+      setReceipt(receiptByReason[reason]);
     } catch (error) {
       setSourceErrors([
         error instanceof Error ? error.message : "Could not dismiss item",
@@ -550,13 +560,29 @@ export default function AttentionHub() {
                                 : "No partner · restore"}
                             </button>
                           )}
-                          <div className="ml-auto flex items-center gap-2">
+                          <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
                             <button
-                              onClick={() => dismissTask(meeting, task)}
+                              onClick={() => dismissTask(meeting, task, "not_mine")}
                               disabled={isBusy}
                               className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100 disabled:opacity-50"
                             >
                               <X size={13} /> Not mine
+                            </button>
+                            <button
+                              onClick={() => dismissTask(meeting, task, "not_a_task")}
+                              disabled={isBusy}
+                              className="rounded-lg px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+                            >
+                              Not a task
+                            </button>
+                            <button
+                              onClick={() =>
+                                dismissTask(meeting, task, "already_handled")
+                              }
+                              disabled={isBusy}
+                              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                            >
+                              <CheckCircle2 size={13} /> Already handled
                             </button>
                             <button
                               onClick={() => routeTask(meeting, task)}

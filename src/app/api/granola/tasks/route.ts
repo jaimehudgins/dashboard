@@ -5,12 +5,13 @@ import {
   routeExtractedTask,
   routeManualItem,
   dismissExtractedTask,
+  type DismissReason,
   type Destination,
 } from "@/lib/granola-route";
 
 // POST /api/granola/tasks
 //   { id, action: "route", destination, task?, due_date?, partner_id?, partner_name? }
-//   { id, action: "dismiss" }
+//   { id, action: "dismiss", reason?: "not_mine"|"not_a_task"|"already_handled" }
 //   { action: "manual", meetingId, task, destination, due_date?, partner_id? }
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -26,6 +27,7 @@ export async function POST(req: Request) {
     partner_id?: string | null;
     partner_name?: string | null;
     meetingId?: string;
+    reason?: DismissReason;
   };
   try {
     body = await req.json();
@@ -59,7 +61,17 @@ export async function POST(req: Request) {
     }
 
     if (body.action === "dismiss") {
-      await dismissExtractedTask(body.id);
+      const allowedReasons = new Set<DismissReason>([
+        "dismissed",
+        "not_mine",
+        "not_a_task",
+        "already_handled",
+      ]);
+      const reason =
+        body.reason && allowedReasons.has(body.reason)
+          ? body.reason
+          : "dismissed";
+      await dismissExtractedTask(body.id, reason);
       return NextResponse.json({ ok: true });
     }
     if (body.action === "route" || body.action === "confirm") {

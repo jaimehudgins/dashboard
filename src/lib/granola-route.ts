@@ -12,10 +12,19 @@ export type Destination =
   | "backlog"
   | "ignore";
 
-export async function dismissExtractedTask(id: string): Promise<void> {
+export type DismissReason =
+  | "dismissed"
+  | "not_mine"
+  | "not_a_task"
+  | "already_handled";
+
+export async function dismissExtractedTask(
+  id: string,
+  reason: DismissReason = "dismissed",
+): Promise<void> {
   const { error } = await supabase
     .from("granola_extracted_tasks")
-    .update({ status: "dismissed" })
+    .update({ status: "dismissed", routed_to: reason })
     .eq("id", id);
   if (error) throw error;
 }
@@ -170,7 +179,7 @@ export async function routeExtractedTask(
     "task";
 
   if (destination === "ignore") {
-    await dismissExtractedTask(id);
+    await dismissExtractedTask(id, "dismissed");
     return { routedTo: "ignored" };
   }
 
