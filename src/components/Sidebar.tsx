@@ -68,6 +68,7 @@ import { useKeyboardShortcuts } from "./KeyboardShortcuts";
 import { useTheme } from "./ThemeProvider";
 import { Task } from "@/types";
 import NotificationManager from "./NotificationManager";
+import AttentionNavBadge from "./AttentionNavBadge";
 
 interface SidebarProps {
   children: React.ReactNode;
@@ -279,6 +280,7 @@ export default function Sidebar({ children }: SidebarProps) {
               >
                 <Icon size={18} />
                 {item.label}
+                {item.href === "/attention" && <AttentionNavBadge />}
               </button>
             );
           })}
@@ -411,7 +413,7 @@ export default function Sidebar({ children }: SidebarProps) {
                   onOpenZenMode?: (task: Task) => void;
                 }>,
                 {
-                onOpenZenMode: setZenModeTask,
+                  onOpenZenMode: setZenModeTask,
                 },
               )
             : children}

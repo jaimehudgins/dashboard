@@ -87,7 +87,7 @@ Examples include a partner-response packet, meeting-preparation packet, or curri
 | Source | Initial cadence | Memory produced |
 |---|---:|---|
 | Gmail | Continuous/cron | Interactions, requests, commitments, sentiment signals |
-| Granola | Existing two-hour sync | Meetings, commitments, partner and curriculum evidence |
+| Granola | Existing 15-minute sync | Meetings, commitments, partner and curriculum evidence |
 | CRM | On retrieval plus scheduled reconciliation | Partner identity, health, contact history, open follow-ups |
 | Slack | Later continuous sync | Internal commitments, decisions, partner and curriculum context |
 | Google Chat | Later continuous sync | Partner interactions, requests, commitments |

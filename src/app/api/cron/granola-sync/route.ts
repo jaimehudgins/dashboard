@@ -8,7 +8,7 @@ import { extractPendingMeetings } from "@/lib/granola-extract";
 
 export const maxDuration = 300;
 
-// Scheduled Granola pull (every 2 hours): cache new meetings + transcripts,
+// Scheduled Granola pull (every 15 minutes): cache new meetings + transcripts,
 // then extract Jaime's commitments from any unprocessed transcript.
 // Guarded by CRON_SECRET when set (Vercel sends Authorization: Bearer <secret>).
 //   ?backfill=1 — one-time historical pull (context only, no extraction).
