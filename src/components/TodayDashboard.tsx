@@ -155,16 +155,23 @@ export default function TodayDashboard({ onOpenZenMode }: TodayDashboardProps) {
   const urgentMail = mail.filter(
     (thread) => thread.unread && thread.urgency === "now",
   );
-  const quickActions = mail
-    .filter((thread) => thread.unread && thread.urgency === "question")
-    .slice(0, 3);
-  const pendingCommitments = meetings
+  const quickActionMail = mail.filter(
+    (thread) => thread.unread && thread.urgency === "question",
+  );
+  const quickActions = quickActionMail.slice(0, 3);
+  const allPendingCommitments = meetings
     .flatMap((meeting) =>
       meeting.tasks
         .filter((task) => task.status === "pending")
-        .map((task) => ({ ...task, meetingTitle: meeting.title })),
-    )
-    .slice(0, 3);
+        .map((task) => ({
+          ...task,
+          meetingId: meeting.id,
+          meetingTitle: meeting.title,
+        })),
+    );
+  const pendingCommitments = allPendingCommitments.slice(0, 3);
+  const waitingReviewCount =
+    urgentMail.length + quickActionMail.length + allPendingCommitments.length;
 
   const criticalTask = sortedTasks.find(
     (task) =>
@@ -221,15 +228,23 @@ export default function TodayDashboard({ onOpenZenMode }: TodayDashboardProps) {
           </h1>
           <p className="mt-1 text-slate-500">{format(now, "EEEE, MMMM d, yyyy")}</p>
         </div>
-        <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <a
+          href="/attention"
+          className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm transition-colors hover:border-indigo-200 hover:bg-indigo-50/30"
+        >
           <Clock3 size={17} className="text-indigo-500" />
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
               Next response window
             </p>
             <p className="text-sm font-semibold text-slate-800">{nextBatchLabel(now)}</p>
+            {!sourcesLoading && waitingReviewCount > 0 && (
+              <p className="mt-0.5 text-xs font-medium text-indigo-600">
+                {waitingReviewCount} item{waitingReviewCount === 1 ? "" : "s"} waiting
+              </p>
+            )}
           </div>
-        </div>
+        </a>
       </header>
 
       <section className="overflow-hidden rounded-2xl bg-slate-950 text-white shadow-lg">
@@ -315,7 +330,11 @@ export default function TodayDashboard({ onOpenZenMode }: TodayDashboardProps) {
             ) : quickActions.length > 0 ? (
               <div className="space-y-3">
                 {quickActions.map((thread) => (
-                  <a key={thread.id} href="/mail" className="block rounded-xl bg-slate-50 p-3 hover:bg-slate-100">
+                  <a
+                    key={thread.id}
+                    href={`/attention#email-${thread.id}`}
+                    className="block rounded-xl bg-slate-50 p-3 hover:bg-slate-100"
+                  >
                     <p className="truncate text-sm font-semibold text-slate-800">
                       {thread.subject || "No subject"}
                     </p>
@@ -335,14 +354,25 @@ export default function TodayDashboard({ onOpenZenMode }: TodayDashboardProps) {
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center gap-2">
-              <MessageSquareText size={18} className="text-amber-500" />
-              <h2 className="font-semibold text-slate-900">Commitments</h2>
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MessageSquareText size={18} className="text-amber-500" />
+                <h2 className="font-semibold text-slate-900">Commitments</h2>
+              </div>
+              {allPendingCommitments.length > 0 && (
+                <a href="/attention#meeting-follow-up" className="text-xs font-semibold text-indigo-600 hover:underline">
+                  Review {allPendingCommitments.length} →
+                </a>
+              )}
             </div>
             {pendingCommitments.length > 0 ? (
               <div className="space-y-3">
                 {pendingCommitments.map((commitment) => (
-                  <a key={commitment.id} href="/meetings" className="block rounded-xl border border-amber-100 bg-amber-50/50 p-3 hover:bg-amber-50">
+                  <a
+                    key={commitment.id}
+                    href={`/attention#meeting-${commitment.meetingId}`}
+                    className="block rounded-xl border border-amber-100 bg-amber-50/50 p-3 hover:bg-amber-50"
+                  >
                     <p className="text-sm font-medium text-slate-800">{commitment.task}</p>
                     <p className="mt-1 text-xs text-slate-500">
                       {commitment.partner_name || commitment.meetingTitle}

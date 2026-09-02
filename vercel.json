@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/granola-sync",
-      "schedule": "0 */2 * * *"
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/cron/field-scan",
