@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   DndContext,
   closestCenter,
@@ -21,15 +21,11 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   Command,
-  Inbox,
   Calendar,
   Plus,
   Pencil,
   Tags,
   GripVertical,
-  CheckCircle2,
-  Circle,
-  Trash2,
   MoreHorizontal,
   Search,
   TrendingUp,
@@ -53,6 +49,10 @@ import {
   Sprout,
   Slack as SlackIcon,
   Github,
+  ChevronDown,
+  LayoutDashboard,
+  BriefcaseBusiness,
+  Eye,
 } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Project } from "@/types";
@@ -73,8 +73,14 @@ interface SidebarProps {
   children: React.ReactNode;
 }
 
-const navItems = [
-  { href: "/chat", label: "Chat with Leo", icon: MessageSquare },
+const primaryNavItems = [
+  { href: "/", label: "Today", icon: Command },
+  { href: "/attention", label: "Attention", icon: Eye },
+  { href: "/work", label: "Work", icon: BriefcaseBusiness },
+  { href: "/chat", label: "Ask Leo", icon: MessageSquare },
+] as const;
+
+const toolNavItems = [
   { href: "/mail", label: "Mail", icon: Mail },
   { href: "/meetings", label: "Meetings", icon: NotebookPen },
   { href: "/slack", label: "Slack", icon: SlackIcon },
@@ -83,7 +89,7 @@ const navItems = [
   { href: "/travel", label: "Travel", icon: Plane },
   { href: "/eod", label: "End of Day", icon: Sunset },
   { href: "/partner-tasks", label: "Partner Tasks", icon: Users },
-  { href: "/", label: "Situation Room", icon: Command },
+  { href: "/legacy-dashboard", label: "Legacy Dashboard", icon: LayoutDashboard },
   { href: "/archive", label: "Work History", icon: Calendar },
   { href: "/notes", label: "Note Catcher", icon: StickyNote },
   { href: "/sam", label: "Writing", icon: PenLine },
@@ -109,7 +115,6 @@ function SortableProjectItem({
   isActive,
   onEdit,
 }: SortableProjectItemProps) {
-  const router = useRouter();
   const {
     attributes,
     listeners,
@@ -170,7 +175,6 @@ function SortableProjectItem({
 
 export default function Sidebar({ children }: SidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const { state, dispatch } = useApp();
   const { openSearch } = useKeyboardShortcuts();
   const { theme, toggleTheme, mounted } = useTheme();
@@ -178,6 +182,11 @@ export default function Sidebar({ children }: SidebarProps) {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [showTagManager, setShowTagManager] = useState(false);
   const [zenModeTask, setZenModeTask] = useState<Task | null>(null);
+  const [showTools, setShowTools] = useState(
+    () =>
+      toolNavItems.some((item) => pathname === item.href) ||
+      pathname.startsWith("/projects/"),
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -253,7 +262,7 @@ export default function Sidebar({ children }: SidebarProps) {
 
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
+          {primaryNavItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
             return (
@@ -274,57 +283,92 @@ export default function Sidebar({ children }: SidebarProps) {
             );
           })}
 
-          {/* Manage Tags */}
-          <button
-            onClick={() => setShowTagManager(true)}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors w-full"
-          >
-            <Tags size={18} />
-            Manage Tags
-          </button>
-
-          {/* Projects Section */}
-          <div className="pt-6">
-            <div className="flex items-center justify-between px-3 mb-2">
-              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Projects
-              </h3>
-              <button
-                onClick={() => setShowCreateProject(true)}
-                className="text-slate-400 hover:text-indigo-500 transition-colors"
-                aria-label="Create new project"
-              >
-                <Plus size={16} />
-              </button>
-            </div>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
+          <div className="pt-3">
+            <button
+              onClick={() => setShowTools((open) => !open)}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+              aria-expanded={showTools}
             >
-              <SortableContext
-                items={activeProjects.map((p) => p.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="space-y-1">
-                  {activeProjects.map((project) => (
-                    <SortableProjectItem
-                      key={project.id}
-                      project={project}
-                      isActive={pathname === `/projects/${project.id}`}
-                      onEdit={setEditingProject}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
+              <MoreHorizontal size={18} />
+              <span className="flex-1 text-left">More & legacy tools</span>
+              <ChevronDown
+                size={15}
+                className={`transition-transform ${showTools ? "rotate-180" : ""}`}
+              />
+            </button>
           </div>
 
-          {/* Partner Tasks Section */}
-          <PartnerTasks />
+          {showTools && (
+            <div className="mt-1 space-y-1 border-l border-slate-200 pl-2">
+              {toolNavItems.map((item) => {
+                const isActive = pathname === item.href;
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.href}
+                    onClick={() => {
+                      window.location.href = item.href;
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                      isActive
+                        ? "bg-indigo-50 font-medium text-indigo-600"
+                        : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                    }`}
+                  >
+                    <Icon size={16} />
+                    {item.label}
+                  </button>
+                );
+              })}
 
-          {/* Misc Tasks Section */}
-          <MiscTasks />
+              <button
+                onClick={() => setShowTagManager(true)}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+              >
+                <Tags size={16} />
+                Manage Tags
+              </button>
+
+              <div className="pt-5">
+                <div className="mb-2 flex items-center justify-between px-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Projects
+                  </h3>
+                  <button
+                    onClick={() => setShowCreateProject(true)}
+                    className="text-slate-400 transition-colors hover:text-indigo-500"
+                    aria-label="Create new project"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={activeProjects.map((p) => p.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="space-y-1">
+                      {activeProjects.map((project) => (
+                        <SortableProjectItem
+                          key={project.id}
+                          project={project}
+                          isActive={pathname === `/projects/${project.id}`}
+                          onEdit={setEditingProject}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              </div>
+
+              <PartnerTasks />
+              <MiscTasks />
+            </div>
+          )}
         </nav>
 
         {/* Footer Stats */}
@@ -362,9 +406,14 @@ export default function Sidebar({ children }: SidebarProps) {
         {/* Content Area */}
         <div className="flex-1 overflow-auto p-8">
           {React.isValidElement(children)
-            ? React.cloneElement(children as React.ReactElement<any>, {
+            ? React.cloneElement(
+                children as React.ReactElement<{
+                  onOpenZenMode?: (task: Task) => void;
+                }>,
+                {
                 onOpenZenMode: setZenModeTask,
-              })
+                },
+              )
             : children}
         </div>
       </main>

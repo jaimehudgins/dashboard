@@ -2,12 +2,12 @@
 
 import React from "react";
 import Sidebar from "@/components/Sidebar";
-import TodayDashboard from "@/components/TodayDashboard";
+import AttentionHub from "@/components/AttentionHub";
 
-export default function Home() {
+export default function AttentionPage() {
   return (
     <Sidebar>
-      <TodayDashboard />
+      <AttentionHub />
     </Sidebar>
   );
 }
