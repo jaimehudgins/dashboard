@@ -1,35 +1,34 @@
 @import "tailwindcss";
 
-/* Forest Morning — Nature-Inspired Dashboard Theme */
+/* Willow Daylight — warm, low-glare dashboard theme */
 :root {
-    /* Soft linen background */
-    --background: #f5f3ee;
-    --foreground: #2a3228;
-    /* Warm white cards */
-    --card-bg: #faf9f5;
-    --card-border: #d5d0c4;
-    --card-hover-border: #bfb8a8;
-    --input-bg: #f8f7f2;
-    --input-border: #d0cbbe;
-    /* Sage gray muted text */
-    --muted: #7a8075;
-    --muted-light: #96a08e;
+    /* Sunlit canvas and soft white surfaces */
+    --background: #f6f7f2;
+    --foreground: #27352f;
+    --card-bg: #fffefb;
+    --card-border: #dde3da;
+    --card-hover-border: #c5d2c6;
+    --input-bg: #fbfcf8;
+    --input-border: #d5ddd4;
+    /* Calm, readable supporting text */
+    --muted: #68756e;
+    --muted-light: #8a968f;
 
     /* NATURE PALETTE */
-    --nature-forest: #4a7c59;   /* Deep forest green */
-    --nature-sage: #7a9b6d;     /* Soft sage */
-    --nature-stone: #8b8578;    /* Warm stone */
-    --nature-sky: #6b96b0;      /* Mountain sky blue */
-    --nature-clay: #b07d62;     /* Earth clay */
-    --nature-moss: #5a7247;     /* Dark moss */
-    --nature-fern: #6b8f5e;     /* Fern green */
-    --nature-sand: #c4a882;     /* Warm sand */
+    --nature-forest: #4f7d68;   /* Willow green */
+    --nature-sage: #8eaa85;     /* Soft sage */
+    --nature-stone: #858f88;    /* Cool stone */
+    --nature-sky: #769bad;      /* Hazy sky blue */
+    --nature-clay: #b77d63;     /* Warm clay */
+    --nature-moss: #486754;     /* Deep moss */
+    --nature-fern: #6f9275;     /* Fern green */
+    --nature-sand: #d6b982;     /* Sunlit sand */
 
     --accent: var(--nature-forest);
-    --accent-light: #5a8c68;
-    --scrollbar-track: #edebe5;
-    --scrollbar-thumb: #c4bfb2;
-    --scrollbar-thumb-hover: #a8a295;
+    --accent-light: #628f7a;
+    --scrollbar-track: #edf0e9;
+    --scrollbar-thumb: #bdcabc;
+    --scrollbar-thumb-hover: #9caf9e;
 }
 
 .dark {
@@ -79,7 +78,7 @@ body {
 }
 
 .bg-slate-100 {
-    background-color: #edeae3 !important;
+    background-color: #edf1eb !important;
 }
 
 .border-slate-200 {
@@ -87,7 +86,7 @@ body {
 }
 
 .border-slate-100 {
-    border-color: #e5e2da !important;
+    border-color: #e9ede6 !important;
 }
 
 .text-slate-900 {
@@ -95,15 +94,15 @@ body {
 }
 
 .text-slate-800 {
-    color: #343d36 !important;
+    color: #33423b !important;
 }
 
 .text-slate-700 {
-    color: #3e4a40 !important;
+    color: #43524b !important;
 }
 
 .text-slate-600 {
-    color: #50594f !important;
+    color: #55635c !important;
 }
 
 .text-slate-500 {
@@ -115,7 +114,12 @@ body {
 }
 
 .text-slate-300 {
-    color: #b8b3a6 !important;
+    color: #b2bcb5 !important;
+}
+
+/* Tailwind's darkest heading color is softened in the daytime only. */
+:root:not(.dark) .text-slate-950 {
+    color: var(--foreground) !important;
 }
 
 /* Accent color overrides — Forest green */
@@ -1212,4 +1216,109 @@ input[placeholder*="capture"]:focus {
 .fixed.inset-0 h3 {
     -webkit-text-fill-color: unset !important;
     background: none !important;
+}
+
+/* ========================================
+   WILLOW DAYLIGHT — bright, friendly polish
+   ======================================== */
+
+:root:not(.dark) body {
+    background-color: var(--background);
+    background-image:
+        radial-gradient(circle at 88% 4%, rgba(142, 170, 133, 0.12), transparent 24rem),
+        radial-gradient(circle at 8% 94%, rgba(118, 155, 173, 0.08), transparent 28rem);
+    background-attachment: fixed;
+}
+
+:root:not(.dark) aside {
+    border-right-color: #c7d7c7 !important;
+    background: linear-gradient(180deg, #fbfcf8 0%, #f5f8f2 58%, #f3f7f5 100%) !important;
+}
+
+:root:not(.dark) button[class*="bg-indigo-500"],
+:root:not(.dark) .bg-indigo-500,
+:root:not(.dark) button[class*="bg-emerald-500"],
+:root:not(.dark) .bg-emerald-500 {
+    background: linear-gradient(135deg, #4f7d68, #628f7a) !important;
+}
+
+:root:not(.dark) button[class*="bg-indigo-500"]:hover,
+:root:not(.dark) button[class*="bg-emerald-500"]:hover {
+    background: linear-gradient(135deg, #456f5d, #557f6d) !important;
+}
+
+/* Supporting workstreams use quiet pastels instead of saturated status colors. */
+:root:not(.dark) .bg-violet-50,
+:root:not(.dark) .bg-violet-50\/40,
+:root:not(.dark) .bg-violet-50\/50,
+:root:not(.dark) .bg-violet-50\/60 {
+    background-color: #f5f1f7 !important;
+}
+
+:root:not(.dark) .border-violet-100,
+:root:not(.dark) .border-violet-200 {
+    border-color: #e3dbe8 !important;
+}
+
+:root:not(.dark) .text-violet-500,
+:root:not(.dark) .text-violet-600,
+:root:not(.dark) .text-violet-700,
+:root:not(.dark) .text-violet-900 {
+    color: #756582 !important;
+}
+
+:root:not(.dark) .bg-sky-50,
+:root:not(.dark) .bg-sky-50\/50 {
+    background-color: #eff6f7 !important;
+}
+
+:root:not(.dark) .border-sky-100,
+:root:not(.dark) .border-sky-200 {
+    border-color: #d8e7ea !important;
+}
+
+:root:not(.dark) .text-sky-500,
+:root:not(.dark) .text-sky-600,
+:root:not(.dark) .text-sky-700 {
+    color: #5f8798 !important;
+}
+
+:root:not(.dark) .bg-amber-50,
+:root:not(.dark) .bg-amber-50\/50,
+:root:not(.dark) .bg-amber-50\/60 {
+    background-color: #fbf5e8 !important;
+}
+
+:root:not(.dark) .border-amber-100,
+:root:not(.dark) .border-amber-200 {
+    border-color: #eadfca !important;
+}
+
+:root:not(.dark) .text-amber-500,
+:root:not(.dark) .text-amber-600,
+:root:not(.dark) .text-amber-700 {
+    color: #8f7047 !important;
+}
+
+/* The critical card stays prominent without feeling like a black interruption. */
+.daylight-priority-card {
+    background: linear-gradient(135deg, #3f6e5a 0%, #527d68 58%, #6f927f 100%);
+    box-shadow: 0 14px 32px rgba(63, 110, 90, 0.18) !important;
+}
+
+.daylight-priority-card h2 {
+    color: #ffffff !important;
+}
+
+.daylight-priority-card .text-indigo-300 {
+    color: #e0eee5 !important;
+}
+
+.daylight-priority-card .text-slate-300 {
+    color: #edf4ef !important;
+}
+
+.dark .daylight-priority-card {
+    background: linear-gradient(135deg, #14231d 0%, #20352c 58%, #2c473a 100%);
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.28) !important;
 }
