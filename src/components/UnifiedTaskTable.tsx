@@ -26,6 +26,13 @@ import {
 } from "@/lib/crm-supabase";
 
 type UnifiedSource = "local" | "partner-followup" | "partner-onboarding";
+type WorkstreamFilter =
+  | "all"
+  | "curriculum"
+  | "partner"
+  | "leadership"
+  | "unassigned"
+  | "waiting";
 
 interface UnifiedRow {
   id: string;
@@ -36,6 +43,7 @@ interface UnifiedRow {
   priority: string; // display-friendly, "" for partner
   area: string; // work area or "Partner"
   areaColor: string;
+  workstream: Exclude<WorkstreamFilter, "all" | "waiting">;
   // back-refs for actions
   task?: Task;
   partnerId?: string;
@@ -48,6 +56,7 @@ interface Props {
   initialDueFilter?: DueFilter;
   compact?: boolean; // hide the filter bar (focused widget, e.g. the brief)
   title?: string;
+  showWorkstreamLenses?: boolean;
 }
 
 type SortKey = "dueDate" | "title" | "status" | "priority" | "area";
@@ -70,6 +79,7 @@ export default function UnifiedTaskTable({
   initialDueFilter,
   compact = false,
   title = "All Tasks",
+  showWorkstreamLenses = false,
 }: Props) {
   const { state, dispatch } = useApp();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -88,6 +98,8 @@ export default function UnifiedTaskTable({
   const [statusFilter, setStatusFilter] = useState<string>("active"); // "all" | "active" | "completed"
   const [sortKey, setSortKey] = useState<SortKey>("dueDate");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [workstreamFilter, setWorkstreamFilter] =
+    useState<WorkstreamFilter>("all");
 
   const fetchPartnerTasks = async () => {
     if (!isCrmConfigured) {
@@ -122,6 +134,7 @@ export default function UnifiedTaskTable({
           priority: "",
           area: "Partner",
           areaColor: "#6b96b0",
+          workstream: "partner",
           partnerId: t.partner_id || "",
           partnerName: partner?.name || "Unknown Partner",
           notes: t.notes,
@@ -138,6 +151,7 @@ export default function UnifiedTaskTable({
           priority: "",
           area: "Partner",
           areaColor: "#6b96b0",
+          workstream: "partner",
           partnerId: t.partner_id,
           partnerName: partner?.name || "Unknown Partner",
         });
@@ -249,6 +263,19 @@ export default function UnifiedTaskTable({
         const a = t.areaId
           ? state.areas.find((x) => x.id === t.areaId)
           : null;
+        const project = t.projectId
+          ? state.projects.find((item) => item.id === t.projectId)
+          : null;
+        const context = `${a?.name || ""} ${project?.name || ""}`.toLowerCase();
+        const workstream: UnifiedRow["workstream"] = context.includes("curriculum")
+          ? "curriculum"
+          : context.includes("partner") ||
+              context.includes("customer") ||
+              context.includes("consult")
+            ? "partner"
+            : context.includes("leadership") || context.includes("willow")
+              ? "leadership"
+              : "unassigned";
         return {
           id: t.id,
           source: "local" as UnifiedSource,
@@ -258,10 +285,11 @@ export default function UnifiedTaskTable({
           priority: t.priority,
           area: a?.name || "Unassigned",
           areaColor: a?.color || "#94a3b8",
+          workstream,
           task: t,
         };
       });
-  }, [state.tasks, state.areas]);
+  }, [state.tasks, state.areas, state.projects]);
 
   const allRows = useMemo(
     () => [...localRows, ...partnerRows],
@@ -287,6 +315,18 @@ export default function UnifiedTaskTable({
         } else {
           if (r.status !== "Complete") return false;
         }
+      }
+
+      if (workstreamFilter === "waiting") {
+        const isWaiting =
+          (r.source === "local" && r.status === "blocked") ||
+          (r.source !== "local" && r.status === "Waiting");
+        if (!isWaiting) return false;
+      } else if (
+        workstreamFilter !== "all" &&
+        r.workstream !== workstreamFilter
+      ) {
+        return false;
       }
 
       // area
@@ -325,7 +365,34 @@ export default function UnifiedTaskTable({
 
       return true;
     });
-  }, [allRows, statusFilter, areaFilter, dueFilter, search]);
+  }, [
+    allRows,
+    statusFilter,
+    workstreamFilter,
+    areaFilter,
+    dueFilter,
+    search,
+  ]);
+
+  const workstreamCounts = useMemo(() => {
+    const activeRows = allRows.filter((row) =>
+      row.source === "local"
+        ? row.status !== "completed"
+        : row.status !== "Complete",
+    );
+    return {
+      all: activeRows.length,
+      curriculum: activeRows.filter((row) => row.workstream === "curriculum").length,
+      partner: activeRows.filter((row) => row.workstream === "partner").length,
+      leadership: activeRows.filter((row) => row.workstream === "leadership").length,
+      unassigned: activeRows.filter((row) => row.workstream === "unassigned").length,
+      waiting: activeRows.filter(
+        (row) =>
+          (row.source === "local" && row.status === "blocked") ||
+          (row.source !== "local" && row.status === "Waiting"),
+      ).length,
+    };
+  }, [allRows]);
 
   const sortedRows = useMemo(() => {
     const arr = [...filteredRows];
@@ -481,6 +548,35 @@ export default function UnifiedTaskTable({
 
       {/* Filters */}
       <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 space-y-2">
+        {showWorkstreamLenses && (
+          <div className="flex items-center gap-1.5 flex-wrap pb-1">
+            {(
+              [
+                ["all", "All work"],
+                ["curriculum", "Curriculum"],
+                ["partner", "Partner Success"],
+                ["leadership", "Willow Leadership"],
+                ["unassigned", "Needs organizing"],
+                ["waiting", "Waiting"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                onClick={() => {
+                  setWorkstreamFilter(id);
+                  setAreaFilter("all");
+                }}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                  workstreamFilter === id
+                    ? "bg-indigo-500 text-white"
+                    : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {label} · {workstreamCounts[id]}
+              </button>
+            ))}
+          </div>
+        )}
         {!compact && (
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative flex-1 min-w-[180px]">
