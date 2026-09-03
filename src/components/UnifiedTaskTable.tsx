@@ -22,7 +22,7 @@ import {
   crmSupabase,
   isCrmConfigured,
   CrmFollowUpTask,
-  TaskStatus as CrmTaskStatus,
+  CrmOnboardingTask,
 } from "@/lib/crm-supabase";
 
 type UnifiedSource = "local" | "partner-followup" | "partner-onboarding";
@@ -47,6 +47,7 @@ interface Props {
   onFocusTask?: (task: Task) => void;
   initialDueFilter?: DueFilter;
   compact?: boolean; // hide the filter bar (focused widget, e.g. the brief)
+  title?: string;
 }
 
 type SortKey = "dueDate" | "title" | "status" | "priority" | "area";
@@ -68,6 +69,7 @@ export default function UnifiedTaskTable({
   onFocusTask,
   initialDueFilter,
   compact = false,
+  title = "All Tasks",
 }: Props) {
   const { state, dispatch } = useApp();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -125,7 +127,7 @@ export default function UnifiedTaskTable({
           notes: t.notes,
         });
       });
-      (onboardingData || []).forEach((t: any) => {
+      (onboardingData || []).forEach((t: CrmOnboardingTask) => {
         const partner = partnersData?.find((p) => p.id === t.partner_id);
         rows.push({
           id: `ob-${t.id}`,
@@ -470,7 +472,7 @@ export default function UnifiedTaskTable({
           <ListTodo className="text-indigo-500" size={18} />
         </div>
         <div className="flex-1">
-          <h2 className="text-base font-semibold text-slate-900">All Tasks</h2>
+          <h2 className="text-base font-semibold text-slate-900">{title}</h2>
           <p className="text-xs text-slate-500">
             {loadingPartner ? "Loading partner tasks…" : `${totalCount} task${totalCount !== 1 ? "s" : ""}`}
           </p>
