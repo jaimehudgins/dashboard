@@ -1,10 +1,9 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { format, isBefore, isSameDay, startOfDay } from "date-fns";
+import { format, isBefore, startOfDay } from "date-fns";
 import {
   ArrowRight,
-  BellRing,
   Brain,
   CheckCircle2,
   Clock3,
@@ -16,6 +15,7 @@ import {
 import { useApp } from "@/store/store";
 import { Task } from "@/types";
 import TodayAgenda from "./TodayAgenda";
+import UnifiedTaskTable from "./UnifiedTaskTable";
 
 type Urgency = "now" | "question" | "later" | null;
 
@@ -205,10 +205,6 @@ export default function TodayDashboard({ onOpenZenMode }: TodayDashboardProps) {
           task: null,
         };
 
-  const onDeck = sortedTasks
-    .filter((task) => task.id !== criticalTask?.id)
-    .slice(0, 4);
-
   const curriculumTask = sortedTasks.find((task) => {
     const project = state.projects.find((item) => item.id === task.projectId)?.name ?? "";
     const area = state.areas.find((item) => item.id === task.areaId)?.name ?? "";
@@ -391,45 +387,10 @@ export default function TodayDashboard({ onOpenZenMode }: TodayDashboardProps) {
         </div>
       </div>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <BellRing size={18} className="text-indigo-500" />
-            <h2 className="font-semibold text-slate-900">On deck</h2>
-          </div>
-          <a href="/work" className="text-xs font-semibold text-indigo-600 hover:underline">
-            Open work →
-          </a>
-        </div>
-        {onDeck.length > 0 ? (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {onDeck.map((task) => {
-              const domain = taskDomain(task, state.projects, state.areas);
-              return (
-                <button
-                  key={task.id}
-                  onClick={() => onOpenZenMode?.(task)}
-                  className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-left transition-colors hover:border-indigo-200 hover:bg-indigo-50/40"
-                >
-                  <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${domain.className}`}>
-                    {domain.label}
-                  </span>
-                  <p className="mt-3 line-clamp-2 text-sm font-semibold text-slate-800">{task.title}</p>
-                  <p className="mt-2 text-xs text-slate-400">
-                    {task.dueDate && isSameDay(new Date(task.dueDate), now)
-                      ? "Due today"
-                      : task.dueDate
-                        ? `Due ${format(new Date(task.dueDate), "MMM d")}`
-                        : `${task.priority} priority`}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="text-sm text-slate-500">Nothing else is competing for your attention.</p>
-        )}
-      </section>
+      <UnifiedTaskTable
+        onFocusTask={onOpenZenMode}
+        title="All open tasks"
+      />
 
       <div className="flex justify-end">
         <a href="/eod" className="text-sm font-medium text-slate-500 hover:text-indigo-600">
