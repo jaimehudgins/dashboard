@@ -390,6 +390,7 @@ export default function TodayDashboard({ onOpenZenMode }: TodayDashboardProps) {
       <UnifiedTaskTable
         onFocusTask={onOpenZenMode}
         title="All open tasks"
+        showWorkstreamLenses
       />
 
       <div className="flex justify-end">
