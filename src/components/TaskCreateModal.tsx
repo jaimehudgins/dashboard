@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Plus, Clock, ExternalLink } from "lucide-react";
+import { ChevronDown, X, Plus, Clock, ExternalLink } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Task, Priority, TaskStatus, Tag } from "@/types";
 import TagBadge from "./TagBadge";
@@ -88,6 +88,7 @@ export default function TaskCreateModal({
   const [estimatedMinutes, setEstimatedMinutes] = useState<
     number | undefined
   >();
+  const [showDetails, setShowDetails] = useState(false);
   // Resolve initial area: explicit prop wins, else inherit from default project.
   const initialProject = state.projects.find((p) => p.id === defaultProjectId);
   const [areaId, setAreaId] = useState<string | undefined>(
@@ -225,7 +226,7 @@ export default function TaskCreateModal({
     if (reminders.some((r) => r.minutesBefore === minutesBefore)) return;
 
     const newReminder: Reminder = {
-      id: `reminder-${Date.now()}`,
+      id: `reminder-${crypto.randomUUID()}`,
       minutesBefore,
       notified: false,
     };
@@ -242,17 +243,18 @@ export default function TaskCreateModal({
     return option?.label || `${minutesBefore} minutes before`;
   };
 
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-  if (!mounted) return null;
+  if (typeof document === "undefined") return null;
 
   const modal = (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
       <div className="bg-white border border-slate-200 rounded-xl w-full max-w-lg p-6 shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-slate-900">New Task</h2>
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Capture work</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Start with what needs to happen. Everything else is optional.
+            </p>
+          </div>
           <button
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 transition-colors"
@@ -283,10 +285,66 @@ export default function TaskCreateModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
-              placeholder="Add details, notes, or context..."
+              placeholder="Why does this matter? Add any useful context."
               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
             />
           </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-sm text-slate-600 mb-1">
+                When does this matter?
+              </label>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            {areas.length > 0 && (
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  Work area
+                </label>
+                <select
+                  value={areaId || ""}
+                  onChange={(e) => {
+                    setAreaId(e.target.value || undefined);
+                    setAreaUserSet(true);
+                  }}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Let Leo organize it later</option>
+                  {areas.map((area) => (
+                    <option key={area.id} value={area.id}>
+                      {area.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowDetails((open) => !open)}
+            className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-left text-sm font-medium text-slate-600 hover:bg-slate-100"
+            aria-expanded={showDetails}
+          >
+            <ChevronDown
+              size={16}
+              className={`transition-transform ${showDetails ? "rotate-180" : ""}`}
+            />
+            More details
+            <span className="ml-auto text-xs font-normal text-slate-400">
+              Project, priority, recurrence, tags
+            </span>
+          </button>
+
+          {showDetails && (
+            <div className="space-y-4 rounded-xl border border-slate-200 p-4">
 
           <div>
             <label className="block text-sm text-slate-600 mb-1 flex items-center gap-2">
@@ -322,30 +380,6 @@ export default function TaskCreateModal({
               ))}
             </select>
           </div>
-
-          {/* Area (unified taxonomy: replaces Misc Category + Work Area) */}
-          {areas.length > 0 && (
-            <div>
-              <label className="block text-sm text-slate-600 mb-1">
-                Area
-              </label>
-              <select
-                value={areaId || ""}
-                onChange={(e) => {
-                  setAreaId(e.target.value || undefined);
-                  setAreaUserSet(true);
-                }}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">Unassigned</option>
-                {areas.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
 
           {/* Milestone Selector */}
           {projectId && projectMilestones.length > 0 && (
@@ -399,18 +433,6 @@ export default function TaskCreateModal({
                 <option value="in_progress">In Progress</option>
                 <option value="blocked">Blocked</option>
               </select>
-            </div>
-
-            <div>
-              <label className="block text-sm text-slate-600 mb-1">
-                Due Date
-              </label>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
             </div>
 
             <div>
@@ -587,6 +609,8 @@ export default function TaskCreateModal({
             daysOfWeek={recurrenceDaysOfWeek}
             onDaysOfWeekChange={setRecurrenceDaysOfWeek}
           />
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
             <button
@@ -601,7 +625,7 @@ export default function TaskCreateModal({
               disabled={!title.trim()}
               className="bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white px-4 py-2.5 rounded-lg font-medium transition-colors"
             >
-              Create Task
+              Add to work queue
             </button>
           </div>
         </form>
