@@ -16,6 +16,8 @@ import {
   Plane,
   Check,
   ListTodo,
+  BookOpen,
+  ExternalLink,
 } from "lucide-react";
 import { Trip, loadTrips, attachEmailToTrip } from "@/lib/trips";
 import { useApp } from "@/store/store";
@@ -116,6 +118,14 @@ interface FullThread {
   messages: ThreadMessage[];
 }
 
+interface DraftSource {
+  id: string;
+  kind: "drive" | "platform";
+  title: string;
+  detail: string;
+  url?: string;
+}
+
 function senderName(from: string): string {
   const m = from.match(/^\s*"?([^"<]+?)"?\s*<.*>/);
   return (m ? m[1] : from.replace(/<.*>/, "")).trim() || from;
@@ -145,6 +155,7 @@ export default function Mail() {
   const [replyBody, setReplyBody] = useState("");
   const [sending, setSending] = useState(false);
   const [drafting, setDrafting] = useState(false);
+  const [draftSources, setDraftSources] = useState<DraftSource[]>([]);
   const replyRef = useRef<HTMLTextAreaElement>(null);
 
   // Grow the reply box to fit its content so a drafted email shows in full.
@@ -298,6 +309,7 @@ export default function Mail() {
     setSelectedUrgency(threads.find((t) => t.id === id)?.urgency ?? null);
     setThread(null);
     setReplyBody("");
+    setDraftSources([]);
     setTripMenuOpen(false);
     setAttachedTo(null);
     setLoadingThread(true);
@@ -339,6 +351,7 @@ export default function Mail() {
     if (!selectedId) return;
     setDrafting(true);
     setError(null);
+    setDraftSources([]);
     try {
       const res = await fetch("/api/mail/draft", {
         method: "POST",
@@ -351,6 +364,7 @@ export default function Mail() {
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Draft failed");
       setReplyBody(d.draft);
+      setDraftSources(d.sources || []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Draft failed");
     } finally {
@@ -550,6 +564,42 @@ export default function Mail() {
                 placeholder="Write a reply, or jot a few notes and let Leo draft it in your voice…"
                 className="w-full min-h-[6rem] border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none overflow-hidden"
               />
+              {draftSources.length > 0 && (
+                <div className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50/50 px-3 py-2.5">
+                  <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+                    <BookOpen size={13} />
+                    Sources Leo checked
+                  </div>
+                  <div className="space-y-1">
+                    {draftSources.map((source) => (
+                      <div
+                        key={source.id}
+                        className="flex items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="min-w-0">
+                          <span className="font-medium text-slate-700">
+                            {source.title}
+                          </span>
+                          <span className="ml-1.5 text-slate-400">
+                            {source.detail}
+                          </span>
+                        </div>
+                        {source.url && (
+                          <a
+                            href={source.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="shrink-0 text-emerald-600 hover:text-emerald-800"
+                            title={`Open ${source.title}`}
+                          >
+                            <ExternalLink size={13} />
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="flex items-center justify-between mt-2">
                 <button
                   onClick={draftWithLeo}
@@ -563,7 +613,7 @@ export default function Mail() {
                     <Sparkles size={15} />
                   )}
                   {drafting
-                    ? "Drafting…"
+                    ? "Finding sources and drafting…"
                     : replyBody.trim()
                       ? "Draft from notes"
                       : "Draft with Leo"}

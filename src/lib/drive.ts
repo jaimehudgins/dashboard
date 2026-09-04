@@ -13,6 +13,23 @@ export interface DriveFile {
   owner?: string;
 }
 
+export interface DriveTextSource extends DriveFile {
+  text: string;
+}
+
+interface DriveApiFile {
+  id: string;
+  name: string;
+  mimeType?: string;
+  modifiedTime?: string;
+  webViewLink?: string;
+  owners?: { displayName?: string }[];
+}
+
+interface DriveFileListResponse {
+  files?: DriveApiFile[];
+}
+
 const TYPE_LABELS: Record<string, string> = {
   "application/vnd.google-apps.document": "Doc",
   "application/vnd.google-apps.spreadsheet": "Sheet",
@@ -31,7 +48,7 @@ function friendlyType(mimeType: string): string {
   return mimeType.split("/").pop() || "File";
 }
 
-async function driveFetch(token: string, path: string): Promise<any> {
+async function driveFetch<T>(token: string, path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -39,11 +56,21 @@ async function driveFetch(token: string, path: string): Promise<any> {
     const body = await res.text();
     throw new Error(`Drive API ${res.status}: ${body.slice(0, 200)}`);
   }
-  return res.json();
+  return res.json() as Promise<T>;
 }
 
-function mapFiles(data: any): DriveFile[] {
-  return (data.files || []).map((f: any) => ({
+async function driveTextFetch(token: string, path: string): Promise<string> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error(`Drive API ${res.status}`);
+  }
+  return res.text();
+}
+
+function mapFiles(data: DriveFileListResponse): DriveFile[] {
+  return (data.files || []).map((f) => ({
     id: f.id,
     name: f.name,
     type: friendlyType(f.mimeType || ""),
@@ -75,6 +102,40 @@ export async function searchDrive(
     spaces: "drive",
     corpora: "user",
   });
-  const data = await driveFetch(token, `/files?${params}`);
+  const data = await driveFetch<DriveFileListResponse>(token, `/files?${params}`);
   return mapFiles(data);
+}
+
+// Export readable Drive content for grounding. Unsupported binary formats are
+// skipped rather than guessed at; the original file remains untouched.
+export async function readDriveText(
+  token: string,
+  file: DriveFile,
+  maxChars = 6000,
+): Promise<DriveTextSource | null> {
+  let path: string | null = null;
+
+  if (file.mimeType === "application/vnd.google-apps.document") {
+    path = `/files/${encodeURIComponent(file.id)}/export?mimeType=${encodeURIComponent("text/plain")}`;
+  } else if (file.mimeType === "application/vnd.google-apps.spreadsheet") {
+    path = `/files/${encodeURIComponent(file.id)}/export?mimeType=${encodeURIComponent("text/csv")}`;
+  } else if (file.mimeType === "application/vnd.google-apps.presentation") {
+    path = `/files/${encodeURIComponent(file.id)}/export?mimeType=${encodeURIComponent("text/plain")}`;
+  } else if (
+    file.mimeType.startsWith("text/") ||
+    file.mimeType === "application/json"
+  ) {
+    path = `/files/${encodeURIComponent(file.id)}?alt=media`;
+  }
+
+  if (!path) return null;
+
+  try {
+    const text = (await driveTextFetch(token, path)).trim();
+    if (!text) return null;
+    return { ...file, text: text.slice(0, maxChars) };
+  } catch (error) {
+    console.warn(`Could not read Drive file ${file.id}:`, error);
+    return null;
+  }
 }
