@@ -17,12 +17,49 @@ export interface CrmPartner {
   id: string;
   name: string;
   status: string;
+  priority?: string | null;
   relationship_health?: string | null;
+  renewal_status?: string | null;
   last_contact_date?: string | null;
+  next_follow_up?: string | null;
+  proposal_deadline?: string | null;
   city_state?: string | null;
   district?: string | null;
   willow_staff_lead?: string | null;
   summary?: string | null;
+  pain_points?: string[] | null;
+  onboarding_step?: string | null;
+  updated_at?: string | null;
+}
+
+export interface CrmContact {
+  id: string;
+  partner_id: string;
+  name: string;
+  role?: string | null;
+  email: string;
+  phone?: string | null;
+  is_primary_contact?: boolean | null;
+}
+
+export interface CrmTouchpoint {
+  id: string;
+  partner_id: string;
+  date: string;
+  author?: string | null;
+  title?: string | null;
+  notes: string;
+  next_steps?: string | null;
+  next_steps_due_date?: string | null;
+  type: string;
+}
+
+export interface CrmImportantDate {
+  id: string;
+  partner_id: string;
+  title: string;
+  date: string;
+  notes?: string | null;
 }
 
 export interface CrmFollowUpTask {

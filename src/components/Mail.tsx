@@ -120,7 +120,7 @@ interface FullThread {
 
 interface DraftSource {
   id: string;
-  kind: "drive" | "platform";
+  kind: "crm" | "granola" | "memory" | "past_email" | "drive" | "platform";
   title: string;
   detail: string;
   url?: string;
