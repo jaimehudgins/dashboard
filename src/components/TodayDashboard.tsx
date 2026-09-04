@@ -243,7 +243,7 @@ export default function TodayDashboard({ onOpenZenMode }: TodayDashboardProps) {
         </a>
       </header>
 
-      <section className="overflow-hidden rounded-2xl bg-slate-950 text-white shadow-lg">
+      <section className="daylight-priority-card overflow-hidden rounded-2xl text-white shadow-lg">
         <div className="grid gap-6 p-6 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
             <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-300">
