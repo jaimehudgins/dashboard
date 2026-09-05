@@ -77,6 +77,10 @@ function sanitizeData(
   return data;
 }
 
+function errorStatus(error: TemuApiError): number {
+  return error.status >= 400 && error.status < 600 ? error.status : 502;
+}
+
 // User-initiated export. The explicit `confirmed: true` accompanies the final
 // UI click; previews and background processes cannot create TEMU records.
 export async function POST(request: Request) {
@@ -108,13 +112,113 @@ export async function POST(request: Request) {
     if (!isObject(body.data)) {
       return NextResponse.json({ error: "Export data is required" }, { status: 400 });
     }
+    if (body.follow_up_tasks !== undefined) {
+      if (
+        body.resource !== "touchpoints" ||
+        !Array.isArray(body.follow_up_tasks)
+      ) {
+        return NextResponse.json(
+          { error: "Follow-up tasks require a touchpoint export" },
+          { status: 400 },
+        );
+      }
+      if (body.follow_up_tasks.length > 10) {
+        return NextResponse.json(
+          { error: "No more than 10 follow-up tasks may be exported at once" },
+          { status: 400 },
+        );
+      }
+      if (body.follow_up_tasks.some((task) => !isObject(task))) {
+        return NextResponse.json(
+          { error: "Every follow-up task must be an object" },
+          { status: 400 },
+        );
+      }
+      const invalidTask = body.follow_up_tasks.find(
+        (task) =>
+          typeof task.source_external_id !== "string" ||
+          !task.source_external_id.trim() ||
+          task.source_external_id.length > 255 ||
+          typeof task.task !== "string" ||
+          !task.task.trim(),
+      );
+      if (invalidTask) {
+        return NextResponse.json(
+          { error: "Every follow-up task needs a task and stable source ID" },
+          { status: 400 },
+        );
+      }
+    }
 
+    const data = sanitizeData(body.resource, body.data);
     const result = await createTemuRecord({
       resource: body.resource,
       actor: session.user.email,
-      data: sanitizeData(body.resource, body.data),
+      data,
     });
-    return NextResponse.json(result, { status: result.duplicate ? 200 : 201 });
+
+    if (body.follow_up_tasks === undefined) {
+      return NextResponse.json(result, { status: result.duplicate ? 200 : 201 });
+    }
+    const taskResults: Array<{ duplicate: boolean }> = [];
+    for (const rawTask of body.follow_up_tasks) {
+      const ownership =
+        rawTask.ownership === "partner" ? "partner" : "jaime";
+      const taskData = sanitizeData("follow-up-tasks", {
+        partner_id: data.partner_id,
+        source_external_id: rawTask.source_external_id,
+        source_created_at: data.source_created_at,
+        source_metadata: {
+          parent_source_external_id: data.source_external_id,
+          ownership,
+        },
+        touchpoint_source_external_id: data.source_external_id,
+        task: rawTask.task,
+        due_date: rawTask.due_date ?? null,
+        completed: false,
+        status: ownership === "partner" ? "Waiting" : "Not Started",
+        notes:
+          typeof rawTask.owner === "string" && rawTask.owner.trim()
+            ? `Owner identified by Leo: ${rawTask.owner.trim()}`
+            : "Created from a reviewed TEMU touchpoint in Leo",
+      });
+
+      try {
+        const taskResult = await createTemuRecord({
+          resource: "follow-up-tasks",
+          actor: session.user.email,
+          data: taskData,
+        });
+        taskResults.push({ duplicate: taskResult.duplicate });
+      } catch (error) {
+        if (error instanceof TemuApiError) {
+          return NextResponse.json(
+            {
+              error: `Touchpoint added, but a follow-up task failed: ${error.message}`,
+              code: error.code,
+              partial: {
+                touchpoint_added: true,
+                tasks_added: taskResults.length,
+              },
+            },
+            { status: errorStatus(error) },
+          );
+        }
+        throw error;
+      }
+    }
+
+    return NextResponse.json(
+      {
+        ...result,
+        follow_up_tasks: {
+          requested: taskResults.length,
+          created: taskResults.filter((task) => !task.duplicate).length,
+          duplicates: taskResults.filter((task) => task.duplicate).length,
+        },
+      },
+      { status: result.duplicate ? 200 : 201 },
+    );
   } catch (error) {
     if (error instanceof SyntaxError) {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
@@ -122,7 +226,7 @@ export async function POST(request: Request) {
     if (error instanceof TemuApiError) {
       return NextResponse.json(
         { error: error.message, code: error.code },
-        { status: error.status >= 400 && error.status < 600 ? error.status : 502 },
+        { status: errorStatus(error) },
       );
     }
     console.error("TEMU export error", error);
