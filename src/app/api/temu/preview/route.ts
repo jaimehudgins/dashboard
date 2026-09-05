@@ -5,12 +5,20 @@ import { NextResponse } from "next/server";
 
 import { anthropic, isAnthropicConfigured } from "@/lib/anthropic";
 import { authOptions } from "@/lib/auth";
-import { crmSupabase, isCrmConfigured } from "@/lib/crm-supabase";
+import {
+  crmSupabase,
+  CrmContact,
+  CrmPartner,
+  isCrmConfigured,
+} from "@/lib/crm-supabase";
 import { getThread } from "@/lib/gmail";
 import { findPartnerForSender } from "@/lib/partner-context";
 import { supabase } from "@/lib/supabase";
 
 export const maxDuration = 60;
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const SUMMARY_SCHEMA = {
   type: "object",
@@ -123,6 +131,87 @@ function contactSourceId(partnerId: string, email: string): string {
   return `gmail-contact:${hash}`;
 }
 
+function organizationKey(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "").replace(/s$/, "");
+}
+
+async function partnerSelection(sender: string) {
+  if (!isCrmConfigured) {
+    return NextResponse.json(
+      { error: "TEMU CRM lookup is not configured" },
+      { status: 503 },
+    );
+  }
+
+  const { data, error } = await crmSupabase
+    .from("partners")
+    .select("id, name, status")
+    .order("name", { ascending: true })
+    .limit(500);
+  if (error) throw error;
+
+  const email = emailAddress(sender);
+  const domainKey = organizationKey(email.split("@")[1]?.split(".")[0] ?? "");
+  const partners = ((data ?? []) as Pick<CrmPartner, "id" | "name" | "status">[])
+    .map((partner) => ({
+      id: partner.id,
+      name: partner.name,
+      status: partner.status,
+    }));
+  const likelyMatches = domainKey
+    ? partners.filter((partner) => {
+        const nameKey = organizationKey(partner.name);
+        return (
+          nameKey === domainKey ||
+          nameKey.includes(domainKey) ||
+          domainKey.includes(nameKey)
+        );
+      })
+    : [];
+
+  return NextResponse.json({
+    partner_selection: {
+      sender: { name: contactName(sender, email), email },
+      partners,
+      suggested_partner_id:
+        likelyMatches.length === 1 ? likelyMatches[0].id : null,
+    },
+  });
+}
+
+async function selectedPartnerMatch(partnerId: string, sender: string) {
+  if (!isCrmConfigured) return null;
+  if (!UUID_PATTERN.test(partnerId)) {
+    throw new Error("The selected TEMU partner is invalid");
+  }
+
+  const email = emailAddress(sender);
+  const [{ data: partner, error: partnerError }, { data: contacts, error: contactError }] =
+    await Promise.all([
+      crmSupabase
+        .from("partners")
+        .select(
+          "id, name, status, priority, relationship_health, renewal_status, last_contact_date, next_follow_up, proposal_deadline, city_state, district, willow_staff_lead, summary, pain_points, onboarding_step",
+        )
+        .eq("id", partnerId)
+        .maybeSingle(),
+      crmSupabase
+        .from("contacts")
+        .select("id, partner_id, name, role, email, phone, is_primary_contact")
+        .eq("partner_id", partnerId)
+        .ilike("email", email)
+        .limit(1),
+    ]);
+  if (partnerError) throw partnerError;
+  if (contactError) throw contactError;
+  if (!partner) return null;
+
+  return {
+    partner: partner as CrmPartner,
+    contact: (contacts?.[0] as CrmContact | undefined) ?? null,
+  };
+}
+
 async function summarize(source: string, fallback: Summary): Promise<Summary> {
   if (!isAnthropicConfigured) return fallback;
 
@@ -187,6 +276,7 @@ async function emailPreview(
   token: string,
   userEmail: string,
   userName: string,
+  selectedPartnerId?: string,
 ) {
   const thread = await getThread(token, threadId);
   if (!thread.messages.length) {
@@ -197,12 +287,20 @@ async function emailPreview(
     [...thread.messages].reverse().find(
       (message) => emailAddress(message.from) !== userEmail.toLowerCase(),
     ) ?? thread.messages[0];
-  const match = await findPartnerForSender(externalMessage.from);
+  const match = selectedPartnerId
+    ? await selectedPartnerMatch(selectedPartnerId, externalMessage.from)
+    : await findPartnerForSender(externalMessage.from);
   if (!match) {
-    return NextResponse.json(
-      { error: "Leo could not match this email to one TEMU partner" },
-      { status: 422 },
-    );
+    if (selectedPartnerId) {
+      return NextResponse.json(
+        {
+          error:
+            "That partner no longer exists in TEMU. Create or restore it in TEMU first.",
+        },
+        { status: 404 },
+      );
+    }
+    return partnerSelection(externalMessage.from);
   }
 
   const latest = thread.messages[thread.messages.length - 1];
@@ -389,6 +487,7 @@ export async function POST(request: Request) {
         session.accessToken,
         session.user.email,
         userName,
+        typeof body.partner_id === "string" ? body.partner_id : undefined,
       );
     }
     if (body.source === "meeting") {
