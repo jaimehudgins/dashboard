@@ -3,6 +3,8 @@
 import { Building2, CheckCircle2, Loader2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { readJsonResponse } from "@/lib/http";
+
 export interface TemuTouchpointPreview {
   source: "email" | "meeting";
   partner: { id: string; name: string };
@@ -139,8 +141,24 @@ export default function TemuTouchpointModal({
           })),
         }),
       });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "TEMU export failed");
+      const body = await readJsonResponse<{
+        duplicate: boolean;
+        error: string;
+        contact: {
+          requested: boolean;
+          created: boolean;
+          duplicate: boolean;
+          existing: boolean;
+        } | null;
+        follow_up_tasks: {
+          requested: number;
+          created: number;
+          duplicates: number;
+        };
+      }>(response);
+      if (!response.ok) {
+        throw new Error(body.error || `TEMU export failed (${response.status})`);
+      }
       setResult({
         duplicate: Boolean(body.duplicate),
         contactRequested: Boolean(body.contact?.requested),

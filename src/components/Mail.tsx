@@ -21,6 +21,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { Trip, loadTrips, attachEmailToTrip } from "@/lib/trips";
+import { readJsonResponse } from "@/lib/http";
 import { useApp } from "@/store/store";
 import { Task, QuickTask } from "@/types";
 import CharacterQuote from "./CharacterQuote";
@@ -403,8 +404,14 @@ export default function Mail() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source: "email", id: selectedId }),
       });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "TEMU preview failed");
+      const body = await readJsonResponse<{
+        error: string;
+        preview: TemuTouchpointPreview;
+      }>(response);
+      if (!response.ok) {
+        throw new Error(body.error || `TEMU preview failed (${response.status})`);
+      }
+      if (!body.preview) throw new Error("TEMU preview returned no result");
       setTemuPreview(body.preview);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "TEMU preview failed");
