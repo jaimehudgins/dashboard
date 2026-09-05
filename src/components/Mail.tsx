@@ -28,6 +28,9 @@ import CharacterQuote from "./CharacterQuote";
 import TemuTouchpointModal, {
   TemuTouchpointPreview,
 } from "./TemuTouchpointModal";
+import TemuPartnerPickerModal, {
+  TemuPartnerSelection,
+} from "./TemuPartnerPickerModal";
 
 type Urgency = "now" | "question" | "later" | null;
 
@@ -183,6 +186,9 @@ export default function Mail() {
   const [taskCreated, setTaskCreated] = useState(false);
   const [temuPreview, setTemuPreview] =
     useState<TemuTouchpointPreview | null>(null);
+  const [temuPartnerSelection, setTemuPartnerSelection] =
+    useState<TemuPartnerSelection | null>(null);
+  const [temuPartnerError, setTemuPartnerError] = useState<string | null>(null);
   const [temuPreviewing, setTemuPreviewing] = useState(false);
 
   const openTaskMenu = () => {
@@ -394,27 +400,41 @@ export default function Mail() {
     }
   };
 
-  const reviewTemuTouchpoint = async () => {
+  const reviewTemuTouchpoint = async (partnerId?: string) => {
     if (!selectedId) return;
     setTemuPreviewing(true);
     setError(null);
+    setTemuPartnerError(null);
     try {
       const response = await fetch("/api/temu/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: "email", id: selectedId }),
+        body: JSON.stringify({
+          source: "email",
+          id: selectedId,
+          partner_id: partnerId,
+        }),
       });
       const body = await readJsonResponse<{
         error: string;
         preview: TemuTouchpointPreview;
+        partner_selection: TemuPartnerSelection;
       }>(response);
       if (!response.ok) {
         throw new Error(body.error || `TEMU preview failed (${response.status})`);
       }
+      if (body.partner_selection) {
+        setTemuPartnerSelection(body.partner_selection);
+        return;
+      }
       if (!body.preview) throw new Error("TEMU preview returned no result");
+      setTemuPartnerSelection(null);
       setTemuPreview(body.preview);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "TEMU preview failed");
+      const message =
+        caught instanceof Error ? caught.message : "TEMU preview failed";
+      if (partnerId) setTemuPartnerError(message);
+      else setError(message);
     } finally {
       setTemuPreviewing(false);
     }
@@ -532,7 +552,7 @@ export default function Mail() {
               )}
             </div>
             <button
-              onClick={reviewTemuTouchpoint}
+              onClick={() => reviewTemuTouchpoint()}
               disabled={temuPreviewing || loadingThread}
               className="inline-flex items-center gap-1.5 text-sm text-emerald-600 hover:text-emerald-800 disabled:opacity-50"
               title="Review this email before adding it to TEMU"
@@ -691,6 +711,18 @@ export default function Mail() {
           <TemuTouchpointModal
             preview={temuPreview}
             onClose={() => setTemuPreview(null)}
+          />
+        )}
+        {temuPartnerSelection && (
+          <TemuPartnerPickerModal
+            selection={temuPartnerSelection}
+            loading={temuPreviewing}
+            error={temuPartnerError}
+            onSelect={reviewTemuTouchpoint}
+            onClose={() => {
+              setTemuPartnerSelection(null);
+              setTemuPartnerError(null);
+            }}
           />
         )}
       </div>
