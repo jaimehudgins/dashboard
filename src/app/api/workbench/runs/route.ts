@@ -4,13 +4,10 @@ import { NextResponse } from "next/server";
 
 import { anthropic, isAnthropicConfigured } from "@/lib/anthropic";
 import { authOptions } from "@/lib/auth";
-import { DriveFile, readDriveText, searchDrive } from "@/lib/drive";
 import {
-  curriculumRepo,
-  isGithubConfigured,
-  searchCurriculumRepo,
-} from "@/lib/github";
-import { recallMemories } from "@/lib/memory";
+  getGoogleAccessToken,
+  isGoogleServerConfigured,
+} from "@/lib/google-auth";
 import { supabase } from "@/lib/supabase";
 import {
   NotificationTier,
@@ -21,6 +18,12 @@ import {
   WorkSource,
   Workstream,
 } from "@/lib/workbench";
+import {
+  gatherWorkSources,
+  sourcesForWorkPrompt,
+  substantiveSourceCount,
+  taskNeedsKnowledge,
+} from "@/lib/workbench-sources";
 
 export const maxDuration = 60;
 
@@ -47,23 +50,6 @@ const RESULT_SCHEMA = {
     "draft",
   ],
 };
-
-const STOP_WORDS = new Set([
-  "about",
-  "after",
-  "before",
-  "create",
-  "develop",
-  "from",
-  "have",
-  "make",
-  "need",
-  "prepare",
-  "that",
-  "the",
-  "this",
-  "with",
-]);
 
 interface TaskInput {
   id: string;
@@ -123,130 +109,6 @@ function workstreamFor(project?: ProjectInput, area?: AreaInput): Workstream {
   return "unassigned";
 }
 
-function topicTerms(task: TaskInput, project?: ProjectInput): string[] {
-  const input = `${task.title} ${task.description ?? ""} ${project?.name ?? ""}`;
-  return [...new Set(input.toLowerCase().match(/[a-z0-9']{4,}/g) ?? [])]
-    .filter((term) => !STOP_WORDS.has(term))
-    .slice(0, 4);
-}
-
-function shouldGatherSources(task: TaskInput): boolean {
-  return /(arc|brief|curriculum|design|draft|framework|lesson|outline|plan|presentation|proposal|research|roadmap|strategy|timeline|year)/i.test(
-    `${task.title} ${task.description ?? ""}`,
-  );
-}
-
-async function gatherSources(input: {
-  token: string;
-  task: TaskInput;
-  project?: ProjectInput;
-  area?: AreaInput;
-  workstream: Workstream;
-}): Promise<WorkSource[]> {
-  const sources: WorkSource[] = [
-    {
-      type: "task",
-      title: input.task.title,
-      excerpt: input.task.description?.trim() || "No task notes were provided.",
-    },
-  ];
-
-  if (input.project?.name) {
-    sources.push({
-      type: "project",
-      title: input.project.name,
-      excerpt: [input.project.description, input.project.scratchpad]
-        .filter(Boolean)
-        .join("\n\n")
-        .slice(0, 3000),
-    });
-  }
-
-  if (!shouldGatherSources(input.task)) return sources;
-
-  const terms = topicTerms(input.task, input.project);
-  const driveQueries = [
-    input.project?.name?.trim(),
-    terms.slice(0, 2).join(" "),
-    terms[0],
-  ].filter((query, index, all): query is string =>
-    Boolean(query && all.indexOf(query) === index),
-  );
-
-  const driveFiles = (
-    await Promise.all(
-      driveQueries.slice(0, 2).map((query) =>
-        searchDrive(input.token, query, 6).catch(() => [] as DriveFile[]),
-      ),
-    )
-  )
-    .flat()
-    .filter(
-      (file, index, all) => all.findIndex((item) => item.id === file.id) === index,
-    )
-    .slice(0, 4);
-  const driveTexts = await Promise.all(
-    driveFiles.map((file) => readDriveText(input.token, file, 5000)),
-  );
-  driveTexts.filter(Boolean).forEach((file) => {
-    if (!file) return;
-    sources.push({
-      type: "drive",
-      title: file.name,
-      url: file.webViewLink,
-      excerpt: file.text,
-      modifiedAt: file.modifiedTime,
-    });
-  });
-
-  if (input.workstream === "curriculum" && isGithubConfigured && terms.length) {
-    const repoHits = await searchCurriculumRepo(terms.slice(0, 2).join(" "), 5)
-      .catch(() => []);
-    repoHits.slice(0, 5).forEach((hit) => {
-      sources.push({
-        type: "curriculum_repo",
-        title: hit.path,
-        url: hit.url,
-        excerpt: `Matching file in ${curriculumRepo}`,
-      });
-    });
-  }
-
-  const memoryResults = await Promise.all(
-    terms.slice(0, 2).map((term) =>
-      recallMemories({ query: term, limit: 6 }).catch(() => []),
-    ),
-  );
-  memoryResults
-    .flat()
-    .filter(
-      (memory, index, all) =>
-        all.findIndex((item) => item.id === memory.id) === index,
-    )
-    .slice(0, 8)
-    .forEach((memory) => {
-      sources.push({
-        type: "memory",
-        title: `${memory.entity_type}: ${memory.entity_id || "general"}`,
-        excerpt: memory.fact,
-      });
-    });
-
-  return sources;
-}
-
-function sourcesForPrompt(sources: WorkSource[]): string {
-  return sources
-    .map(
-      (source, index) =>
-        `--- Source ${index + 1}: ${source.title} (${source.type}) ---\n${
-          source.excerpt || "Link only; do not infer its contents."
-        }`,
-    )
-    .join("\n\n")
-    .slice(0, 30_000);
-}
-
 function fallbackResult(task: TaskInput): ModelResult {
   const draftable = /(arc|brief|framework|outline|plan|roadmap|strategy|timeline)/i.test(
     `${task.title} ${task.description ?? ""}`,
@@ -298,7 +160,7 @@ Rules:
     messages: [
       {
         role: "user",
-        content: `Task: ${input.task.title}\nDescription: ${input.task.description || "None"}\nPriority: ${input.task.priority}\nDue: ${input.task.dueDate || "None"}\nWorkstream: ${input.workstream}\nProject: ${input.project?.name || "None"}\nProject context: ${input.project?.description || ""}\nArea: ${input.area?.name || "None"}\n\nRetrieved sources:\n${sourcesForPrompt(input.sources)}`,
+        content: `Task: ${input.task.title}\nDescription: ${input.task.description || "None"}\nPriority: ${input.task.priority}\nDue: ${input.task.dueDate || "None"}\nWorkstream: ${input.workstream}\nProject: ${input.project?.name || "None"}\nProject context: ${input.project?.description || ""}\nArea: ${input.area?.name || "None"}\n\nRetrieved sources:\n${sourcesForWorkPrompt(input.sources)}`,
       },
     ],
   } as Anthropic.MessageCreateParamsNonStreaming);
@@ -493,14 +355,29 @@ export async function POST(request: Request) {
   }
 
   try {
-    const sources = await gatherSources({
-      token: session.accessToken,
+    const sessionAccessToken = session.accessToken as string;
+    const googleToken = isGoogleServerConfigured
+      ? await getGoogleAccessToken().catch(() => sessionAccessToken)
+      : sessionAccessToken;
+    const sources = await gatherWorkSources({
+      token: googleToken,
       task,
       project,
       area,
-      workstream,
     });
-    const result = await createDraft({ task, project, area, workstream, sources });
+    const sourceCount = substantiveSourceCount(sources);
+    const result = taskNeedsKnowledge(task) && sourceCount === 0
+      ? {
+          deliverable_type: "context_packet" as const,
+          confidence: "low" as const,
+          rationale:
+            "Leo searched the connected sources but did not find enough substantive context to create a useful draft.",
+          blocking_question:
+            "Which document, meeting, email thread, or additional detail should Leo use as the starting point?",
+          draft_title: `Research status for ${task.title}`,
+          draft: "",
+        }
+      : await createDraft({ task, project, area, workstream, sources });
     const state = finalState(result);
     const notification = notificationFor(task, state.status);
     const blockingQuestion =

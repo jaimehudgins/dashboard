@@ -22,11 +22,22 @@ export type WorkRunConfidence = "high" | "medium" | "low";
 export type NotificationTier = "immediate" | "digest" | "none";
 
 export interface WorkSource {
-  type: "task" | "project" | "drive" | "curriculum_repo" | "memory";
+  type:
+    | "task"
+    | "project"
+    | "drive"
+    | "curriculum_repo"
+    | "memory"
+    | "gmail"
+    | "granola"
+    | "slack"
+    | "crm"
+    | "platform";
   title: string;
   url?: string;
   excerpt?: string;
   modifiedAt?: string;
+  status?: "used" | "no_match" | "unavailable" | "error";
 }
 
 export interface WorkRun {
@@ -72,4 +83,3 @@ export function toWorkRun(row: Record<string, unknown>): WorkRun {
     updatedAt: row.updated_at as string,
   };
 }
-
