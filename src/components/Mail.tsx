@@ -547,6 +547,12 @@ export default function Mail() {
           </div>
         </div>
 
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
         {loadingThread && (
           <div className="flex items-center gap-2 text-slate-400 py-10 justify-center">
             <Loader2 size={16} className="animate-spin" /> Loading…
@@ -672,7 +678,6 @@ export default function Mail() {
                 </button>
               </div>
             </div>
-            {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
           </>
         )}
         {temuPreview && (
