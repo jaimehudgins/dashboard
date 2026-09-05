@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
 import { authOptions } from "@/lib/auth";
+import { crmSupabase, isCrmConfigured } from "@/lib/crm-supabase";
 import {
   createTemuRecord,
   isTemuConfigured,
@@ -81,6 +82,23 @@ function errorStatus(error: TemuApiError): number {
   return error.status >= 400 && error.status < 600 ? error.status : 502;
 }
 
+async function findExistingContact(
+  partnerId: string,
+  email: string,
+): Promise<{ id: string } | null> {
+  if (!isCrmConfigured) return null;
+
+  const { data, error } = await crmSupabase
+    .from("contacts")
+    .select("id")
+    .eq("partner_id", partnerId)
+    .ilike("email", email)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 // User-initiated export. The explicit `confirmed: true` accompanies the final
 // UI click; previews and background processes cannot create TEMU records.
 export async function POST(request: Request) {
@@ -111,6 +129,32 @@ export async function POST(request: Request) {
     }
     if (!isObject(body.data)) {
       return NextResponse.json({ error: "Export data is required" }, { status: 400 });
+    }
+    const newContact = body.new_contact;
+    if (newContact !== undefined) {
+      if (body.resource !== "touchpoints" || !isObject(newContact)) {
+        return NextResponse.json(
+          { error: "A new contact requires a touchpoint export" },
+          { status: 400 },
+        );
+      }
+      if (
+        typeof newContact.source_external_id !== "string" ||
+        !newContact.source_external_id.trim() ||
+        newContact.source_external_id.length > 255 ||
+        typeof newContact.name !== "string" ||
+        !newContact.name.trim() ||
+        typeof newContact.email !== "string" ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newContact.email.trim()) ||
+        (newContact.role !== undefined &&
+          newContact.role !== null &&
+          typeof newContact.role !== "string")
+      ) {
+        return NextResponse.json(
+          { error: "The new contact needs a name, valid email, and stable source ID" },
+          { status: 400 },
+        );
+      }
     }
     if (body.follow_up_tasks !== undefined) {
       if (
@@ -151,14 +195,81 @@ export async function POST(request: Request) {
     }
 
     const data = sanitizeData(body.resource, body.data);
-    const result = await createTemuRecord({
-      resource: body.resource,
-      actor: session.user.email,
-      data,
-    });
+    let contactResult: {
+      requested: boolean;
+      created: boolean;
+      duplicate: boolean;
+      existing: boolean;
+    } | null = null;
+
+    if (isObject(newContact)) {
+      if (data.contact_id || data.contact_source_external_id) {
+        return NextResponse.json(
+          { error: "Choose either the matched contact or the suggested new contact" },
+          { status: 400 },
+        );
+      }
+
+      const normalizedEmail = String(newContact.email).trim().toLowerCase();
+      const existingContact = await findExistingContact(
+        data.partner_id,
+        normalizedEmail,
+      );
+      if (existingContact) {
+        data.contact_id = existingContact.id;
+        contactResult = {
+          requested: true,
+          created: false,
+          duplicate: false,
+          existing: true,
+        };
+      } else {
+        const contactData = sanitizeData("contacts", {
+          ...newContact,
+          partner_id: data.partner_id,
+          email: normalizedEmail,
+        });
+        const createdContact = await createTemuRecord({
+          resource: "contacts",
+          actor: session.user.email,
+          data: contactData,
+        });
+        data.contact_source_external_id = contactData.source_external_id;
+        contactResult = {
+          requested: true,
+          created: !createdContact.duplicate,
+          duplicate: createdContact.duplicate,
+          existing: false,
+        };
+      }
+    }
+
+    let result;
+    try {
+      result = await createTemuRecord({
+        resource: body.resource,
+        actor: session.user.email,
+        data,
+      });
+    } catch (error) {
+      if (contactResult && error instanceof TemuApiError) {
+        return NextResponse.json(
+          {
+            error: `Contact handled, but the touchpoint failed: ${error.message}`,
+            code: error.code,
+            partial: { contact: contactResult },
+          },
+          { status: errorStatus(error) },
+        );
+      }
+      throw error;
+    }
 
     if (body.follow_up_tasks === undefined) {
-      return NextResponse.json(result, { status: result.duplicate ? 200 : 201 });
+      return NextResponse.json(
+        { ...result, contact: contactResult },
+        { status: result.duplicate ? 200 : 201 },
+      );
     }
     const taskResults: Array<{ duplicate: boolean }> = [];
     for (const rawTask of body.follow_up_tasks) {
@@ -211,6 +322,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ...result,
+        contact: contactResult,
         follow_up_tasks: {
           requested: taskResults.length,
           created: taskResults.filter((task) => !task.duplicate).length,
