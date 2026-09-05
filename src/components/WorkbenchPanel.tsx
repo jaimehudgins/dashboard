@@ -9,18 +9,26 @@ import {
   CircleHelp,
   ExternalLink,
   LoaderCircle,
+  MessageSquareText,
   RefreshCw,
   Save,
+  Search,
+  ThumbsDown,
+  ThumbsUp,
 } from "lucide-react";
 
-import { WorkRun } from "@/lib/workbench";
+import { WorkbenchRevisionOptions } from "@/lib/workbench-client";
+import { WorkRun, WorkSource, workSourceKey } from "@/lib/workbench";
 
 interface WorkbenchPanelProps {
   runs: WorkRun[];
   loading: boolean;
   configured: boolean | null;
   onRefresh: () => Promise<void>;
-  onRetry: (taskId: string) => Promise<void>;
+  onRevise: (
+    taskId: string,
+    options?: WorkbenchRevisionOptions,
+  ) => Promise<void>;
 }
 
 const STATUS_LABELS: Record<WorkRun["status"], string> = {
@@ -46,9 +54,16 @@ export default function WorkbenchPanel({
   loading,
   configured,
   onRefresh,
-  onRetry,
+  onRevise,
 }: WorkbenchPanelProps) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [feedback, setFeedback] = useState<Record<string, string>>({});
+  const [rememberPreference, setRememberPreference] = useState<
+    Record<string, boolean>
+  >({});
+  const [sourceFeedback, setSourceFeedback] = useState<
+    Record<string, Record<string, NonNullable<WorkSource["feedback"]>>>
+  >({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +73,25 @@ export default function WorkbenchPanel({
       const next = { ...current };
       runs.forEach((run) => {
         if (next[run.id] === undefined) next[run.id] = run.draft ?? "";
+      });
+      return next;
+    });
+  }, [runs]);
+
+  useEffect(() => {
+    setSourceFeedback((current) => {
+      const next = { ...current };
+      runs.forEach((run) => {
+        if (next[run.id]) return;
+        next[run.id] = Object.fromEntries(
+          run.sources
+            .filter(
+              (source): source is WorkSource & {
+                feedback: NonNullable<WorkSource["feedback"]>;
+              } => Boolean(source.feedback),
+            )
+            .map((source) => [workSourceKey(source), source.feedback]),
+        );
       });
       return next;
     });
@@ -106,16 +140,53 @@ export default function WorkbenchPanel({
     }
   };
 
-  const retry = async (run: WorkRun) => {
+  const revise = async (
+    run: WorkRun,
+    options: { researchAgain?: boolean; includeFeedback?: boolean } = {},
+  ) => {
     setRetryingId(run.id);
     setError(null);
     try {
-      await onRetry(run.taskId);
+      await onRevise(run.taskId, {
+        feedback: options.includeFeedback ? feedback[run.id]?.trim() : undefined,
+        researchAgain: options.researchAgain ?? false,
+        rememberPreference:
+          options.includeFeedback && rememberPreference[run.id] === true,
+        sourceFeedback: sourceFeedback[run.id] ?? {},
+      });
+      setDrafts((current) => {
+        const next = { ...current };
+        delete next[run.id];
+        return next;
+      });
+      if (options.includeFeedback) {
+        setFeedback((current) => ({ ...current, [run.id]: "" }));
+        setRememberPreference((current) => ({
+          ...current,
+          [run.id]: false,
+        }));
+      }
+      await onRefresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Leo could not try again");
     } finally {
       setRetryingId(null);
     }
+  };
+
+  const rateSource = (
+    runId: string,
+    source: WorkSource,
+    rating: NonNullable<WorkSource["feedback"]>,
+  ) => {
+    const key = workSourceKey(source);
+    setSourceFeedback((current) => {
+      const existing = current[runId] ?? {};
+      const next = { ...existing };
+      if (next[key] === rating) delete next[key];
+      else next[key] = rating;
+      return { ...current, [runId]: next };
+    });
   };
 
   if (configured === false) {
@@ -266,60 +337,158 @@ export default function WorkbenchPanel({
                 </p>
               )}
 
-              {(run.status === "needs_input" ||
-                run.status === "failed" ||
-                run.status === "human_only") && (
-                <button
-                  onClick={() => void retry(run)}
-                  disabled={retryingId === run.id}
-                  className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
-                >
-                  <RefreshCw
-                    size={14}
-                    className={retryingId === run.id ? "animate-spin" : ""}
-                  />
-                  Try again with current task notes
-                </button>
-              )}
-
               {run.sources.length > 0 && (
                 <div>
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                     Research trail
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {run.sources.map((source, index) =>
-                      source.url && (!source.status || source.status === "used") ? (
-                        <a
-                          key={`${source.type}-${source.title}-${index}`}
-                          href={source.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:border-violet-200 hover:text-violet-700"
-                        >
-                          {source.title}
-                          <ExternalLink size={11} />
-                        </a>
-                      ) : (
+                    {run.sources.map((source, index) => {
+                      const key = workSourceKey(source);
+                      const rating = sourceFeedback[run.id]?.[key];
+                      const canRate =
+                        source.type !== "task" &&
+                        source.type !== "feedback" &&
+                        (!source.status || source.status === "used");
+                      return (
                         <span
                           key={`${source.type}-${source.title}-${index}`}
-                          title={source.excerpt}
-                          className={`rounded-full border px-3 py-1.5 text-xs ${
-                            source.status === "error"
-                              ? "border-red-200 bg-red-50 text-red-700"
-                              : source.status === "no_match" ||
-                                  source.status === "unavailable"
-                                ? "border-amber-200 bg-amber-50 text-amber-700"
-                                : "border-slate-200 bg-white text-slate-500"
-                          }`}
+                          className="inline-flex items-center rounded-full border border-slate-200 bg-white"
                         >
-                          {source.title}
-                          {source.status && source.status !== "used"
-                            ? ` · ${source.status.replace("_", " ")}`
-                            : ""}
+                          {source.url && (!source.status || source.status === "used") ? (
+                            <a
+                              href={source.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-600 hover:text-violet-700"
+                            >
+                              {source.title}
+                              <ExternalLink size={11} />
+                            </a>
+                          ) : (
+                            <span
+                              title={source.excerpt}
+                              className={`px-3 py-1.5 text-xs ${
+                                source.status === "error"
+                                  ? "text-red-700"
+                                  : source.status === "no_match" ||
+                                      source.status === "unavailable"
+                                    ? "text-amber-700"
+                                    : "text-slate-500"
+                              }`}
+                            >
+                              {source.title}
+                              {source.status && source.status !== "used"
+                                ? ` · ${source.status.replace("_", " ")}`
+                                : ""}
+                            </span>
+                          )}
+                          {canRate && (
+                            <span className="flex items-center border-l border-slate-200 pr-1">
+                              <button
+                                onClick={() => rateSource(run.id, source, "useful")}
+                                className={`rounded-full p-1.5 ${
+                                  rating === "useful"
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : "text-slate-300 hover:text-emerald-600"
+                                }`}
+                                title="This source was useful"
+                              >
+                                <ThumbsUp size={11} />
+                              </button>
+                              <button
+                                onClick={() => rateSource(run.id, source, "irrelevant")}
+                                className={`rounded-full p-1.5 ${
+                                  rating === "irrelevant"
+                                    ? "bg-red-100 text-red-700"
+                                    : "text-slate-300 hover:text-red-600"
+                                }`}
+                                title="This source was irrelevant"
+                              >
+                                <ThumbsDown size={11} />
+                              </button>
+                            </span>
+                          )}
                         </span>
-                      ),
-                    )}
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {run.status !== "researching" && (
+                <div className="rounded-xl border border-violet-100 bg-white p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <MessageSquareText size={16} className="text-violet-600" />
+                    <p className="text-sm font-semibold text-slate-900">
+                      Help Leo improve this work
+                    </p>
+                  </div>
+                  <textarea
+                    value={feedback[run.id] ?? ""}
+                    onChange={(event) =>
+                      setFeedback((current) => ({
+                        ...current,
+                        [run.id]: event.target.value,
+                      }))
+                    }
+                    rows={3}
+                    placeholder="What should change? You can also name a missing document, meeting, email thread, or source Leo should find."
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
+                  />
+                  <label className="mt-3 flex items-start gap-2 text-xs text-slate-500">
+                    <input
+                      type="checkbox"
+                      checked={rememberPreference[run.id] === true}
+                      onChange={(event) =>
+                        setRememberPreference((current) => ({
+                          ...current,
+                          [run.id]: event.target.checked,
+                        }))
+                      }
+                      disabled={!feedback[run.id]?.trim()}
+                      className="mt-0.5 rounded border-slate-300 text-violet-600"
+                    />
+                    Remember this as a lasting preference. Leave unchecked for feedback that
+                    applies only to this deliverable.
+                  </label>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      onClick={() =>
+                        void revise(run, { includeFeedback: true })
+                      }
+                      disabled={
+                        retryingId === run.id ||
+                        (!feedback[run.id]?.trim() &&
+                          Object.keys(sourceFeedback[run.id] ?? {}).length === 0)
+                      }
+                      className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-40"
+                    >
+                      <MessageSquareText size={14} /> Revise with feedback
+                    </button>
+                    <button
+                      onClick={() =>
+                        void revise(run, {
+                          includeFeedback: true,
+                          researchAgain: true,
+                        })
+                      }
+                      disabled={retryingId === run.id}
+                      className="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-40"
+                    >
+                      <Search size={14} /> Research again
+                    </button>
+                    <button
+                      onClick={() => void revise(run)}
+                      disabled={retryingId === run.id}
+                      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+                    >
+                      <RefreshCw
+                        size={14}
+                        className={retryingId === run.id ? "animate-spin" : ""}
+                      />
+                      Try again
+                    </button>
                   </div>
                 </div>
               )}

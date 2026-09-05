@@ -18,7 +18,10 @@ import {
   Radio,
 } from "lucide-react";
 import { useApp } from "@/store/store";
-import { prepareTaskWithLeo } from "@/lib/workbench-client";
+import {
+  prepareTaskWithLeo,
+  WorkbenchRevisionOptions,
+} from "@/lib/workbench-client";
 import { WorkRun } from "@/lib/workbench";
 import { Task } from "@/types";
 import UnifiedTaskTable from "./UnifiedTaskTable";
@@ -208,7 +211,7 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
   }, [refreshWorkRuns, taskRefreshKey]);
 
   const prepareTask = useCallback(
-    async (taskId: string) => {
+    async (taskId: string, options: WorkbenchRevisionOptions = {}) => {
       const task = state.tasks.find((item) => item.id === taskId);
       if (!task) throw new Error("That task is no longer available");
       const project = task.projectId
@@ -219,7 +222,13 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
         : undefined;
       setPreparingTaskIds((current) => new Set(current).add(taskId));
       try {
-        await prepareTaskWithLeo({ task, project, area, force: true });
+        await prepareTaskWithLeo({
+          task,
+          project,
+          area,
+          force: true,
+          ...options,
+        });
         await refreshWorkRuns();
       } finally {
         setPreparingTaskIds((current) => {
@@ -236,7 +245,7 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
     async (taskId: string) => {
       setWorkbenchActionError(null);
       try {
-        await prepareTask(taskId);
+        await prepareTask(taskId, { researchAgain: true });
       } catch (error) {
         setWorkbenchActionError(
           error instanceof Error ? error.message : "Leo could not prepare that task",
@@ -326,7 +335,7 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
             loading={workbenchLoading}
             configured={workbenchConfigured}
             onRefresh={refreshWorkRuns}
-            onRetry={prepareTask}
+            onRevise={prepareTask}
           />
 
           <UnifiedTaskTable
