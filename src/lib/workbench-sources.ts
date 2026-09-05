@@ -236,9 +236,16 @@ async function memorySources(terms: string[]): Promise<WorkSource[]> {
   if (!terms.length) return [];
   try {
     const results = await Promise.allSettled(
-      terms.slice(0, 4).map((term) =>
-        recallMemories({ query: term, limit: 6 }),
-      ),
+      [
+        recallMemories({
+          entityType: "global",
+          entityId: "workbench-preference",
+          limit: 10,
+        }),
+        ...terms
+          .slice(0, 4)
+          .map((term) => recallMemories({ query: term, limit: 6 })),
+      ],
     );
     const memories = results
       .filter(
@@ -489,6 +496,8 @@ export function substantiveSourceCount(sources: WorkSource[]): number {
       source.status !== "unavailable" &&
       source.status !== "error" &&
       source.type !== "task" &&
+      source.type !== "feedback" &&
+      source.feedback !== "irrelevant" &&
       Boolean(source.excerpt && source.excerpt.trim().length >= 80),
   ).length;
 }
@@ -498,13 +507,21 @@ export function sourcesForWorkPrompt(sources: WorkSource[]): string {
     (source) =>
       source.status !== "no_match" &&
       source.status !== "unavailable" &&
-      source.status !== "error",
-  );
+      source.status !== "error" &&
+      source.feedback !== "irrelevant",
+  ).sort((a, b) => {
+    if (a.type === "feedback") return -1;
+    if (b.type === "feedback") return 1;
+    if (a.feedback === "useful" && b.feedback !== "useful") return -1;
+    if (b.feedback === "useful" && a.feedback !== "useful") return 1;
+    return 0;
+  });
   const unavailable = sources.filter(
     (source) =>
       source.status === "no_match" ||
       source.status === "unavailable" ||
-      source.status === "error",
+      source.status === "error" ||
+      source.feedback === "irrelevant",
   );
   const context = used
     .map(
@@ -518,7 +535,7 @@ export function sourcesForWorkPrompt(sources: WorkSource[]): string {
     ? `\n\nResearch limitations:\n${unavailable
         .map(
           (source) =>
-            `- ${source.title}: ${source.status}. ${source.excerpt || ""}`,
+            `- ${source.title}: ${source.feedback === "irrelevant" ? "marked irrelevant by Jaime" : source.status}. ${source.excerpt || ""}`,
         )
         .join("\n")}`
     : "";

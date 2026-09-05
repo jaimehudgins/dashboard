@@ -1,6 +1,14 @@
 import { Area, Project, Task } from "@/types";
+import { WorkSource } from "@/lib/workbench";
 
-export interface WorkbenchTaskContext {
+export interface WorkbenchRevisionOptions {
+  feedback?: string;
+  researchAgain?: boolean;
+  rememberPreference?: boolean;
+  sourceFeedback?: Record<string, NonNullable<WorkSource["feedback"]>>;
+}
+
+export interface WorkbenchTaskContext extends WorkbenchRevisionOptions {
   task: Task;
   project?: Project;
   area?: Area;
@@ -27,6 +35,10 @@ export async function prepareTaskWithLeo(input: WorkbenchTaskContext) {
       project: input.project,
       area: input.area,
       force: input.force ?? false,
+      feedback: input.feedback,
+      research_again: input.researchAgain ?? false,
+      remember_preference: input.rememberPreference ?? false,
+      source_feedback: input.sourceFeedback,
     }),
   });
   const raw = await response.text();
@@ -45,4 +57,3 @@ export async function prepareTaskWithLeo(input: WorkbenchTaskContext) {
   }
   return data;
 }
-

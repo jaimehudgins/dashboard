@@ -32,12 +32,18 @@ export interface WorkSource {
     | "granola"
     | "slack"
     | "crm"
-    | "platform";
+    | "platform"
+    | "feedback";
   title: string;
   url?: string;
   excerpt?: string;
   modifiedAt?: string;
   status?: "used" | "no_match" | "unavailable" | "error";
+  feedback?: "useful" | "irrelevant";
+}
+
+export function workSourceKey(source: Pick<WorkSource, "type" | "title">) {
+  return `${source.type}:${source.title}`;
 }
 
 export interface WorkRun {
