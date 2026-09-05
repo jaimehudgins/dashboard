@@ -97,7 +97,7 @@ export async function findPartnerForSender(
   const { data: partner, error } = await crmSupabase
     .from("partners")
     .select(
-      "id, name, status, priority, relationship_health, renewal_status, last_contact_date, next_follow_up, proposal_deadline, city_state, district, willow_staff_lead, summary, pain_points, onboarding_step, updated_at",
+      "id, name, status, priority, relationship_health, renewal_status, last_contact_date, next_follow_up, proposal_deadline, city_state, district, willow_staff_lead, summary, pain_points, onboarding_step",
     )
     .eq("id", partnerId)
     .maybeSingle();
