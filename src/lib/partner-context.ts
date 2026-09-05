@@ -84,13 +84,15 @@ export async function findPartnerForSender(
       .select("id, partner_id, name, role, email, phone, is_primary_contact");
     if (error) throw error;
     const domainMatches = (contacts as CrmContact[] | null)?.filter(
-      (candidate) => emailDomain(candidate.email.toLowerCase()) === domain,
+      (candidate) =>
+        typeof candidate.email === "string" &&
+        emailDomain(candidate.email.toLowerCase()) === domain,
     ) ?? [];
     const partnerIds = [...new Set(domainMatches.map((candidate) => candidate.partner_id))];
     if (partnerIds.length !== 1) return null;
     partnerId = partnerIds[0];
     contact = domainMatches.find(
-      (candidate) => candidate.email.toLowerCase() === email,
+      (candidate) => candidate.email?.toLowerCase() === email,
     ) ?? null;
   }
 
