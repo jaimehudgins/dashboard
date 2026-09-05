@@ -17,12 +17,16 @@ import {
   Check,
   ListTodo,
   BookOpen,
+  Building2,
   ExternalLink,
 } from "lucide-react";
 import { Trip, loadTrips, attachEmailToTrip } from "@/lib/trips";
 import { useApp } from "@/store/store";
 import { Task, QuickTask } from "@/types";
 import CharacterQuote from "./CharacterQuote";
+import TemuTouchpointModal, {
+  TemuTouchpointPreview,
+} from "./TemuTouchpointModal";
 
 type Urgency = "now" | "question" | "later" | null;
 
@@ -176,6 +180,9 @@ export default function Mail() {
   const [taskDest, setTaskDest] = useState<"task" | "quick">("task");
   const [taskDue, setTaskDue] = useState("");
   const [taskCreated, setTaskCreated] = useState(false);
+  const [temuPreview, setTemuPreview] =
+    useState<TemuTouchpointPreview | null>(null);
+  const [temuPreviewing, setTemuPreviewing] = useState(false);
 
   const openTaskMenu = () => {
     setTaskTitle(thread?.messages[0]?.subject || "");
@@ -386,6 +393,26 @@ export default function Mail() {
     }
   };
 
+  const reviewTemuTouchpoint = async () => {
+    if (!selectedId) return;
+    setTemuPreviewing(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/temu/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: "email", id: selectedId }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "TEMU preview failed");
+      setTemuPreview(body.preview);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "TEMU preview failed");
+    } finally {
+      setTemuPreviewing(false);
+    }
+  };
+
   /* ------------------------------- Read view ------------------------------ */
   if (selectedId) {
     return (
@@ -497,6 +524,19 @@ export default function Mail() {
                 </div>
               )}
             </div>
+            <button
+              onClick={reviewTemuTouchpoint}
+              disabled={temuPreviewing || loadingThread}
+              className="inline-flex items-center gap-1.5 text-sm text-emerald-600 hover:text-emerald-800 disabled:opacity-50"
+              title="Review this email before adding it to TEMU"
+            >
+              {temuPreviewing ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Building2 size={15} />
+              )}
+              {temuPreviewing ? "Preparing…" : "TEMU touchpoint?"}
+            </button>
             <button
               onClick={() => archive(selectedId)}
               className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
@@ -634,6 +674,12 @@ export default function Mail() {
             </div>
             {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
           </>
+        )}
+        {temuPreview && (
+          <TemuTouchpointModal
+            preview={temuPreview}
+            onClose={() => setTemuPreview(null)}
+          />
         )}
       </div>
     );

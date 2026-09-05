@@ -23,13 +23,13 @@ Create a gitignored `.env.local`. The application core needs:
 - `NEXT_PUBLIC_CRM_SUPABASE_URL`, `NEXT_PUBLIC_CRM_SUPABASE_ANON_KEY` (read-only CRM bridge)
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `LEO_ALLOWED_EMAIL`
 
-Feature integrations additionally use `ANTHROPIC_API_KEY`, `GOOGLE_REFRESH_TOKEN`, `GRANOLA_API_KEY`, `GITHUB_TOKEN`, `GITHUB_CURRICULUM_REPO`, `SLACK_TOKEN`, `MCP_TOKEN`, and `CRON_SECRET`. Keep secrets server-only; only Supabase browser configuration belongs in `NEXT_PUBLIC_*`. Never commit or print `.env.local` values. Database tables are managed by the root-level SQL migration files; apply them deliberately in Supabase, not as part of normal app startup.
+Feature integrations additionally use `ANTHROPIC_API_KEY`, `GOOGLE_REFRESH_TOKEN`, `GRANOLA_API_KEY`, `GITHUB_TOKEN`, `GITHUB_CURRICULUM_REPO`, `SLACK_TOKEN`, `MCP_TOKEN`, `CRON_SECRET`, `TEMU_API_BASE_URL`, and `TEMU_API_KEY`. Keep secrets server-only; only Supabase browser configuration belongs in `NEXT_PUBLIC_*`. TEMU writes must go through the server-only TEMU API and require an explicit user confirmation; do not add browser-side CRM writes. Never commit or print `.env.local` values. Database tables are managed by the root-level SQL migration files; apply them deliberately in Supabase, not as part of normal app startup.
 
 ## Architecture and boundaries
 
 - `src/app/`: App Router pages, layouts, and route handlers. Server/API behavior belongs in `src/app/api/`; add `"use client"` only to components requiring browser APIs, hooks, or context.
 - `src/components/`: UI and feature components. Keep external-service and persistence logic in `src/lib/` rather than adding new direct clients in components.
-- `src/lib/`: Supabase data access and Google, Anthropic, Granola, GitHub, Slack, Gmail, calendar, and MCP integrations. Preserve the separation between Leo's primary `supabase` client and the read-only `crmSupabase` bridge.
+- `src/lib/`: Supabase data access and Google, Anthropic, Granola, GitHub, Slack, Gmail, calendar, TEMU, and MCP integrations. Preserve the separation between Leo's primary `supabase` client, the read-only `crmSupabase` bridge, and server-only TEMU writes.
 - `src/store/store.tsx`: shared client application state; `src/types/`: shared domain and module types.
 - `src/app/api/[transport]/route.ts`: Leo's MCP tool surface. Preserve its optional bearer-token guard and confirmation expectations for external write operations.
 - `vercel.json`: production cron schedule. Cron handlers must continue to validate `CRON_SECRET` when configured.
