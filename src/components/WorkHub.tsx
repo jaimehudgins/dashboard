@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   BookOpenCheck,
@@ -18,8 +18,11 @@ import {
   Radio,
 } from "lucide-react";
 import { useApp } from "@/store/store";
+import { prepareTaskWithLeo } from "@/lib/workbench-client";
+import { WorkRun } from "@/lib/workbench";
 import { Task } from "@/types";
 import UnifiedTaskTable from "./UnifiedTaskTable";
+import WorkbenchPanel from "./WorkbenchPanel";
 
 interface WorkHubProps {
   onOpenZenMode?: (task: Task) => void;
@@ -103,6 +106,17 @@ function EmptyWork({ label }: { label: string }) {
 export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
   const { state } = useApp();
   const [view, setView] = useState<WorkView>("shared");
+  const [workRuns, setWorkRuns] = useState<WorkRun[]>([]);
+  const [workbenchLoading, setWorkbenchLoading] = useState(true);
+  const [workbenchConfigured, setWorkbenchConfigured] = useState<boolean | null>(
+    null,
+  );
+  const [preparingTaskIds, setPreparingTaskIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [workbenchActionError, setWorkbenchActionError] = useState<string | null>(
+    null,
+  );
   const activeProjects = state.projects.filter((project) => !project.archived);
   const activeTasks = useMemo(
     () =>
@@ -134,6 +148,92 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
       (1000 * 60 * 60 * 24);
     return days >= 0 && days <= 56;
   }).length;
+  const researchingCount = workRuns.filter(
+    (run) => run.status === "researching",
+  ).length;
+  const draftReadyCount = workRuns.filter(
+    (run) => run.status === "draft_ready",
+  ).length;
+  const needsInputCount = workRuns.filter(
+    (run) => run.status === "needs_input",
+  ).length;
+  const curriculumWorkRunCount = workRuns.filter(
+    (run) =>
+      run.workstream === "curriculum" &&
+      run.status !== "reviewed" &&
+      run.status !== "human_only",
+  ).length;
+
+  const refreshWorkRuns = useCallback(async () => {
+    setWorkbenchLoading(true);
+    try {
+      const response = await fetch("/api/workbench/runs", { cache: "no-store" });
+      const raw = await response.text();
+      const data = raw
+        ? (JSON.parse(raw) as {
+            configured?: boolean;
+            runs?: WorkRun[];
+            error?: string;
+          })
+        : {};
+      if (!response.ok) throw new Error(data.error || "Could not load Leo's work");
+      setWorkbenchConfigured(data.configured !== false);
+      setWorkRuns(data.runs ?? []);
+    } catch (error) {
+      console.error("Could not load Leo Workbench:", error);
+    } finally {
+      setWorkbenchLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshWorkRuns();
+  }, [refreshWorkRuns]);
+
+  useEffect(() => {
+    if (!workRuns.some((run) => run.status === "researching")) return;
+    const interval = window.setInterval(() => void refreshWorkRuns(), 10_000);
+    return () => window.clearInterval(interval);
+  }, [refreshWorkRuns, workRuns]);
+
+  const prepareTask = useCallback(
+    async (taskId: string) => {
+      const task = state.tasks.find((item) => item.id === taskId);
+      if (!task) throw new Error("That task is no longer available");
+      const project = task.projectId
+        ? state.projects.find((item) => item.id === task.projectId)
+        : undefined;
+      const area = task.areaId
+        ? state.areas.find((item) => item.id === task.areaId)
+        : undefined;
+      setPreparingTaskIds((current) => new Set(current).add(taskId));
+      try {
+        await prepareTaskWithLeo({ task, project, area, force: true });
+        await refreshWorkRuns();
+      } finally {
+        setPreparingTaskIds((current) => {
+          const next = new Set(current);
+          next.delete(taskId);
+          return next;
+        });
+      }
+    },
+    [refreshWorkRuns, state.areas, state.projects, state.tasks],
+  );
+
+  const prepareTaskFromQueue = useCallback(
+    async (taskId: string) => {
+      setWorkbenchActionError(null);
+      try {
+        await prepareTask(taskId);
+      } catch (error) {
+        setWorkbenchActionError(
+          error instanceof Error ? error.message : "Leo could not prepare that task",
+        );
+      }
+    },
+    [prepareTask],
+  );
 
   const viewOptions: Array<{ id: WorkView; label: string }> = [
     { id: "shared", label: "Shared queue" },
@@ -185,9 +285,13 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
                 <Bot size={18} />
                 <h2 className="font-semibold">Leo preparing</h2>
               </div>
-              <p className="mt-3 text-lg font-semibold text-slate-900">Coming next</p>
+              <p className="mt-3 text-3xl font-bold text-slate-950">
+                {researchingCount}
+              </p>
               <p className="mt-1 text-sm text-slate-600">
-                Research, context packets, and first drafts will appear here.
+                {draftReadyCount || needsInputCount
+                  ? `${draftReadyCount} draft${draftReadyCount === 1 ? "" : "s"} ready · ${needsInputCount} need${needsInputCount === 1 ? "s" : ""} input`
+                  : "Research and first drafts underway."}
               </p>
             </section>
             <section className="rounded-2xl border border-amber-100 bg-amber-50/60 p-5">
@@ -200,8 +304,24 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
             </section>
           </div>
 
+          {workbenchActionError && (
+            <p className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {workbenchActionError}
+            </p>
+          )}
+
+          <WorkbenchPanel
+            runs={workRuns}
+            loading={workbenchLoading}
+            configured={workbenchConfigured}
+            onRefresh={refreshWorkRuns}
+            onRetry={prepareTask}
+          />
+
           <UnifiedTaskTable
             onFocusTask={onOpenZenMode}
+            onPrepareTask={prepareTaskFromQueue}
+            preparingTaskIds={preparingTaskIds}
             title="Open work"
             showWorkstreamLenses
           />
@@ -236,6 +356,14 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
             {WORKSTREAMS.map((workstream) => {
               const Icon = workstream.icon;
               const tasks = tasksByWorkstream[workstream.id];
+              const leoRuns = workRuns
+                .filter(
+                  (run) =>
+                    run.workstream === workstream.id &&
+                    run.status !== "reviewed" &&
+                    run.status !== "human_only",
+                )
+                .slice(0, 3);
               const ready = tasks.filter((task) => task.status !== "blocked").slice(0, 4);
               const waiting = tasks.filter((task) => task.status === "blocked").slice(0, 3);
               return (
@@ -274,9 +402,23 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
                     </div>
                     <div className="border-t border-slate-100 p-4 md:border-l md:border-t-0">
                       <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Leo preparing</p>
-                      <div className="rounded-lg bg-violet-50 px-3 py-3 text-sm text-violet-700">
-                        <Bot size={15} className="mb-2" />
-                        Drafts and research packets will appear here in the next phase.
+                      <div className="space-y-2">
+                        {leoRuns.length > 0 ? leoRuns.map((run) => (
+                          <button
+                            key={run.id}
+                            onClick={() => setView("shared")}
+                            className="w-full rounded-lg bg-violet-50 px-3 py-2 text-left text-sm font-medium text-violet-800 hover:bg-violet-100"
+                          >
+                            <span className="block">{run.taskTitle}</span>
+                            <span className="mt-1 block text-xs font-normal text-violet-600">
+                              {run.status === "draft_ready"
+                                ? "Draft ready"
+                                : run.status === "needs_input"
+                                  ? "Needs your input"
+                                  : "Preparing"}
+                            </span>
+                          </button>
+                        )) : <EmptyWork label="Leo work" />}
                       </div>
                     </div>
                     <div className="border-t border-slate-100 p-4 md:border-l md:border-t-0">
@@ -323,8 +465,11 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
             </section>
             <section className="rounded-xl bg-violet-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-violet-500">Leo preparing</p>
-              <p className="mt-3 font-semibold text-slate-900">Work packets coming next</p>
-              <p className="mt-1 text-xs text-slate-500">Drive, curriculum repo, feedback, and meetings</p>
+              <p className="mt-3 font-semibold text-slate-900">
+                {curriculumWorkRunCount} work packet
+                {curriculumWorkRunCount === 1 ? "" : "s"}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">Grounded in Drive, curriculum repo, and Leo memory</p>
             </section>
             <section className="rounded-xl bg-amber-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">Coming into range</p>

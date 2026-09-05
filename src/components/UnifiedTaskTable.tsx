@@ -11,6 +11,8 @@ import {
   Play,
   ExternalLink,
   Search,
+  Bot,
+  LoaderCircle,
 } from "lucide-react";
 import { format, startOfDay, addDays } from "date-fns";
 import { createPortal } from "react-dom";
@@ -57,6 +59,8 @@ interface Props {
   compact?: boolean; // hide the filter bar (focused widget, e.g. the brief)
   title?: string;
   showWorkstreamLenses?: boolean;
+  onPrepareTask?: (taskId: string) => Promise<void>;
+  preparingTaskIds?: Set<string>;
 }
 
 type SortKey = "dueDate" | "title" | "status" | "priority" | "area";
@@ -80,6 +84,8 @@ export default function UnifiedTaskTable({
   compact = false,
   title = "All Tasks",
   showWorkstreamLenses = false,
+  onPrepareTask,
+  preparingTaskIds = new Set<string>(),
 }: Props) {
   const { state, dispatch } = useApp();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -657,7 +663,7 @@ export default function UnifiedTaskTable({
               <th className="text-left px-3 py-2 w-32">
                 <SortHeader label="Status" k="status" />
               </th>
-              <th className="px-3 py-2 w-32" />
+              <th className="px-3 py-2 w-40" />
             </tr>
           </thead>
           <tbody>
@@ -742,6 +748,20 @@ export default function UnifiedTaskTable({
                       <div className="flex items-center gap-1 justify-end">
                         {row.source === "local" && row.task && (
                           <>
+                            {onPrepareTask && (
+                              <button
+                                onClick={() => void onPrepareTask(row.task!.id)}
+                                disabled={preparingTaskIds.has(row.task.id)}
+                                className="flex items-center gap-1 rounded bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100 disabled:opacity-50"
+                                title="Ask Leo to prepare a useful first draft or context packet"
+                              >
+                                {preparingTaskIds.has(row.task.id) ? (
+                                  <LoaderCircle size={10} className="animate-spin" />
+                                ) : (
+                                  <Bot size={10} />
+                                )}
+                              </button>
+                            )}
                             <button
                               onClick={() => onFocusTask?.(row.task!)}
                               className="flex items-center gap-1 px-2 py-1 bg-indigo-500 hover:bg-indigo-600 text-white rounded text-xs font-medium"
