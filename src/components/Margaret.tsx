@@ -22,6 +22,9 @@ import {
   Sparkles,
   Send,
 } from "lucide-react";
+import TemuTouchpointModal, {
+  TemuTouchpointPreview,
+} from "./TemuTouchpointModal";
 
 const mdComponents = {
   p: (p: any) => <p className="mb-2 last:mb-0" {...p} />,
@@ -96,6 +99,9 @@ export default function Margaret() {
   const [partnerFilter, setPartnerFilter] = useState("all");
   const [showAll, setShowAll] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [temuPreview, setTemuPreview] =
+    useState<TemuTouchpointPreview | null>(null);
+  const [temuPreviewing, setTemuPreviewing] = useState<string | null>(null);
 
   // Seed an editable draft per pending item from Margaret's suggestion.
   const seedDrafts = useCallback((ms: Meeting[]) => {
@@ -349,6 +355,25 @@ export default function Margaret() {
       setError(e instanceof Error ? e.message : "Draft failed");
     } finally {
       setDrafting(null);
+    }
+  };
+
+  const reviewTemuTouchpoint = async (m: Meeting) => {
+    setTemuPreviewing(m.id);
+    setError(null);
+    try {
+      const response = await fetch("/api/temu/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: "meeting", id: m.id }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "TEMU preview failed");
+      setTemuPreview(body.preview);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "TEMU preview failed");
+    } finally {
+      setTemuPreviewing(null);
     }
   };
 
@@ -829,6 +854,18 @@ export default function Margaret() {
                     )}
                     Draft follow-up
                   </button>
+                  <button
+                    onClick={() => reviewTemuTouchpoint(m)}
+                    disabled={temuPreviewing === m.id}
+                    className="inline-flex items-center gap-1 font-medium text-emerald-600 hover:text-emerald-800 disabled:opacity-60"
+                  >
+                    {temuPreviewing === m.id ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <Building2 size={13} />
+                    )}
+                    {temuPreviewing === m.id ? "Preparing…" : "TEMU touchpoint?"}
+                  </button>
                   {!addForms[m.id] && (
                     <button
                       onClick={() => openAdd(m.id)}
@@ -940,6 +977,13 @@ export default function Margaret() {
             </div>
           </div>
         </div>
+      )}
+
+      {temuPreview && (
+        <TemuTouchpointModal
+          preview={temuPreview}
+          onClose={() => setTemuPreview(null)}
+        />
       )}
 
       {/* Transcript modal */}

@@ -59,7 +59,7 @@ function emailDomain(email: string): string {
   return email.split("@")[1] ?? "";
 }
 
-async function findPartnerForSender(
+export async function findPartnerForSender(
   sender: string,
 ): Promise<{ partner: CrmPartner; contact: CrmContact | null } | null> {
   if (!isCrmConfigured) return null;

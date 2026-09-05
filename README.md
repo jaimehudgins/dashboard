@@ -21,4 +21,5 @@ Local config lives in `.env.local` (gitignored). Required keys:
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Leo's own Supabase project
 - `NEXT_PUBLIC_CRM_SUPABASE_URL`, `NEXT_PUBLIC_CRM_SUPABASE_ANON_KEY` — read-only TEMU CRM bridge
+- `TEMU_API_BASE_URL`, `TEMU_API_KEY` — server-only, approval-gated TEMU exports
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `LEO_ALLOWED_EMAIL` — Google sign-in (Phase 0)
