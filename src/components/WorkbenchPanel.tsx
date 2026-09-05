@@ -285,11 +285,11 @@ export default function WorkbenchPanel({
               {run.sources.length > 0 && (
                 <div>
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Sources Leo used
+                    Research trail
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {run.sources.map((source, index) =>
-                      source.url ? (
+                      source.url && (!source.status || source.status === "used") ? (
                         <a
                           key={`${source.type}-${source.title}-${index}`}
                           href={source.url}
@@ -303,9 +303,20 @@ export default function WorkbenchPanel({
                       ) : (
                         <span
                           key={`${source.type}-${source.title}-${index}`}
-                          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500"
+                          title={source.excerpt}
+                          className={`rounded-full border px-3 py-1.5 text-xs ${
+                            source.status === "error"
+                              ? "border-red-200 bg-red-50 text-red-700"
+                              : source.status === "no_match" ||
+                                  source.status === "unavailable"
+                                ? "border-amber-200 bg-amber-50 text-amber-700"
+                                : "border-slate-200 bg-white text-slate-500"
+                          }`}
                         >
                           {source.title}
+                          {source.status && source.status !== "used"
+                            ? ` · ${source.status.replace("_", " ")}`
+                            : ""}
                         </span>
                       ),
                     )}

@@ -125,6 +125,14 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
         .sort(taskSort),
     [state.tasks],
   );
+  const taskRefreshKey = useMemo(
+    () =>
+      state.tasks.reduce(
+        (latest, task) => Math.max(latest, new Date(task.createdAt).getTime()),
+        0,
+      ),
+    [state.tasks],
+  );
   const readyCount = activeTasks.filter((task) => task.status !== "blocked").length;
   const waitingCount = activeTasks.filter((task) => task.status === "blocked").length;
   const tasksByWorkstream = useMemo(() => {
@@ -188,13 +196,16 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
 
   useEffect(() => {
     void refreshWorkRuns();
-  }, [refreshWorkRuns]);
-
-  useEffect(() => {
-    if (!workRuns.some((run) => run.status === "researching")) return;
-    const interval = window.setInterval(() => void refreshWorkRuns(), 10_000);
-    return () => window.clearInterval(interval);
-  }, [refreshWorkRuns, workRuns]);
+    const interval = window.setInterval(() => void refreshWorkRuns(), 5_000);
+    const timeout = window.setTimeout(
+      () => window.clearInterval(interval),
+      70_000,
+    );
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(timeout);
+    };
+  }, [refreshWorkRuns, taskRefreshKey]);
 
   const prepareTask = useCallback(
     async (taskId: string) => {
