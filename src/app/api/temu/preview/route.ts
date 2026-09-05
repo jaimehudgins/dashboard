@@ -67,6 +67,20 @@ function emailAddress(value: string): string {
   return (value.match(/<([^>]+)>/)?.[1] ?? value).trim().toLowerCase();
 }
 
+function contactName(value: string, email: string): string {
+  const displayName = value.includes("<")
+    ? value.slice(0, value.lastIndexOf("<")).trim().replace(/^['"]|['"]$/g, "")
+    : "";
+  if (displayName) return displayName;
+
+  return email
+    .split("@")[0]
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
+}
+
 function dateOnly(value: string | null | undefined): string {
   const parsed = value ? new Date(value) : new Date();
   return Number.isNaN(parsed.valueOf())
@@ -99,6 +113,14 @@ function taskSourceId(sourceExternalId: string, task: string): string {
     .digest("hex")
     .slice(0, 16);
   return `${sourceExternalId}:task:${hash}`;
+}
+
+function contactSourceId(partnerId: string, email: string): string {
+  const hash = createHash("sha256")
+    .update(`${partnerId}:${email.trim().toLowerCase()}`)
+    .digest("hex")
+    .slice(0, 24);
+  return `gmail-contact:${hash}`;
 }
 
 async function summarize(source: string, fallback: Summary): Promise<Summary> {
@@ -172,7 +194,7 @@ async function emailPreview(
   }
 
   const externalMessage =
-    thread.messages.find(
+    [...thread.messages].reverse().find(
       (message) => emailAddress(message.from) !== userEmail.toLowerCase(),
     ) ?? thread.messages[0];
   const match = await findPartnerForSender(externalMessage.from);
@@ -200,6 +222,7 @@ async function emailPreview(
     fallback,
   );
   const sourceExternalId = `gmail-thread:${threadId}`;
+  const senderEmail = emailAddress(externalMessage.from);
 
   return NextResponse.json({
     preview: {
@@ -208,6 +231,21 @@ async function emailPreview(
       contact: match.contact
         ? { id: match.contact.id, name: match.contact.name }
         : null,
+      suggested_contact: match.contact
+        ? null
+        : {
+            source_external_id: contactSourceId(match.partner.id, senderEmail),
+            source_created_at: isoDate(externalMessage.date),
+            source_metadata: {
+              gmail_thread_id: threadId,
+              detected_from_email: senderEmail,
+            },
+            name: contactName(externalMessage.from, senderEmail),
+            email: senderEmail,
+            role: "",
+            is_primary_contact: false,
+            selected: false,
+          },
       data: {
         partner_id: match.partner.id,
         source_external_id: sourceExternalId,
@@ -311,6 +349,7 @@ async function meetingPreview(meetingId: string, userName: string) {
       source: "meeting",
       partner: { id: partner.id, name: partner.name },
       contact: null,
+      suggested_contact: null,
       data: {
         partner_id: partner.id,
         source_external_id: sourceExternalId,
