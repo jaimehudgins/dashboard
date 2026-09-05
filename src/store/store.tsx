@@ -32,6 +32,7 @@ import {
   QuickTask,
 } from "@/types";
 import * as db from "@/lib/database";
+import { prepareTaskWithLeo } from "@/lib/workbench-client";
 
 interface AppState {
   projects: Project[];
@@ -884,6 +885,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             break;
           case "ADD_TASK":
             await db.createTask(action.payload);
+            if (
+              !action.payload.parentTaskId &&
+              action.payload.status !== "completed" &&
+              action.payload.status !== "blocked"
+            ) {
+              const project = action.payload.projectId
+                ? state.projects.find(
+                    (item) => item.id === action.payload.projectId,
+                  )
+                : undefined;
+              const area = action.payload.areaId
+                ? state.areas.find((item) => item.id === action.payload.areaId)
+                : undefined;
+              void prepareTaskWithLeo({
+                task: action.payload,
+                project,
+                area,
+              }).catch((error) => {
+                console.warn("Leo could not evaluate the new task:", error);
+              });
+            }
             break;
           case "UPDATE_TASK":
             await db.updateTask(action.payload);
@@ -1157,7 +1179,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     syncAction();
-  }, [pendingActions, state.activeFocusSession, state.tasks, state.projects]);
+  }, [
+    pendingActions,
+    state.activeFocusSession,
+    state.tasks,
+    state.projects,
+    state.areas,
+  ]);
 
   const syncedDispatch = useCallback((action: Action) => {
     dispatch(action);
