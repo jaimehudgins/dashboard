@@ -240,19 +240,27 @@ function decodeBody(payload: any): string {
   return "";
 }
 
-// Drop quoted reply chains / forwarded blocks so a sent message reflects only
-// what the user actually wrote — used to model their writing voice.
-function ownTextOnly(text: string): string {
+// Drop quoted reply chains / forwarded blocks while preserving the message's
+// newly written text. This also keeps long-thread analysis from repeatedly
+// sending the same quoted history to the model.
+export function stripQuotedReply(text: string): string {
   const out: string[] = [];
-  for (const line of text.split("\n")) {
+  for (const line of text.split(/\r?\n/)) {
     const t = line.trim();
-    if (/^On\b.*\bwrote:\s*$/.test(t)) break;
-    if (/^-{2,}\s*Forwarded message/i.test(t)) break;
-    if (/^From:\s/.test(t) && out.length > 2) break;
+    if (/^On\b.*\bwrote:\s*$/i.test(t)) break;
+    if (/^-{2,}\s*(Forwarded|Original) message/i.test(t)) break;
+    if (/^Begin forwarded message:/i.test(t)) break;
+    if (/^_{5,}$/.test(t)) break;
+    if (/^From:\s/i.test(t) && out.length > 2) break;
     if (t.startsWith(">")) continue;
     out.push(line);
   }
-  return out.join("\n").trim().slice(0, 1500);
+  return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+// Keep voice samples short after removing quoted content.
+function ownTextOnly(text: string): string {
+  return stripQuotedReply(text).slice(0, 1500);
 }
 
 // A few of the user's recent sent messages (their own words only), used as
@@ -443,6 +451,8 @@ export async function getThread(
     date: string;
     snippet: string;
     body: string;
+    cleanBody: string;
+    hasQuotedContent: boolean;
     html: string;
   }[];
 }> {
@@ -451,13 +461,17 @@ export async function getThread(
     id: thread.id,
     messages: (thread.messages || []).map((msg: any) => {
       const h = msg.payload?.headers || [];
+      const body = decodeBody(msg.payload).slice(0, 20000);
+      const cleanBody = stripQuotedReply(body);
       return {
         from: header(h, "From"),
         to: header(h, "To"),
         subject: header(h, "Subject"),
         date: header(h, "Date"),
         snippet: msg.snippet || "",
-        body: decodeBody(msg.payload).slice(0, 20000),
+        body,
+        cleanBody,
+        hasQuotedContent: Boolean(cleanBody && cleanBody !== body),
         html: decodeHtmlBody(msg.payload).slice(0, 400000),
       };
     }),

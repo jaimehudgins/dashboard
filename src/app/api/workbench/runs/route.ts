@@ -21,6 +21,7 @@ import {
   workSourceKey,
 } from "@/lib/workbench";
 import {
+  directDriveSources,
   gatherWorkSources,
   sourcesForWorkPrompt,
   substantiveSourceCount,
@@ -380,10 +381,26 @@ export async function POST(request: Request) {
       : sessionAccessToken;
     const gatheredSources =
       researchAgain || !existingRun?.sources.length
-        ? await gatherWorkSources({ token: googleToken, task, project, area })
+        ? await gatherWorkSources({
+            token: googleToken,
+            task,
+            project,
+            area,
+            feedback,
+          })
         : existingRun.sources;
-    const sources: WorkSource[] = gatheredSources
+    const linkedDriveSources = feedback
+      ? await directDriveSources(googleToken, feedback)
+      : [];
+    const seenSources = new Set<string>();
+    const sources: WorkSource[] = [...linkedDriveSources, ...gatheredSources]
       .filter((source) => source.type !== "feedback")
+      .filter((source) => {
+        const key = source.url || workSourceKey(source);
+        if (seenSources.has(key)) return false;
+        seenSources.add(key);
+        return true;
+      })
       .map((source) => ({
         ...source,
         feedback: sourceFeedback[workSourceKey(source)] ?? source.feedback,

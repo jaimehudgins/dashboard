@@ -91,6 +91,8 @@ interface ThreadMessage {
   date: string;
   snippet: string;
   body: string;
+  cleanBody: string;
+  hasQuotedContent: boolean;
   html: string;
 }
 
@@ -119,6 +121,52 @@ function EmailFrame({ html }: { html: string }) {
       className="w-full"
       style={{ border: 0, width: "100%", minHeight: 60 }}
     />
+  );
+}
+
+function ThreadMessageCard({ message }: { message: ThreadMessage }) {
+  const [showQuoted, setShowQuoted] = useState(false);
+  const cleanBody = message.cleanBody || message.body || message.snippet;
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-4">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <span className="text-sm font-medium text-slate-800">
+          {senderName(message.from)}
+        </span>
+        <span className="text-xs text-slate-400">
+          {message.date && format(new Date(message.date), "MMM d, h:mm a")}
+        </span>
+      </div>
+      {showQuoted ? (
+        message.html ? (
+          <EmailFrame html={message.html} />
+        ) : (
+          <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
+            {message.body || message.snippet}
+          </div>
+        )
+      ) : message.hasQuotedContent ? (
+        <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
+          {cleanBody}
+        </div>
+      ) : message.html ? (
+        <EmailFrame html={message.html} />
+      ) : (
+        <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
+          {cleanBody}
+        </div>
+      )}
+      {message.hasQuotedContent && (
+        <button
+          type="button"
+          onClick={() => setShowQuoted((current) => !current)}
+          className="mt-3 text-xs font-medium text-slate-500 hover:text-slate-800"
+        >
+          {showQuoted ? "Hide quoted text" : "Show quoted text"}
+        </button>
+      )}
+    </div>
   );
 }
 interface FullThread {
@@ -601,26 +649,7 @@ export default function Mail() {
             </div>
             <div className="space-y-3">
               {thread.messages.map((m, i) => (
-                <div
-                  key={i}
-                  className="bg-white border border-slate-200 rounded-xl p-4"
-                >
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-sm font-medium text-slate-800">
-                      {senderName(m.from)}
-                    </span>
-                    <span className="text-xs text-slate-400">
-                      {m.date && format(new Date(m.date), "MMM d, h:mm a")}
-                    </span>
-                  </div>
-                  {m.html ? (
-                    <EmailFrame html={m.html} />
-                  ) : (
-                    <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
-                      {m.body || m.snippet}
-                    </div>
-                  )}
-                </div>
+                <ThreadMessageCard key={i} message={m} />
               ))}
             </div>
 
