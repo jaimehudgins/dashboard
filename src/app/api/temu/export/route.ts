@@ -9,6 +9,7 @@ import {
   isTemuResource,
   TemuApiError,
   TemuExportData,
+  TemuExportResult,
   TemuResource,
 } from "@/lib/temu-api";
 
@@ -96,6 +97,31 @@ async function findExistingContact(
     .limit(1)
     .maybeSingle();
   if (error) throw error;
+  return data;
+}
+
+async function findExistingSourceRecord(
+  table: "touchpoints" | "follow_up_tasks",
+  partnerId: string,
+  sourceExternalId: string,
+): Promise<{ id: string; partner_id: string } | null> {
+  if (!isCrmConfigured) return null;
+
+  const { data, error } = await crmSupabase
+    .from(table)
+    .select("id, partner_id")
+    .eq("source_system", "leo:temu")
+    .eq("source_external_id", sourceExternalId)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (data && data.partner_id !== partnerId) {
+    throw new TemuApiError(
+      "This source was already exported to a different TEMU partner",
+      409,
+      "SOURCE_PARTNER_CONFLICT",
+    );
+  }
   return data;
 }
 
@@ -244,25 +270,41 @@ export async function POST(request: Request) {
       }
     }
 
-    let result;
-    try {
-      result = await createTemuRecord({
-        resource: body.resource,
-        actor: session.user.email,
-        data,
-      });
-    } catch (error) {
-      if (contactResult && error instanceof TemuApiError) {
-        return NextResponse.json(
-          {
-            error: `Contact handled, but the touchpoint failed: ${error.message}`,
-            code: error.code,
-            partial: { contact: contactResult },
-          },
-          { status: errorStatus(error) },
-        );
+    let result: TemuExportResult;
+    const existingTouchpoint =
+      body.resource === "touchpoints"
+        ? await findExistingSourceRecord(
+            "touchpoints",
+            data.partner_id,
+            data.source_external_id,
+          )
+        : null;
+    if (existingTouchpoint) {
+      result = {
+        data: existingTouchpoint,
+        duplicate: true,
+        request_id: "existing-temu-record",
+      };
+    } else {
+      try {
+        result = await createTemuRecord({
+          resource: body.resource,
+          actor: session.user.email,
+          data,
+        });
+      } catch (error) {
+        if (contactResult && error instanceof TemuApiError) {
+          return NextResponse.json(
+            {
+              error: `Contact handled, but the touchpoint failed: ${error.message}`,
+              code: error.code,
+              partial: { contact: contactResult },
+            },
+            { status: errorStatus(error) },
+          );
+        }
+        throw error;
       }
-      throw error;
     }
 
     if (body.follow_up_tasks === undefined) {
@@ -275,6 +317,17 @@ export async function POST(request: Request) {
     for (const rawTask of body.follow_up_tasks) {
       const ownership =
         rawTask.ownership === "partner" ? "partner" : "jaime";
+      const existingTask = await findExistingSourceRecord(
+        "follow_up_tasks",
+        data.partner_id,
+        String(rawTask.source_external_id),
+      );
+      if (existingTask) {
+        taskResults.push({ duplicate: true });
+        continue;
+      }
+      const touchpointId =
+        typeof result.data.id === "string" ? result.data.id : undefined;
       const taskData = sanitizeData("follow-up-tasks", {
         partner_id: data.partner_id,
         source_external_id: rawTask.source_external_id,
@@ -283,7 +336,10 @@ export async function POST(request: Request) {
           parent_source_external_id: data.source_external_id,
           ownership,
         },
-        touchpoint_source_external_id: data.source_external_id,
+        touchpoint_id: touchpointId,
+        touchpoint_source_external_id: touchpointId
+          ? undefined
+          : data.source_external_id,
         task: rawTask.task,
         due_date: rawTask.due_date ?? null,
         completed: false,
