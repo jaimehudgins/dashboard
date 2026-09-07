@@ -44,6 +44,29 @@ export interface WorkBrief {
   searchTerms: string[];
 }
 
+export type WorkQualityStatus = "pass" | "needs_work";
+
+export interface WorkQualityDimension {
+  status: WorkQualityStatus;
+  note: string;
+}
+
+export interface WorkQualityReview {
+  overallPass: boolean;
+  initialPass: boolean;
+  revised: boolean;
+  summary: string;
+  remainingGap: string;
+  checkedAt: string;
+  dimensions: {
+    grounding: WorkQualityDimension;
+    completeness: WorkQualityDimension;
+    usefulness: WorkQualityDimension;
+    sourceCoverage: WorkQualityDimension;
+    briefAlignment: WorkQualityDimension;
+  };
+}
+
 export interface WorkSource {
   type:
     | "task"
@@ -57,6 +80,7 @@ export interface WorkSource {
     | "crm"
     | "platform"
     | "brief"
+    | "quality"
     | "feedback";
   title: string;
   url?: string;
@@ -66,6 +90,7 @@ export interface WorkSource {
   status?: "used" | "no_match" | "unavailable" | "error";
   feedback?: "useful" | "irrelevant";
   brief?: WorkBrief;
+  qualityReview?: WorkQualityReview;
 }
 
 export function workBriefSource(brief: WorkBrief): WorkSource {
@@ -90,6 +115,29 @@ export function workBriefSource(brief: WorkBrief): WorkSource {
       .join("\n"),
     status: "used",
     brief,
+  };
+}
+
+export function workQualitySource(review: WorkQualityReview): WorkSource {
+  const dimensionLines = Object.entries(review.dimensions).map(
+    ([name, dimension]) =>
+      `${name}: ${dimension.status.replace("_", " ")} — ${dimension.note}`,
+  );
+  return {
+    type: "quality",
+    title: "Leo quality review",
+    excerpt: [
+      `Overall: ${review.overallPass ? "pass" : "needs work"}`,
+      `Automatic revision: ${review.revised ? "yes" : "no"}`,
+      `Summary: ${review.summary}`,
+      ...dimensionLines,
+      review.remainingGap ? `Remaining gap: ${review.remainingGap}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    status: "used",
+    checkedAt: review.checkedAt,
+    qualityReview: review,
   };
 }
 

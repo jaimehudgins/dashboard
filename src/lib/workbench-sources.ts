@@ -1289,6 +1289,7 @@ export function substantiveSourceCount(sources: WorkSource[]): number {
       source.status !== "error" &&
       source.type !== "task" &&
       source.type !== "brief" &&
+      source.type !== "quality" &&
       !source.title.startsWith("Drive anchor ·") &&
       source.type !== "feedback" &&
       source.feedback !== "irrelevant" &&
@@ -1302,6 +1303,7 @@ export function sourcesForWorkPrompt(sources: WorkSource[]): string {
       source.status !== "no_match" &&
       source.status !== "unavailable" &&
       source.status !== "error" &&
+      source.type !== "quality" &&
       !source.title.startsWith("Drive anchor ·") &&
       source.feedback !== "irrelevant",
   );
