@@ -49,6 +49,88 @@ const STATUS_STYLES: Record<WorkRun["status"], string> = {
   human_only: "bg-slate-100 text-slate-600",
 };
 
+const SOURCE_ORDER: WorkSource["type"][] = [
+  "crm",
+  "gmail",
+  "granola",
+  "drive",
+  "slack",
+  "curriculum_repo",
+  "platform",
+  "memory",
+];
+
+const SOURCE_LABELS: Partial<Record<WorkSource["type"], string>> = {
+  crm: "TEMU",
+  gmail: "Gmail",
+  granola: "Granola",
+  drive: "Google Drive",
+  slack: "Slack",
+  curriculum_repo: "Curriculum repo",
+  platform: "Platform guidance",
+  memory: "Leo memory",
+};
+
+function sourceCoverage(sources: WorkSource[]) {
+  return SOURCE_ORDER.flatMap((type) => {
+    const matching = sources.filter((source) => source.type === type);
+    if (!matching.length) return [];
+    const used = matching.filter(
+      (source) =>
+        (!source.status || source.status === "used") &&
+        !source.title.startsWith("Drive anchor ·") &&
+        source.feedback !== "irrelevant" &&
+        Boolean(source.excerpt?.trim()),
+    );
+    const failed = matching.find((source) => source.status === "error");
+    const unavailable = matching.find(
+      (source) => source.status === "unavailable",
+    );
+    const noMatch = matching.find((source) => source.status === "no_match");
+    const status = used.length
+      ? "used"
+      : failed
+        ? "error"
+        : unavailable
+          ? "unavailable"
+          : noMatch
+            ? "no_match"
+            : "no_match";
+    const diagnosticSource = failed || unavailable || noMatch;
+    return [
+      {
+        type,
+        label: SOURCE_LABELS[type] || type,
+        status,
+        count: used.length,
+        detail: diagnosticSource?.excerpt,
+      },
+    ];
+  });
+}
+
+function formatCheckedAt(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return "during this run";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/Chicago",
+    timeZoneName: "short",
+  }).format(date);
+}
+
+function latestSourceCheck(sources: WorkSource[], fallback: string): string {
+  const latest = sources
+    .map((source) => source.checkedAt)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1);
+  return latest || fallback;
+}
+
 export default function WorkbenchPanel({
   runs,
   loading,
@@ -294,6 +376,85 @@ export default function WorkbenchPanel({
                   <p className="mt-2 text-xs text-amber-700">
                     Add the answer to the task notes, then ask Leo to try again.
                   </p>
+                </div>
+              )}
+
+              {run.sources.some(
+                (source) =>
+                  source.type === "crm" &&
+                  source.title.startsWith("Partner context ·"),
+              ) && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                    Partner identity resolved
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-emerald-950">
+                    {run.sources
+                      .find(
+                        (source) =>
+                          source.type === "crm" &&
+                          source.title.startsWith("Partner context ·"),
+                      )
+                      ?.title.replace("Partner context · ", "")}
+                  </p>
+                  <p className="mt-1 text-xs text-emerald-700">
+                    Leo used this TEMU identity and its contacts when searching
+                    Gmail, Granola, Drive, and Slack.
+                  </p>
+                </div>
+              )}
+
+              {sourceCoverage(run.sources).length > 0 && (
+                <div>
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Source coverage
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Checked{" "}
+                      {formatCheckedAt(
+                        latestSourceCheck(run.sources, run.updatedAt),
+                      )}
+                    </p>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    {sourceCoverage(run.sources).map((source) => (
+                      <div
+                        key={source.type}
+                        title={source.detail}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`h-2 w-2 rounded-full ${
+                              source.status === "used"
+                                ? "bg-emerald-500"
+                                : source.status === "error"
+                                  ? "bg-red-500"
+                                  : "bg-amber-400"
+                            }`}
+                          />
+                          <span className="text-xs font-semibold text-slate-700">
+                            {source.label}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          {source.status === "used"
+                            ? `${source.count} useful source${source.count === 1 ? "" : "s"}`
+                            : source.status === "no_match"
+                              ? "No match found"
+                              : source.status === "unavailable"
+                                ? "Not connected"
+                                : "Search failed"}
+                        </p>
+                        {source.status !== "used" && source.detail && (
+                          <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-slate-400">
+                            {source.detail}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 

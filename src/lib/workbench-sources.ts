@@ -1,4 +1,9 @@
-import { crmSupabase, CrmPartner, isCrmConfigured } from "./crm-supabase";
+import {
+  crmSupabase,
+  CrmContact,
+  CrmPartner,
+  isCrmConfigured,
+} from "./crm-supabase";
 import {
   DriveFile,
   DRIVE_FOLDER_MIME,
@@ -17,11 +22,20 @@ import {
   readCurriculumFile,
   searchCurriculumRepo,
 } from "./github";
-import { meetingContext, searchTranscripts } from "./granola-search";
+import {
+  meetingContext,
+  meetingsForPartner,
+  searchTranscripts,
+} from "./granola-search";
 import { recallMemories } from "./memory";
 import { findPlatformKnowledge } from "./platform-knowledge";
 import { isSlackConfigured, searchSlack } from "./slack";
-import { WorkBrief, WorkResearchSource, WorkSource } from "./workbench";
+import {
+  WorkBrief,
+  WorkResearchSource,
+  WorkSource,
+  workSourceKey,
+} from "./workbench";
 
 interface WorkTask {
   title: string;
@@ -42,6 +56,14 @@ interface DriveAnchor {
   key: "curriculum" | "partner";
   name: string;
   folder: DriveFile;
+}
+
+interface PartnerResearchContext {
+  partner: CrmPartner;
+  contacts: CrmContact[];
+  aliases: string[];
+  emailAddresses: string[];
+  emailDomains: string[];
 }
 
 const DRIVE_ANCHOR_CONFIG = [
@@ -222,21 +244,24 @@ function uniqueStrings(values: Array<string | undefined>): string[] {
     });
 }
 
-async function partnerNamesForResearch(
+async function resolvePartnerForResearch(
   searchable: string,
   terms: string[],
-): Promise<string[]> {
-  if (!isCrmConfigured) return [];
+  allowTokenMatch: boolean,
+): Promise<PartnerResearchContext | null> {
+  if (!isCrmConfigured) return null;
   try {
     const { data, error } = await crmSupabase
       .from("partners")
-      .select("name")
+      .select(
+        "id, name, status, priority, relationship_health, renewal_status, last_contact_date, next_follow_up, proposal_deadline, city_state, district, willow_staff_lead, summary, pain_points, onboarding_step",
+      )
       .order("name")
       .limit(500);
     if (error) throw error;
     const compactSearchable = normalized(searchable);
     const termSet = new Set(terms);
-    return ((data ?? []) as Array<{ name: string }>)
+    const ranked = ((data ?? []) as CrmPartner[])
       .map((partner) => {
         const partnerWords = words(partner.name).filter(
           (word) => !ORGANIZATION_WORDS.has(word),
@@ -244,17 +269,49 @@ async function partnerNamesForResearch(
         const fullMatch = compactSearchable.includes(normalized(partner.name));
         const tokenMatches = partnerWords.filter((word) => termSet.has(word));
         return {
-          name: partner.name,
-          score: fullMatch ? 100 : tokenMatches.length * 20,
+          partner,
+          score: fullMatch
+            ? 100
+            : allowTokenMatch
+              ? tokenMatches.length * 20
+              : 0,
         };
       })
       .filter((partner) => partner.score > 0)
-      .sort((left, right) => right.score - left.score)
-      .slice(0, 3)
-      .map((partner) => partner.name);
+      .sort((left, right) => right.score - left.score);
+    const best = ranked[0];
+    if (!best || (ranked[1] && ranked[1].score === best.score)) return null;
+
+    const { data: contactRows, error: contactError } = await crmSupabase
+      .from("contacts")
+      .select("id, partner_id, name, role, email, phone, is_primary_contact")
+      .eq("partner_id", best.partner.id)
+      .order("is_primary_contact", { ascending: false });
+    if (contactError) throw contactError;
+    const contacts = (contactRows ?? []) as CrmContact[];
+    const emailAddresses = contacts
+      .map((contact) => contact.email?.trim().toLowerCase())
+      .filter((email): email is string => Boolean(email));
+    const emailDomains = [
+      ...new Set(emailAddresses.map((email) => email.split("@")[1]).filter(Boolean)),
+    ];
+    const aliases = uniqueStrings([
+      best.partner.name,
+      best.partner.district ?? undefined,
+      ...contacts.map((contact) => contact.name),
+      ...emailDomains.map((domain) => domain.split(".")[0]),
+    ]).slice(0, 12);
+
+    return {
+      partner: best.partner,
+      contacts,
+      aliases,
+      emailAddresses,
+      emailDomains,
+    };
   } catch (error) {
-    console.warn("Could not resolve Drive research entities:", error);
-    return [];
+    console.warn("Could not resolve TEMU partner research identity:", error);
+    return null;
   }
 }
 
@@ -612,21 +669,32 @@ async function driveSources(
 async function gmailSources(
   token: string,
   terms: string[],
+  partnerContext?: PartnerResearchContext | null,
 ): Promise<WorkSource[]> {
-  if (!terms.length) return [];
+  if (!terms.length && !partnerContext) return [];
   try {
-    const query = `newer_than:730d {${terms
-      .slice(0, 4)
-      .map((term) => `"${term.replace(/"/g, "")}"`)
-      .join(" ")}} -in:chats`;
-    const messages = await searchMessages(token, query, 8);
+    const identityClauses = partnerContext
+      ? [
+          ...partnerContext.emailAddresses
+            .slice(0, 8)
+            .flatMap((email) => [`from:${email}`, `to:${email}`]),
+          `"${partnerContext.partner.name.replace(/"/g, "")}"`,
+          ...partnerContext.emailDomains.slice(0, 2).map((domain) => `"${domain}"`),
+        ]
+      : terms
+          .slice(0, 4)
+          .map((term) => `"${term.replace(/"/g, "")}"`);
+    const query = `newer_than:730d {${identityClauses.join(" ")}} -in:chats`;
+    const messages = await searchMessages(token, query, 15);
     if (!messages.length) {
       return [
         diagnostic(
           "gmail",
           "Gmail",
           "no_match",
-          `No recent email matched: ${terms.slice(0, 4).join(", ")}.`,
+          partnerContext
+            ? `No recent email matched the TEMU identity for ${partnerContext.partner.name}.`
+            : `No recent email matched: ${terms.slice(0, 4).join(", ")}.`,
         ),
       ];
     }
@@ -636,7 +704,7 @@ async function gmailSources(
           all.findIndex((candidate) => candidate.threadId === message.threadId) ===
           index,
       )
-      .slice(0, 4);
+      .slice(0, 6);
     const reads = await Promise.allSettled(
       uniqueThreads.map(async (message) => ({
         message,
@@ -659,7 +727,9 @@ async function gmailSources(
         excerpt: value.thread.messages
           .map(
             (threadMessage) =>
-              `From: ${threadMessage.from}\nDate: ${threadMessage.date}\n${
+              `From: ${threadMessage.from}\nTo: ${threadMessage.to}${
+                threadMessage.cc ? `\nCc: ${threadMessage.cc}` : ""
+              }\nDate: ${threadMessage.date}\n${
                 threadMessage.cleanBody || threadMessage.snippet
               }`,
           )
@@ -682,24 +752,50 @@ async function gmailSources(
   }
 }
 
-async function granolaSources(terms: string[]): Promise<WorkSource[]> {
-  if (!terms.length) return [];
+async function granolaSources(
+  terms: string[],
+  partnerContext?: PartnerResearchContext | null,
+): Promise<WorkSource[]> {
+  if (!terms.length && !partnerContext) return [];
   try {
-    const meetings = await searchTranscripts(terms.slice(0, 5).join(" "), undefined, 4);
+    const [linkedMeetings, searchedMeetings] = await Promise.all([
+      partnerContext
+        ? meetingsForPartner(partnerContext.partner.id, 6)
+        : Promise.resolve([]),
+      searchTranscripts(
+        [partnerContext?.partner.name, ...terms.slice(0, 5)]
+          .filter(Boolean)
+          .join(" "),
+        undefined,
+        6,
+      ),
+    ]);
+    const meetings = [...linkedMeetings, ...searchedMeetings]
+      .filter(
+        (meeting, index, all) =>
+          all.findIndex((candidate) => candidate.id === meeting.id) === index,
+      )
+      .slice(0, 6);
     if (!meetings.length) {
       return [
         diagnostic(
           "granola",
           "Granola",
           "no_match",
-          `No meeting transcript matched: ${terms.slice(0, 5).join(", ")}.`,
+          partnerContext
+            ? `No linked or matching meeting was found for ${partnerContext.partner.name}.`
+            : `No meeting transcript matched: ${terms.slice(0, 5).join(", ")}.`,
         ),
       ];
     }
     const reads = await Promise.allSettled(
       meetings.map(async (meeting) => ({
         meeting,
-        context: await meetingContext(meeting.id, terms.join(" "), 8_000),
+        context: await meetingContext(
+          meeting.id,
+          [partnerContext?.partner.name, ...terms].filter(Boolean).join(" "),
+          8_000,
+        ),
       })),
     );
     const sources = reads
@@ -852,50 +948,31 @@ function normalized(value: string): string {
 }
 
 async function crmSources(
-  searchable: string,
-  resolvedPartnerNames: string[],
+  partnerContext: PartnerResearchContext | null,
 ): Promise<WorkSource[]> {
   if (!isCrmConfigured) {
     return [
       diagnostic("crm", "TEMU CRM", "unavailable", "TEMU CRM is not configured."),
     ];
   }
+  if (!partnerContext) {
+    return [
+      diagnostic(
+        "crm",
+        "TEMU CRM",
+        "no_match",
+        "Leo could not confidently match this task to one TEMU partner.",
+      ),
+    ];
+  }
   try {
-    const { data: partnerRows, error } = await crmSupabase
-      .from("partners")
-      .select(
-        "id, name, status, priority, relationship_health, renewal_status, last_contact_date, next_follow_up, proposal_deadline, city_state, district, willow_staff_lead, summary, pain_points, onboarding_step",
-      )
-      .order("name")
-      .limit(500);
-    if (error) throw error;
-    const compactSearchable = normalized(searchable);
-    const matches = ((partnerRows ?? []) as CrmPartner[])
-      .filter((partner) => {
-        const key = normalized(partner.name);
-        return (
-          (key.length >= 3 && compactSearchable.includes(key)) ||
-          resolvedPartnerNames.some(
-            (name) => normalized(name) === normalized(partner.name),
-          )
-        );
-      })
-      .slice(0, 3);
-    if (!matches.length) return [];
-
     const sources: WorkSource[] = [];
-    for (const partner of matches) {
+    for (const partner of [partnerContext.partner]) {
       const [
-        { data: contacts, error: contactsError },
         { data: touchpoints, error: touchpointsError },
         { data: followUps, error: followUpsError },
         { data: importantDates, error: datesError },
       ] = await Promise.all([
-        crmSupabase
-          .from("contacts")
-          .select("name, role, email, is_primary_contact")
-          .eq("partner_id", partner.id)
-          .order("is_primary_contact", { ascending: false }),
         crmSupabase
           .from("touchpoints")
           .select("date, title, notes, next_steps, type")
@@ -917,12 +994,16 @@ async function crmSources(
           .limit(10),
       ]);
       const relatedError =
-        contactsError || touchpointsError || followUpsError || datesError;
+        touchpointsError || followUpsError || datesError;
       if (relatedError) throw relatedError;
       sources.push({
         type: "crm",
-        title: `TEMU CRM · ${partner.name}`,
+        title: `Partner context · ${partner.name}`,
         excerpt: [
+          `Resolved TEMU partner: ${partner.name} (${partner.id})`,
+          partnerContext.aliases.length
+            ? `Search identities: ${partnerContext.aliases.join("; ")}`
+            : "",
           `Status: ${partner.status}`,
           partner.onboarding_step
             ? `Implementation: ${partner.onboarding_step}`
@@ -934,7 +1015,7 @@ async function crmSources(
           partner.pain_points?.length
             ? `Pain points: ${partner.pain_points.join("; ")}`
             : "",
-          ...(contacts ?? []).map(
+          ...partnerContext.contacts.map(
             (contact) =>
               `Contact: ${contact.name}${contact.role ? ` · ${contact.role}` : ""}${
                 contact.email ? ` · ${contact.email}` : ""
@@ -967,7 +1048,10 @@ async function crmSources(
   }
 }
 
-async function slackSources(terms: string[]): Promise<WorkSource[]> {
+async function slackSources(
+  terms: string[],
+  partnerContext?: PartnerResearchContext | null,
+): Promise<WorkSource[]> {
   if (!isSlackConfigured) {
     return [
       diagnostic(
@@ -978,20 +1062,48 @@ async function slackSources(terms: string[]): Promise<WorkSource[]> {
       ),
     ];
   }
-  if (!terms.length) return [];
+  if (!terms.length && !partnerContext) return [];
   try {
-    const hits = await searchSlack(terms.slice(0, 4).join(" "), 8);
+    const queries = partnerContext
+      ? uniqueStrings([
+          partnerContext.partner.name,
+          ...partnerContext.aliases.filter(
+            (alias) => words(alias).some((word) => word.length >= 5),
+          ),
+        ]).slice(0, 3)
+      : [terms.slice(0, 4).join(" ")];
+    const results = await Promise.allSettled(
+      queries.map((query) => searchSlack(`"${query.replace(/"/g, "")}"`, 8)),
+    );
+    const hits = results
+      .filter(
+        (result): result is PromiseFulfilledResult<
+          Awaited<ReturnType<typeof searchSlack>>
+        > => result.status === "fulfilled",
+      )
+      .flatMap((result) => result.value)
+      .filter(
+        (hit, index, all) =>
+          all.findIndex((candidate) => candidate.permalink === hit.permalink) ===
+          index,
+      );
+    if (results.every((result) => result.status === "rejected")) {
+      const first = results[0] as PromiseRejectedResult;
+      throw first.reason;
+    }
     if (!hits.length) {
       return [
         diagnostic(
           "slack",
           "Slack",
           "no_match",
-          `No message matched: ${terms.slice(0, 4).join(", ")}.`,
+          partnerContext
+            ? `No Slack message matched ${partnerContext.partner.name}.`
+            : `No message matched: ${terms.slice(0, 4).join(", ")}.`,
         ),
       ];
     }
-    return hits.slice(0, 4).map((hit) => ({
+    return hits.slice(0, 6).map((hit) => ({
       type: "slack",
       title: `#${hit.channel || "Slack"} · ${hit.user || "Unknown"}`,
       url: hit.permalink,
@@ -1075,7 +1187,8 @@ export async function gatherWorkSources(input: {
     !taskNeedsKnowledge(input.task) &&
     !(input.brief && input.brief.requiredSources.length > 0)
   ) {
-    return sources;
+    const checkedAt = new Date().toISOString();
+    return sources.map((source) => ({ ...source, checkedAt }));
   }
 
   const terms = meaningfulTerms(
@@ -1089,7 +1202,17 @@ export async function gatherWorkSources(input: {
   const searchable = `${input.task.title}\n${input.task.description ?? ""}\n${
     input.project?.name ?? ""
   }\n${input.feedback ?? ""}\n${input.brief?.searchTerms.join(" ") ?? ""}`;
-  const partnerNames = await partnerNamesForResearch(searchable, terms);
+  const partnerScoped =
+    Boolean(input.brief?.requiredSources.includes("crm")) ||
+    /partner|customer|consult/i.test(
+      `${input.project?.name ?? ""} ${input.area?.name ?? ""}`,
+    );
+  const partnerContext = await resolvePartnerForResearch(
+    searchable,
+    terms,
+    partnerScoped,
+  );
+  const partnerNames = partnerContext ? [partnerContext.partner.name] : [];
   const { anchors, diagnostics: anchorDiagnostics } =
     await resolveDriveAnchors(input.token);
   sources.push(...anchorDiagnostics);
@@ -1113,9 +1236,27 @@ export async function gatherWorkSources(input: {
   const required = new Set<WorkResearchSource>(
     input.brief?.requiredSources ?? [],
   );
+  const partnerPacketSources = new Set<WorkResearchSource>([
+    "gmail",
+    "granola",
+    "crm",
+    "slack",
+  ]);
   const shouldUseSource = (source: WorkResearchSource) =>
-    required.size === 0 || required.has(source) || source === "drive";
+    required.size === 0 ||
+    required.has(source) ||
+    source === "drive" ||
+    (partnerContext !== null && partnerPacketSources.has(source));
   const providerResults = await Promise.all([
+    shouldUseSource("crm")
+      ? crmSources(partnerContext)
+      : Promise.resolve([]),
+    shouldUseSource("gmail")
+      ? gmailSources(input.token, terms, partnerContext)
+      : Promise.resolve([]),
+    shouldUseSource("granola")
+      ? granolaSources(terms, partnerContext)
+      : Promise.resolve([]),
     driveSources(
       input.token,
       driveQueries,
@@ -1123,25 +1264,21 @@ export async function gatherWorkSources(input: {
       partnerNames,
       anchors,
     ),
-    shouldUseSource("gmail")
-      ? gmailSources(input.token, terms)
+    shouldUseSource("slack")
+      ? slackSources(terms, partnerContext)
       : Promise.resolve([]),
-    shouldUseSource("granola")
-      ? granolaSources(terms)
-      : Promise.resolve([]),
-    memorySources(terms),
     shouldUseSource("curriculum_repo")
       ? curriculumSources(terms)
       : Promise.resolve([]),
-    shouldUseSource("crm")
-      ? crmSources(searchable, partnerNames)
-      : Promise.resolve([]),
-    shouldUseSource("slack") ? slackSources(terms) : Promise.resolve([]),
     shouldUseSource("platform")
       ? Promise.resolve(platformSources(searchable))
       : Promise.resolve([]),
+    memorySources(terms),
   ]);
-  return [...sources, ...providerResults.flat()].slice(0, 32);
+  const checkedAt = new Date().toISOString();
+  return [...sources, ...providerResults.flat()]
+    .slice(0, 40)
+    .map((source) => ({ ...source, checkedAt }));
 }
 
 export function missingRequiredSources(
@@ -1177,19 +1314,47 @@ export function substantiveSourceCount(sources: WorkSource[]): number {
 }
 
 export function sourcesForWorkPrompt(sources: WorkSource[]): string {
-  const used = sources.filter(
+  const available = sources.filter(
     (source) =>
       source.status !== "no_match" &&
       source.status !== "unavailable" &&
       source.status !== "error" &&
+      !source.title.startsWith("Drive anchor ·") &&
       source.feedback !== "irrelevant",
-  ).sort((a, b) => {
-    if (a.type === "feedback") return -1;
-    if (b.type === "feedback") return 1;
-    if (a.feedback === "useful" && b.feedback !== "useful") return -1;
-    if (b.feedback === "useful" && a.feedback !== "useful") return 1;
-    return 0;
+  );
+  const promptTypeOrder: WorkSource["type"][] = [
+    "feedback",
+    "task",
+    "project",
+    "brief",
+    "crm",
+    "drive",
+    "gmail",
+    "granola",
+    "slack",
+    "curriculum_repo",
+    "platform",
+    "memory",
+  ];
+  const firstByType = promptTypeOrder.flatMap((type) => {
+    const matching = available.filter((source) => source.type === type);
+    const preferred = matching.find((source) => source.feedback === "useful");
+    return preferred ? [preferred] : matching.slice(0, 1);
   });
+  const firstKeys = new Set(
+    firstByType.map((source) => source.url || workSourceKey(source)),
+  );
+  const used = [
+    ...firstByType,
+    ...available
+      .filter(
+        (source) => !firstKeys.has(source.url || workSourceKey(source)),
+      )
+      .sort((left, right) =>
+        Number(right.feedback === "useful") -
+        Number(left.feedback === "useful"),
+      ),
+  ];
   const unavailable = sources.filter(
     (source) =>
       source.status === "no_match" ||
@@ -1201,7 +1366,8 @@ export function sourcesForWorkPrompt(sources: WorkSource[]): string {
     .map(
       (source, index) =>
         `--- Source ${index + 1}: ${source.title} (${source.type}) ---\n${
-          source.excerpt || "Link only; do not infer its contents."
+          source.excerpt?.slice(0, 5_000) ||
+          "Link only; do not infer its contents."
         }`,
     )
     .join("\n\n");
