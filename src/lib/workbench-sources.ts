@@ -10,17 +10,18 @@ import {
   searchDrive,
   searchDriveFolders,
 } from "./drive";
-import { searchMessages } from "./gmail";
+import { getThread, searchMessages } from "./gmail";
 import {
   curriculumRepo,
   isGithubConfigured,
+  readCurriculumFile,
   searchCurriculumRepo,
 } from "./github";
-import { searchTranscripts } from "./granola-search";
+import { meetingContext, searchTranscripts } from "./granola-search";
 import { recallMemories } from "./memory";
 import { findPlatformKnowledge } from "./platform-knowledge";
 import { isSlackConfigured, searchSlack } from "./slack";
-import { WorkSource } from "./workbench";
+import { WorkBrief, WorkResearchSource, WorkSource } from "./workbench";
 
 interface WorkTask {
   title: string;
@@ -36,6 +37,25 @@ interface WorkProject {
 interface WorkArea {
   name?: string;
 }
+
+interface DriveAnchor {
+  key: "curriculum" | "partner";
+  name: string;
+  folder: DriveFile;
+}
+
+const DRIVE_ANCHOR_CONFIG = [
+  {
+    key: "curriculum" as const,
+    name: "Willow Curriculum 2.0",
+    envId: process.env.GOOGLE_DRIVE_CURRICULUM_FOLDER_ID?.trim(),
+  },
+  {
+    key: "partner" as const,
+    name: "Partner Success",
+    envId: process.env.GOOGLE_DRIVE_PARTNER_SUCCESS_FOLDER_ID?.trim(),
+  },
+];
 
 const GENERIC_TERMS = new Set([
   "about",
@@ -269,24 +289,56 @@ interface DriveCandidate {
   file: DriveFile;
   location?: string;
   folderMatch: boolean;
+  searchMatch?: boolean;
 }
 
-function candidateMatchesEntities(
-  candidate: DriveCandidate,
-  entityNames: string[],
-): boolean {
-  if (!entityNames.length) return true;
-  const haystack = `${candidate.file.name} ${candidate.location ?? ""}`;
-  const haystackWords = new Set(words(haystack));
-  return entityNames.some((entityName) => {
-    const entityWords = words(entityName).filter(
-      (word) => !ORGANIZATION_WORDS.has(word),
-    );
-    return (
-      normalizedPhrase(haystack).includes(normalizedPhrase(entityName)) ||
-      entityWords.some((word) => haystackWords.has(word))
-    );
+async function resolveDriveAnchors(token: string): Promise<{
+  anchors: DriveAnchor[];
+  diagnostics: WorkSource[];
+}> {
+  const results = await Promise.allSettled(
+    DRIVE_ANCHOR_CONFIG.map(async (config): Promise<DriveAnchor> => {
+      if (config.envId) {
+        const folder = await getDriveFile(token, config.envId);
+        if (folder.mimeType !== DRIVE_FOLDER_MIME) {
+          throw new Error(`${config.name} is not a Drive folder`);
+        }
+        return { key: config.key, name: config.name, folder };
+      }
+      const matches = await searchDriveFolders(token, config.name, 20);
+      const exact = matches.find(
+        (folder) =>
+          folder.name.trim().toLowerCase() === config.name.toLowerCase(),
+      );
+      if (!exact) throw new Error(`${config.name} folder was not found`);
+      return { key: config.key, name: config.name, folder: exact };
+    }),
+  );
+  const anchors: DriveAnchor[] = [];
+  const diagnostics: WorkSource[] = [];
+  results.forEach((result, index) => {
+    const config = DRIVE_ANCHOR_CONFIG[index];
+    if (result.status === "fulfilled") {
+      anchors.push(result.value);
+      diagnostics.push({
+        type: "drive",
+        title: `Drive anchor · ${config.name}`,
+        url: result.value.folder.webViewLink,
+        excerpt: `Leo searched this folder and its relevant subfolders as an authoritative context location.`,
+        status: "used",
+      });
+    } else {
+      diagnostics.push(
+        diagnostic(
+          "drive",
+          `Drive anchor · ${config.name}`,
+          "unavailable",
+          `${errorMessage(result.reason)} Add the folder ID to the matching Google Drive environment variable.`,
+        ),
+      );
+    }
   });
+  return { anchors, diagnostics };
 }
 
 function driveRelevance(
@@ -298,7 +350,8 @@ function driveRelevance(
   const name = normalizedPhrase(candidate.file.name);
   const location = normalizedPhrase(candidate.location ?? "");
   const body = content.toLowerCase();
-  let score = candidate.folderMatch ? 20 : 0;
+  let score = candidate.folderMatch ? 3 : 0;
+  if (candidate.searchMatch) score += 14;
 
   queries.forEach((query) => {
     const phrase = normalizedPhrase(query);
@@ -324,6 +377,7 @@ async function filesInRelevantFolders(
   token: string,
   queries: string[],
   terms: string[],
+  anchors: DriveAnchor[],
 ): Promise<DriveCandidate[]> {
   const folderResults = await Promise.allSettled(
     queries.slice(0, 6).map((query) => searchDriveFolders(token, query, 50)),
@@ -350,9 +404,23 @@ async function filesInRelevantFolders(
         right.score - left.score,
     );
   const bestFolderScore = rankedFolders[0]?.score ?? 0;
-  const folders = rankedFolders
+  const discoveredFolders = rankedFolders
     .filter((folder) => folder.score >= bestFolderScore - 12)
     .slice(0, 3);
+  const anchorFolders = anchors.map((anchor) => ({
+    candidate: {
+      file: anchor.folder,
+      location: anchor.name,
+      folderMatch: true,
+    },
+    score: 1_000,
+  }));
+  const folders = [...anchorFolders, ...discoveredFolders].filter(
+    (folder, index, all) =>
+      all.findIndex(
+        (candidate) => candidate.candidate.file.id === folder.candidate.file.id,
+      ) === index,
+  );
 
   const candidates: DriveCandidate[] = [];
   const visited = new Set<string>();
@@ -361,10 +429,23 @@ async function filesInRelevantFolders(
     path: folder.candidate.file.name,
     depth: 0,
   }));
-  while (queue.length && visited.size < 10 && candidates.length < 80) {
+  while (queue.length && visited.size < 24 && candidates.length < 240) {
     const batch = queue
       .filter((current) => !visited.has(current.folder.id))
-      .slice(0, Math.max(0, 10 - visited.size));
+      .sort((left, right) => {
+        const leftScore = driveRelevance(
+          { file: left.folder, location: left.path, folderMatch: true },
+          queries,
+          terms,
+        );
+        const rightScore = driveRelevance(
+          { file: right.folder, location: right.path, folderMatch: true },
+          queries,
+          terms,
+        );
+        return rightScore - leftScore;
+      })
+      .slice(0, Math.max(0, 24 - visited.size));
     queue = [];
     batch.forEach((current) => visited.add(current.folder.id));
     const childResults = await Promise.allSettled(
@@ -378,6 +459,7 @@ async function filesInRelevantFolders(
       if (result.status !== "fulfilled") continue;
       const { current, children } = result.value;
       for (const child of children) {
+        if (candidates.length >= 240) break;
         if (child.mimeType === DRIVE_FOLDER_MIME && current.depth < 3) {
           queue.push({
             folder: child,
@@ -402,6 +484,7 @@ async function driveSources(
   queries: string[],
   terms: string[],
   entityNames: string[],
+  anchors: DriveAnchor[],
 ): Promise<WorkSource[]> {
   if (!queries.length) {
     return [
@@ -417,6 +500,7 @@ async function driveSources(
         token,
         entityNames.length ? entityNames : queries,
         terms,
+        anchors,
       ),
     ]);
     const failures = searches.filter((result) => result.status === "rejected");
@@ -427,14 +511,9 @@ async function driveSources(
       )
       .flatMap((result) => result.value)
       .filter(isReadableDriveFile)
-      .map((file) => ({ file, folderMatch: false }));
+      .map((file) => ({ file, folderMatch: false, searchMatch: true }));
     const candidatePool = folderCandidates.length
-      ? [
-          ...folderCandidates,
-          ...discovered.filter((candidate) =>
-            candidateMatchesEntities(candidate, entityNames),
-          ),
-        ]
+      ? [...folderCandidates, ...discovered]
       : discovered;
     const rankedCandidates = candidatePool
       .filter(
@@ -445,6 +524,7 @@ async function driveSources(
         candidate,
         score: driveRelevance(candidate, queries, terms),
       }))
+      .filter((candidate) => candidate.score >= 8)
       .sort(
         (left, right) =>
           right.score - left.score,
@@ -550,13 +630,53 @@ async function gmailSources(
         ),
       ];
     }
-    return messages.slice(0, 4).map((message) => ({
-      type: "gmail",
-      title: message.subject || "Email without a subject",
-      url: `https://mail.google.com/mail/u/0/#all/${message.threadId}`,
-      excerpt: `${message.from}\n${message.date}\n${message.snippet}`,
-      status: "used",
-    }));
+    const uniqueThreads = messages
+      .filter(
+        (message, index, all) =>
+          all.findIndex((candidate) => candidate.threadId === message.threadId) ===
+          index,
+      )
+      .slice(0, 4);
+    const reads = await Promise.allSettled(
+      uniqueThreads.map(async (message) => ({
+        message,
+        thread: await getThread(token, message.threadId),
+      })),
+    );
+    const sources = reads
+      .filter(
+        (
+          result,
+        ): result is PromiseFulfilledResult<{
+          message: (typeof uniqueThreads)[number];
+          thread: Awaited<ReturnType<typeof getThread>>;
+        }> => result.status === "fulfilled",
+      )
+      .map(({ value }) => ({
+        type: "gmail" as const,
+        title: value.message.subject || "Email without a subject",
+        url: `https://mail.google.com/mail/u/0/#all/${value.message.threadId}`,
+        excerpt: value.thread.messages
+          .map(
+            (threadMessage) =>
+              `From: ${threadMessage.from}\nDate: ${threadMessage.date}\n${
+                threadMessage.cleanBody || threadMessage.snippet
+              }`,
+          )
+          .join("\n\n---\n\n")
+          .slice(0, 8_000),
+        status: "used" as const,
+      }));
+    return sources.length
+      ? sources
+      : [
+          diagnostic(
+            "gmail",
+            "Gmail",
+            "error",
+            "Matching email was found, but Leo could not read its thread content.",
+          ),
+        ];
   } catch (error) {
     return [diagnostic("gmail", "Gmail", "error", errorMessage(error))];
   }
@@ -576,20 +696,37 @@ async function granolaSources(terms: string[]): Promise<WorkSource[]> {
         ),
       ];
     }
-    return meetings.map((meeting) => ({
-      type: "granola",
-      title: meeting.title,
-      excerpt: [
-        meeting.date ? `Meeting date: ${meeting.date}` : "",
-        meeting.attendees.length
-          ? `Attendees: ${meeting.attendees.join(", ")}`
-          : "",
-        ...meeting.excerpts,
-      ]
-        .filter(Boolean)
-        .join("\n"),
-      status: "used",
-    }));
+    const reads = await Promise.allSettled(
+      meetings.map(async (meeting) => ({
+        meeting,
+        context: await meetingContext(meeting.id, terms.join(" "), 8_000),
+      })),
+    );
+    const sources = reads
+      .filter(
+        (
+          result,
+        ): result is PromiseFulfilledResult<{
+          meeting: (typeof meetings)[number];
+          context: string;
+        }> => result.status === "fulfilled" && Boolean(result.value.context),
+      )
+      .map(({ value }) => ({
+        type: "granola" as const,
+        title: value.meeting.title,
+        excerpt: value.context,
+        status: "used" as const,
+      }));
+    return sources.length
+      ? sources
+      : [
+          diagnostic(
+            "granola",
+            "Granola",
+            "error",
+            "A matching meeting was found, but its detailed context could not be read.",
+          ),
+        ];
   } catch (error) {
     return [diagnostic("granola", "Granola", "error", errorMessage(error))];
   }
@@ -666,13 +803,38 @@ async function curriculumSources(terms: string[]): Promise<WorkSource[]> {
         ),
       ];
     }
-    return hits.map((hit) => ({
-      type: "curriculum_repo",
-      title: hit.path,
-      url: hit.url,
-      excerpt: `Matching file in ${curriculumRepo}. The file contents were not read.`,
-      status: "used",
-    }));
+    const reads = await Promise.allSettled(
+      hits.map(async (hit) => ({
+        hit,
+        file: await readCurriculumFile(hit.path, 12_000),
+      })),
+    );
+    const sources = reads
+      .filter(
+        (
+          result,
+        ): result is PromiseFulfilledResult<{
+          hit: (typeof hits)[number];
+          file: Awaited<ReturnType<typeof readCurriculumFile>>;
+        }> => result.status === "fulfilled",
+      )
+      .map(({ value }) => ({
+        type: "curriculum_repo" as const,
+        title: value.hit.path,
+        url: value.file.url || value.hit.url,
+        excerpt: value.file.text,
+        status: "used" as const,
+      }));
+    return sources.length
+      ? sources
+      : [
+          diagnostic(
+            "curriculum_repo",
+            `Curriculum repository · ${curriculumRepo}`,
+            "error",
+            "Matching files were found, but their contents could not be read.",
+          ),
+        ];
   } catch (error) {
     return [
       diagnostic(
@@ -689,7 +851,10 @@ function normalized(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-async function crmSources(searchable: string): Promise<WorkSource[]> {
+async function crmSources(
+  searchable: string,
+  resolvedPartnerNames: string[],
+): Promise<WorkSource[]> {
   if (!isCrmConfigured) {
     return [
       diagnostic("crm", "TEMU CRM", "unavailable", "TEMU CRM is not configured."),
@@ -708,14 +873,29 @@ async function crmSources(searchable: string): Promise<WorkSource[]> {
     const matches = ((partnerRows ?? []) as CrmPartner[])
       .filter((partner) => {
         const key = normalized(partner.name);
-        return key.length >= 3 && compactSearchable.includes(key);
+        return (
+          (key.length >= 3 && compactSearchable.includes(key)) ||
+          resolvedPartnerNames.some(
+            (name) => normalized(name) === normalized(partner.name),
+          )
+        );
       })
       .slice(0, 3);
     if (!matches.length) return [];
 
     const sources: WorkSource[] = [];
     for (const partner of matches) {
-      const [{ data: touchpoints }, { data: followUps }] = await Promise.all([
+      const [
+        { data: contacts, error: contactsError },
+        { data: touchpoints, error: touchpointsError },
+        { data: followUps, error: followUpsError },
+        { data: importantDates, error: datesError },
+      ] = await Promise.all([
+        crmSupabase
+          .from("contacts")
+          .select("name, role, email, is_primary_contact")
+          .eq("partner_id", partner.id)
+          .order("is_primary_contact", { ascending: false }),
         crmSupabase
           .from("touchpoints")
           .select("date, title, notes, next_steps, type")
@@ -729,7 +909,16 @@ async function crmSources(searchable: string): Promise<WorkSource[]> {
           .eq("completed", false)
           .order("due_date", { ascending: true })
           .limit(6),
+        crmSupabase
+          .from("important_dates")
+          .select("title, date, notes")
+          .eq("partner_id", partner.id)
+          .order("date", { ascending: true })
+          .limit(10),
       ]);
+      const relatedError =
+        contactsError || touchpointsError || followUpsError || datesError;
+      if (relatedError) throw relatedError;
       sources.push({
         type: "crm",
         title: `TEMU CRM · ${partner.name}`,
@@ -742,6 +931,15 @@ async function crmSources(searchable: string): Promise<WorkSource[]> {
             ? `Relationship health: ${partner.relationship_health}`
             : "",
           partner.summary ? `Summary: ${partner.summary}` : "",
+          partner.pain_points?.length
+            ? `Pain points: ${partner.pain_points.join("; ")}`
+            : "",
+          ...(contacts ?? []).map(
+            (contact) =>
+              `Contact: ${contact.name}${contact.role ? ` · ${contact.role}` : ""}${
+                contact.email ? ` · ${contact.email}` : ""
+              }${contact.is_primary_contact ? " · primary" : ""}`,
+          ),
           ...(touchpoints ?? []).map(
             (touchpoint) =>
               `${touchpoint.date} · ${touchpoint.type} · ${touchpoint.title || "Touchpoint"}\n${touchpoint.notes}${touchpoint.next_steps ? `\nNext: ${touchpoint.next_steps}` : ""}`,
@@ -749,6 +947,12 @@ async function crmSources(searchable: string): Promise<WorkSource[]> {
           ...(followUps ?? []).map(
             (followUp) =>
               `Open follow-up: ${followUp.task}${followUp.due_date ? ` (due ${followUp.due_date})` : ""}`,
+          ),
+          ...(importantDates ?? []).map(
+            (importantDate) =>
+              `Important date: ${importantDate.date} · ${importantDate.title}${
+                importantDate.notes ? ` · ${importantDate.notes}` : ""
+              }`,
           ),
         ]
           .filter(Boolean)
@@ -800,10 +1004,21 @@ async function slackSources(terms: string[]): Promise<WorkSource[]> {
 }
 
 function platformSources(searchable: string): WorkSource[] {
-  return findPlatformKnowledge(searchable).map((source) => ({
+  const matches = findPlatformKnowledge(searchable);
+  if (!matches.length) {
+    return [
+      diagnostic(
+        "platform",
+        "Platform knowledge",
+        "no_match",
+        "No verified platform guidance matched this task. The deployed Workbench cannot run local Codex skills directly.",
+      ),
+    ];
+  }
+  return matches.map((source) => ({
     type: "platform",
-    title: source.title,
-    excerpt: source.content,
+    title: `${source.title} · verified ${source.verifiedAt}`,
+    excerpt: `${source.content}\n\nVerification date: ${source.verifiedAt}. Treat navigation as uncertain if the product has changed since this date.`,
     status: "used",
   }));
 }
@@ -814,6 +1029,7 @@ export async function gatherWorkSources(input: {
   project?: WorkProject;
   area?: WorkArea;
   feedback?: string;
+  brief?: WorkBrief;
 }): Promise<WorkSource[]> {
   const sources: WorkSource[] = [
     {
@@ -834,18 +1050,49 @@ export async function gatherWorkSources(input: {
       status: "used",
     });
   }
-  if (!taskNeedsKnowledge(input.task)) return sources;
+  if (input.brief) {
+    sources.push({
+      type: "brief",
+      title: "Leo work brief",
+      excerpt: [
+        `Route: ${input.brief.route.replace("_", " ")}`,
+        `Deliverable: ${input.brief.intendedDeliverable || "Not yet clear"}`,
+        `Audience: ${input.brief.audience || "Not specified"}`,
+        `Outcome: ${input.brief.outcome || "Not specified"}`,
+        input.brief.constraints.length
+          ? `Constraints: ${input.brief.constraints.join("; ")}`
+          : "",
+        input.brief.requiredSources.length
+          ? `Required sources: ${input.brief.requiredSources.join(", ")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      status: "used",
+    });
+  }
+  if (
+    !taskNeedsKnowledge(input.task) &&
+    !(input.brief && input.brief.requiredSources.length > 0)
+  ) {
+    return sources;
+  }
 
   const terms = meaningfulTerms(
     input.task,
     input.project,
     input.area,
-    input.feedback,
+    [input.feedback, ...(input.brief?.searchTerms ?? [])]
+      .filter(Boolean)
+      .join(" "),
   );
   const searchable = `${input.task.title}\n${input.task.description ?? ""}\n${
     input.project?.name ?? ""
-  }\n${input.feedback ?? ""}`;
+  }\n${input.feedback ?? ""}\n${input.brief?.searchTerms.join(" ") ?? ""}`;
   const partnerNames = await partnerNamesForResearch(searchable, terms);
+  const { anchors, diagnostics: anchorDiagnostics } =
+    await resolveDriveAnchors(input.token);
+  sources.push(...anchorDiagnostics);
   const driveRankingTerms = [
     ...new Set(
       words(
@@ -863,22 +1110,55 @@ export async function gatherWorkSources(input: {
     terms,
     partnerNames,
   });
+  const required = new Set<WorkResearchSource>(
+    input.brief?.requiredSources ?? [],
+  );
+  const shouldUseSource = (source: WorkResearchSource) =>
+    required.size === 0 || required.has(source) || source === "drive";
   const providerResults = await Promise.all([
     driveSources(
       input.token,
       driveQueries,
       driveRankingTerms,
       partnerNames,
+      anchors,
     ),
-    gmailSources(input.token, terms),
-    granolaSources(terms),
+    shouldUseSource("gmail")
+      ? gmailSources(input.token, terms)
+      : Promise.resolve([]),
+    shouldUseSource("granola")
+      ? granolaSources(terms)
+      : Promise.resolve([]),
     memorySources(terms),
-    curriculumSources(terms),
-    crmSources(searchable),
-    slackSources(terms),
-    Promise.resolve(platformSources(searchable)),
+    shouldUseSource("curriculum_repo")
+      ? curriculumSources(terms)
+      : Promise.resolve([]),
+    shouldUseSource("crm")
+      ? crmSources(searchable, partnerNames)
+      : Promise.resolve([]),
+    shouldUseSource("slack") ? slackSources(terms) : Promise.resolve([]),
+    shouldUseSource("platform")
+      ? Promise.resolve(platformSources(searchable))
+      : Promise.resolve([]),
   ]);
   return [...sources, ...providerResults.flat()].slice(0, 32);
+}
+
+export function missingRequiredSources(
+  sources: WorkSource[],
+  requiredSources: WorkResearchSource[],
+): WorkResearchSource[] {
+  return requiredSources.filter(
+    (required) =>
+      !sources.some(
+        (source) =>
+          source.type === required &&
+          !source.title.startsWith("Drive anchor ·") &&
+          (!source.status || source.status === "used") &&
+          source.feedback !== "irrelevant" &&
+          Boolean(source.excerpt?.trim()),
+      ),
+  );
 }
 
 export function substantiveSourceCount(sources: WorkSource[]): number {
@@ -888,6 +1168,8 @@ export function substantiveSourceCount(sources: WorkSource[]): number {
       source.status !== "unavailable" &&
       source.status !== "error" &&
       source.type !== "task" &&
+      source.type !== "brief" &&
+      !source.title.startsWith("Drive anchor ·") &&
       source.type !== "feedback" &&
       source.feedback !== "irrelevant" &&
       Boolean(source.excerpt && source.excerpt.trim().length >= 80),

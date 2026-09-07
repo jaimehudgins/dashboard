@@ -6,6 +6,7 @@ export interface WorkbenchRevisionOptions {
   researchAgain?: boolean;
   rememberPreference?: boolean;
   sourceFeedback?: Record<string, NonNullable<WorkSource["feedback"]>>;
+  manualOverride?: boolean;
 }
 
 export interface WorkbenchTaskContext extends WorkbenchRevisionOptions {
@@ -39,6 +40,7 @@ export async function prepareTaskWithLeo(input: WorkbenchTaskContext) {
       research_again: input.researchAgain ?? false,
       remember_preference: input.rememberPreference ?? false,
       source_feedback: input.sourceFeedback,
+      manual_override: input.manualOverride ?? false,
     }),
   });
   const raw = await response.text();

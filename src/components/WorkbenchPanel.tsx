@@ -100,7 +100,9 @@ export default function WorkbenchPanel({
   const visibleRuns = useMemo(
     () =>
       runs
-        .filter((run) => run.status !== "reviewed")
+        .filter(
+          (run) => run.status !== "reviewed" && run.status !== "human_only",
+        )
         .sort((a, b) => {
           const rank: Record<WorkRun["status"], number> = {
             needs_input: 0,
@@ -348,7 +350,9 @@ export default function WorkbenchPanel({
                       const rating = sourceFeedback[run.id]?.[key];
                       const canRate =
                         source.type !== "task" &&
+                        source.type !== "brief" &&
                         source.type !== "feedback" &&
+                        !source.title.startsWith("Drive anchor ·") &&
                         (!source.status || source.status === "used");
                       return (
                         <span

@@ -245,7 +245,10 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
     async (taskId: string) => {
       setWorkbenchActionError(null);
       try {
-        await prepareTask(taskId, { researchAgain: true });
+        await prepareTask(taskId, {
+          researchAgain: true,
+          manualOverride: true,
+        });
       } catch (error) {
         setWorkbenchActionError(
           error instanceof Error ? error.message : "Leo could not prepare that task",
@@ -342,6 +345,7 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
             onFocusTask={onOpenZenMode}
             onPrepareTask={prepareTaskFromQueue}
             preparingTaskIds={preparingTaskIds}
+            workRuns={workRuns}
             title="Open work"
             showWorkstreamLenses
           />

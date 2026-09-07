@@ -16,6 +16,8 @@ import {
   WorkRunConfidence,
   WorkRunDeliverable,
   WorkRunStatus,
+  WorkBrief,
+  WorkResearchSource,
   WorkSource,
   Workstream,
   workSourceKey,
@@ -23,6 +25,7 @@ import {
 import {
   directDriveSources,
   gatherWorkSources,
+  missingRequiredSources,
   sourcesForWorkPrompt,
   substantiveSourceCount,
   taskNeedsKnowledge,
@@ -54,6 +57,50 @@ const RESULT_SCHEMA = {
   ],
 };
 
+const WORK_BRIEF_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    route: {
+      type: "string",
+      enum: ["leo_starts", "leo_prepares", "jaime_action"],
+    },
+    confidence: { type: "string", enum: ["high", "medium", "low"] },
+    rationale: { type: "string" },
+    intended_deliverable: { type: "string" },
+    audience: { type: "string" },
+    outcome: { type: "string" },
+    constraints: { type: "array", items: { type: "string" } },
+    required_sources: {
+      type: "array",
+      items: {
+        type: "string",
+        enum: [
+          "drive",
+          "curriculum_repo",
+          "gmail",
+          "granola",
+          "crm",
+          "platform",
+          "slack",
+        ],
+      },
+    },
+    search_terms: { type: "array", items: { type: "string" } },
+  },
+  required: [
+    "route",
+    "confidence",
+    "rationale",
+    "intended_deliverable",
+    "audience",
+    "outcome",
+    "constraints",
+    "required_sources",
+    "search_terms",
+  ],
+};
+
 interface TaskInput {
   id: string;
   title: string;
@@ -61,6 +108,7 @@ interface TaskInput {
   priority: "critical" | "high" | "medium" | "low";
   status: "pending" | "in_progress" | "completed" | "blocked";
   dueDate?: string;
+  link?: string;
 }
 
 interface ProjectInput {
@@ -122,6 +170,148 @@ function workstreamFor(project?: ProjectInput, area?: AreaInput): Workstream {
   return "unassigned";
 }
 
+function fallbackWorkBrief(
+  task: TaskInput,
+  project?: ProjectInput,
+  area?: AreaInput,
+): WorkBrief {
+  const text = `${task.title} ${task.description ?? ""}`;
+  const lower = text.toLowerCase();
+  const externalSystemAction =
+    /(add|assign|change|create|delete|enable|import|remove|reset|set up|setup|update|upload)/i.test(
+      text,
+    ) &&
+    /(account|alma flag|crm|roster|staff|temu|the platform|user permission)/i.test(
+      text,
+    );
+  const artifact =
+    /(analy|arc|brief|compare|curriculum|design|draft|framework|lesson|outline|plan|presentation|proposal|research|roadmap|strategy|timeline|write)/i.test(
+      text,
+    );
+  const communication = /(email|message|reply|respond|send|slack)/i.test(text);
+  const requiredSources = new Set<WorkResearchSource>(["drive"]);
+  if (/curriculum|lesson|lead\b/i.test(text)) {
+    requiredSources.add("curriculum_repo");
+  }
+  if (/partner|school|implementation|believe|riseup|rise up/i.test(lower)) {
+    requiredSources.add("crm");
+  }
+  if (communication) requiredSources.add("gmail");
+  if (/meeting|discussed|granola/i.test(lower)) requiredSources.add("granola");
+  if (/platform|account|alma|lesson access|staff/i.test(lower)) {
+    requiredSources.add("platform");
+  }
+  return {
+    route: externalSystemAction
+      ? "jaime_action"
+      : artifact
+        ? "leo_starts"
+        : "leo_prepares",
+    confidence: externalSystemAction || artifact ? "medium" : "low",
+    rationale: externalSystemAction
+      ? "This task appears to require Jaime's authenticated action in an external system."
+      : "Leo can prepare a reviewable head start without taking external action.",
+    intendedDeliverable: externalSystemAction
+      ? ""
+      : communication
+        ? "A reviewable communication draft"
+        : "A useful first draft or preparation packet",
+    audience: communication ? "The named recipient" : "Jaime",
+    outcome: task.title,
+    constraints: [
+      "Do not send, publish, approve, or modify an external system.",
+    ],
+    requiredSources: [...requiredSources],
+    searchTerms: [task.title, project?.name ?? "", area?.name ?? ""]
+      .filter(Boolean)
+      .slice(0, 8),
+  };
+}
+
+async function createWorkBrief(input: {
+  task: TaskInput;
+  project?: ProjectInput;
+  area?: AreaInput;
+  workstream: Workstream;
+  manualOverride: boolean;
+}): Promise<WorkBrief> {
+  const fallback = fallbackWorkBrief(input.task, input.project, input.area);
+  if (!isAnthropicConfigured) return fallback;
+
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-opus-4-8",
+      max_tokens: 1400,
+      system: `You are Leo's work router and research planner. Decide whether Leo can create a genuinely useful head start before any expensive research begins.
+
+Routes:
+- leo_starts: Leo can produce the primary reviewable artifact, such as a plan, analysis, outline, curriculum draft, presentation structure, or framework.
+- leo_prepares: Jaime must perform the final action, but Leo can prepare a useful draft, checklist, context packet, or decision support.
+- jaime_action: the task primarily requires Jaime's authenticated platform action, live conversation, approval, relationship judgment, physical action, or external-system change, and preparatory work would add little value.
+
+Capabilities and boundaries:
+- Leo may read connected Google Drive files, Gmail, cached Granola meetings, TEMU CRM context, curriculum repository files, verified platform guidance, and Slack when available.
+- Leo may research, compare, summarize, structure, analyze, and draft.
+- Leo must not send or publish communications, approve decisions, make partner commitments, create new TEMU partners, or change accounts, rosters, flags, permissions, curriculum assignments, or other staff-platform data.
+- "Add Believe CC Alma Flags to Staff" is jaime_action because it is an authenticated staff-platform change.
+- "Email Believe about the timeline" is leo_prepares because Leo can draft the email even though Jaime sends it.
+- "Create the Lead arc of the year" is leo_starts.
+- Required sources must be genuinely necessary for a trustworthy deliverable, not merely possibly interesting. Google Drive is usually required because Willow Curriculum 2.0 and Partner Success contain most durable context.
+- Search terms should identify real programs, partners, artifacts, acronyms, or decisions. Avoid generic words.
+${
+        input.manualOverride
+          ? "Jaime explicitly asked Leo to help anyway. Do not return jaime_action; identify the most useful safe preparation Leo can create."
+          : ""
+      }
+Return only the requested JSON.`,
+      output_config: {
+        format: { type: "json_schema", schema: WORK_BRIEF_SCHEMA },
+      },
+      messages: [
+        {
+          role: "user",
+          content: `Task: ${input.task.title}\nDescription: ${input.task.description || "None"}\nPriority: ${input.task.priority}\nDue: ${input.task.dueDate || "None"}\nWorkstream: ${input.workstream}\nProject: ${input.project?.name || "None"}\nProject context: ${input.project?.description || ""}\nArea: ${input.area?.name || "None"}`,
+        },
+      ],
+    } as Anthropic.MessageCreateParamsNonStreaming);
+    const block = response.content.find((item) => item.type === "text");
+    if (!block || !("text" in block)) return fallback;
+    const parsed = JSON.parse(block.text) as {
+      route: WorkBrief["route"];
+      confidence: WorkBrief["confidence"];
+      rationale: string;
+      intended_deliverable: string;
+      audience: string;
+      outcome: string;
+      constraints: string[];
+      required_sources: WorkResearchSource[];
+      search_terms: string[];
+    };
+    return {
+      route:
+        input.manualOverride && parsed.route === "jaime_action"
+          ? "leo_prepares"
+          : parsed.route,
+      confidence: parsed.confidence,
+      rationale: parsed.rationale.trim(),
+      intendedDeliverable: parsed.intended_deliverable.trim(),
+      audience: parsed.audience.trim(),
+      outcome: parsed.outcome.trim(),
+      constraints: parsed.constraints.map((item) => item.trim()).filter(Boolean),
+      requiredSources: [...new Set(parsed.required_sources)],
+      searchTerms: parsed.search_terms
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, 12),
+    };
+  } catch (error) {
+    console.warn("Workbench routing error:", error);
+    return input.manualOverride && fallback.route === "jaime_action"
+      ? { ...fallback, route: "leo_prepares" }
+      : fallback;
+  }
+}
+
 function fallbackResult(task: TaskInput): ModelResult {
   const draftable = /(arc|brief|framework|outline|plan|roadmap|strategy|timeline)/i.test(
     `${task.title} ${task.description ?? ""}`,
@@ -169,6 +359,8 @@ Rules:
 - When Jaime supplies revision feedback, follow it precisely. Source ratings and explicit feedback outrank the prior draft.
 - If a single answer would materially unlock the work, use context_packet and put that one focused question in blocking_question.
 - A draft must be genuinely useful, not a generic checklist. Use concise headings and plain language.
+- Before returning, silently edit the artifact against four tests: it is specific to this task, grounded in supplied evidence, usable without reconstructing your reasoning, and honest about unresolved facts. Revise anything that fails.
+- Follow the supplied Leo work brief. Use its audience, outcome, constraints, and intended deliverable as the definition of done.
 - Do not cite sources inline. They are displayed alongside the draft.
 - Unreviewed work is provisional and must not be treated as memory.
 - Return only the requested JSON.`,
@@ -306,6 +498,7 @@ export async function POST(request: Request) {
         ? rawTask.status
         : "pending",
     dueDate: typeof rawTask.dueDate === "string" ? rawTask.dueDate : undefined,
+    link: typeof rawTask.link === "string" ? rawTask.link.slice(0, 2000) : undefined,
   };
   if (task.status === "completed" || task.status === "blocked") {
     return NextResponse.json(
@@ -323,6 +516,7 @@ export async function POST(request: Request) {
     typeof body.feedback === "string" ? body.feedback.trim().slice(0, 5000) : "";
   const researchAgain = body.research_again === true;
   const rememberPreference = body.remember_preference === true;
+  const manualOverride = body.manual_override === true;
   const sourceFeedback = sourceFeedbackFrom(body.source_feedback);
 
   const { data: existing, error: existingError } = await supabase
@@ -375,6 +569,42 @@ export async function POST(request: Request) {
   }
 
   try {
+    const brief = await createWorkBrief({
+      task,
+      project,
+      area,
+      workstream,
+      manualOverride,
+    });
+    if (brief.route === "jaime_action" && !manualOverride) {
+      const { data, error } = await supabase
+        .from("work_runs")
+        .update({
+          deliverable_type: "human_only",
+          status: "human_only",
+          confidence: brief.confidence,
+          rationale: brief.rationale,
+          blocking_question: null,
+          draft_title: null,
+          draft: null,
+          sources: [
+            {
+              type: "brief",
+              title: "Leo routing decision",
+              excerpt: `Route: Jaime action\nReason: ${brief.rationale}`,
+              status: "used",
+            },
+          ],
+          notification_tier: "none",
+          notification_reason: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("task_id", task.id)
+        .select("*")
+        .single();
+      if (error) throw error;
+      return NextResponse.json({ run: toWorkRun(data), existing: false });
+    }
     const sessionAccessToken = session.accessToken as string;
     const googleToken = isGoogleServerConfigured
       ? await getGoogleAccessToken().catch(() => sessionAccessToken)
@@ -387,10 +617,12 @@ export async function POST(request: Request) {
             project,
             area,
             feedback,
+            brief,
           })
         : existingRun.sources;
-    const linkedDriveSources = feedback
-      ? await directDriveSources(googleToken, feedback)
+    const directSourceText = [task.link, feedback].filter(Boolean).join("\n");
+    const linkedDriveSources = directSourceText
+      ? await directDriveSources(googleToken, directSourceText)
       : [];
     const seenSources = new Set<string>();
     const sources: WorkSource[] = [...linkedDriveSources, ...gatheredSources]
@@ -414,7 +646,20 @@ export async function POST(request: Request) {
       });
     }
     const sourceCount = substantiveSourceCount(sources);
-    const result = taskNeedsKnowledge(task) && sourceCount === 0 && feedback.length < 80
+    const missingSources = missingRequiredSources(
+      sources,
+      brief.requiredSources,
+    );
+    const result = missingSources.length > 0
+      ? {
+          deliverable_type: "context_packet" as const,
+          confidence: "low" as const,
+          rationale: `Leo could not verify required context from: ${missingSources.join(", ")}.`,
+          blocking_question: `Leo needs usable context from ${missingSources.join(", ")} before drafting. Can you provide a direct source or confirm that Leo should proceed without it?`,
+          draft_title: `Research status for ${task.title}`,
+          draft: "",
+        }
+      : taskNeedsKnowledge(task) && sourceCount === 0 && feedback.length < 80
       ? {
           deliverable_type: "context_packet" as const,
           confidence: "low" as const,

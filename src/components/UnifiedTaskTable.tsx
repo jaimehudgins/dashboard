@@ -19,6 +19,7 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { useApp } from "@/store/store";
 import { Task } from "@/types";
+import { WorkRun } from "@/lib/workbench";
 import TaskEditModal from "./TaskEditModal";
 import {
   crmSupabase,
@@ -62,6 +63,7 @@ interface Props {
   showWorkstreamLenses?: boolean;
   onPrepareTask?: (taskId: string) => Promise<void>;
   preparingTaskIds?: Set<string>;
+  workRuns?: WorkRun[];
 }
 
 type SortKey = "dueDate" | "title" | "status" | "priority" | "area";
@@ -93,6 +95,7 @@ export default function UnifiedTaskTable({
   showWorkstreamLenses = false,
   onPrepareTask,
   preparingTaskIds = new Set<string>(),
+  workRuns = [],
 }: Props) {
   const { state, dispatch } = useApp();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -546,6 +549,10 @@ export default function UnifiedTaskTable({
   );
 
   const totalCount = sortedRows.length;
+  const workRunByTaskId = useMemo(
+    () => new Map(workRuns.map((run) => [run.taskId, run])),
+    [workRuns],
+  );
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
@@ -694,6 +701,8 @@ export default function UnifiedTaskTable({
             ) : (
               sortedRows.map((row) => {
                 const overdue = isOverdue(row.dueDate, row.status, row.source);
+                const workRun =
+                  row.source === "local" ? workRunByTaskId.get(row.id) : undefined;
                 return (
                   <tr
                     key={row.id}
@@ -714,6 +723,30 @@ export default function UnifiedTaskTable({
                       <div className="text-slate-900 font-medium">
                         {row.title}
                       </div>
+                      {workRun && workRun.status !== "reviewed" && (
+                        <span
+                          title={workRun.rationale || undefined}
+                          className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                            workRun.status === "human_only"
+                              ? "bg-slate-100 text-slate-600"
+                              : workRun.status === "draft_ready"
+                                ? "bg-emerald-50 text-emerald-700"
+                                : workRun.status === "needs_input"
+                                  ? "bg-amber-50 text-amber-700"
+                                  : "bg-violet-50 text-violet-700"
+                          }`}
+                        >
+                          {workRun.status === "human_only"
+                            ? "Your action"
+                            : workRun.status === "draft_ready"
+                              ? "Leo draft ready"
+                              : workRun.status === "needs_input"
+                                ? "Leo needs input"
+                                : workRun.status === "researching"
+                                  ? "Leo researching"
+                                  : "Leo could not prepare"}
+                        </span>
+                      )}
                       {row.partnerName && (
                         <div className="text-xs text-slate-500 mt-0.5">
                           {row.partnerName}
@@ -763,13 +796,18 @@ export default function UnifiedTaskTable({
                                 onClick={() => void onPrepareTask(row.task!.id)}
                                 disabled={preparingTaskIds.has(row.task.id)}
                                 className="flex items-center gap-1 rounded bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100 disabled:opacity-50"
-                                title="Ask Leo to prepare a useful first draft or context packet"
+                                title={
+                                  workRun?.status === "human_only"
+                                    ? "Let Leo prepare supporting work anyway"
+                                    : "Ask Leo to prepare a useful first draft or context packet"
+                                }
                               >
                                 {preparingTaskIds.has(row.task.id) ? (
                                   <LoaderCircle size={10} className="animate-spin" />
                                 ) : (
                                   <Bot size={10} />
                                 )}
+                                {workRun?.status === "human_only" && " Let Leo help"}
                               </button>
                             )}
                             <button
