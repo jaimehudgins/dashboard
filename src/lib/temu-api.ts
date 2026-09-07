@@ -21,6 +21,7 @@ export type TemuExportData = Record<string, unknown> & {
 export interface TemuExportResult {
   data: Record<string, unknown>;
   duplicate: boolean;
+  updated?: boolean;
   request_id: string;
 }
 
@@ -46,11 +47,11 @@ export function isTemuResource(value: string): value is TemuResource {
   return (TEMU_RESOURCES as readonly string[]).includes(value);
 }
 
-export async function createTemuRecord(input: {
+async function writeTemuRecord(input: {
   resource: TemuResource;
   actor: string;
   data: TemuExportData;
-}): Promise<TemuExportResult> {
+}, method: "POST" | "PATCH"): Promise<TemuExportResult> {
   const baseUrl = process.env.TEMU_API_BASE_URL?.trim().replace(/\/$/, "");
   const apiKey = process.env.TEMU_API_KEY?.trim();
   if (!baseUrl || !apiKey) {
@@ -61,7 +62,7 @@ export async function createTemuRecord(input: {
   let response: Response;
   try {
     response = await fetch(`${baseUrl}/${input.resource}`, {
-      method: "POST",
+      method,
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
@@ -98,4 +99,22 @@ export async function createTemuRecord(input: {
   }
 
   return payload as TemuExportResult;
+}
+
+export function createTemuRecord(input: {
+  resource: TemuResource;
+  actor: string;
+  data: TemuExportData;
+}): Promise<TemuExportResult> {
+  return writeTemuRecord(input, "POST");
+}
+
+export function updateTemuTouchpoint(input: {
+  actor: string;
+  data: TemuExportData;
+}): Promise<TemuExportResult> {
+  return writeTemuRecord(
+    { resource: "touchpoints", actor: input.actor, data: input.data },
+    "PATCH",
+  );
 }

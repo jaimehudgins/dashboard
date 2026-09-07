@@ -1,12 +1,24 @@
 "use client";
 
-import { Building2, CheckCircle2, Loader2, X } from "lucide-react";
+import {
+  Building2,
+  CheckCircle2,
+  ExternalLink,
+  Loader2,
+  X,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { readJsonResponse } from "@/lib/http";
 
 export interface TemuTouchpointPreview {
   source: "email" | "meeting";
+  existing_touchpoint: {
+    id: string;
+    syncedThrough: string | null;
+    updatedAt: string | null;
+    hasNewSourceContent: boolean;
+  } | null;
   partner: { id: string; name: string };
   contact: { id: string; name: string } | null;
   suggested_contact: {
@@ -38,6 +50,7 @@ export interface TemuTouchpointPreview {
     owner: string;
     ownership: "jaime" | "partner" | "unknown";
     dueDate: string | null;
+    sourceUrls: string[];
     selected: boolean;
   }>;
 }
@@ -47,6 +60,7 @@ type SuggestedContact = NonNullable<TemuTouchpointPreview["suggested_contact"]>;
 
 type ExportResult = {
   duplicate: boolean;
+  updated: boolean;
   contactRequested: boolean;
   contactCreated: boolean;
   contactDuplicate: boolean;
@@ -59,9 +73,11 @@ type ExportResult = {
 export default function TemuTouchpointModal({
   preview,
   onClose,
+  onSaved,
 }: {
   preview: TemuTouchpointPreview;
   onClose: () => void;
+  onSaved?: () => void;
 }) {
   const [title, setTitle] = useState(preview.data.title);
   const [date, setDate] = useState(preview.data.date);
@@ -114,6 +130,7 @@ export default function TemuTouchpointModal({
         body: JSON.stringify({
           resource: "touchpoints",
           confirmed: true,
+          update_existing: Boolean(preview.existing_touchpoint),
           data: {
             ...preview.data,
             date,
@@ -138,11 +155,13 @@ export default function TemuTouchpointModal({
             owner: task.owner,
             ownership: task.ownership,
             due_date: task.dueDate || null,
+            source_urls: task.sourceUrls,
           })),
         }),
       });
       const body = await readJsonResponse<{
         duplicate: boolean;
+        updated: boolean;
         error: string;
         contact: {
           requested: boolean;
@@ -161,6 +180,7 @@ export default function TemuTouchpointModal({
       }
       setResult({
         duplicate: Boolean(body.duplicate),
+        updated: Boolean(body.updated),
         contactRequested: Boolean(body.contact?.requested),
         contactCreated: Boolean(body.contact?.created),
         contactDuplicate: Boolean(body.contact?.duplicate),
@@ -169,6 +189,7 @@ export default function TemuTouchpointModal({
         tasksCreated: body.follow_up_tasks?.created ?? 0,
         taskDuplicates: body.follow_up_tasks?.duplicates ?? 0,
       });
+      onSaved?.();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "TEMU export failed");
     } finally {
@@ -189,10 +210,11 @@ export default function TemuTouchpointModal({
           <div>
             <h2 className="flex items-center gap-2 font-semibold text-slate-900">
               <Building2 size={17} className="text-emerald-600" />
-              Add {preview.data.type.toLowerCase()} to TEMU
+              {preview.existing_touchpoint ? "Update" : "Add"}{" "}
+              {preview.data.type.toLowerCase()} in TEMU
             </h2>
             <p className="mt-1 text-xs text-slate-500">
-              Review everything below. Nothing is added until you confirm.
+              Review everything below. Nothing changes until you confirm.
             </p>
           </div>
           <button
@@ -215,6 +237,14 @@ export default function TemuTouchpointModal({
                 : "Partner matched; no existing contact was linked."}
             </p>
           </div>
+
+          {preview.existing_touchpoint && (
+            <div className="rounded-lg border border-amber-100 bg-amber-50/60 px-3 py-2 text-xs text-amber-800">
+              {preview.existing_touchpoint.hasNewSourceContent
+                ? "This thread has new email since its last TEMU summary. Leo refreshed the summary; your confirmation will update the existing touchpoint."
+                : "This thread is already in TEMU. Edit the summary below if needed; your confirmation will update the existing touchpoint rather than create a duplicate."}
+            </div>
+          )}
 
           {suggestedContact && (
             <section
@@ -379,6 +409,25 @@ export default function TemuTouchpointModal({
                           }
                           className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                         />
+                        {task.sourceUrls.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {task.sourceUrls.map((url, urlIndex) => (
+                              <a
+                                key={url}
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                              >
+                                <ExternalLink size={11} />
+                                Related Google file
+                                {task.sourceUrls.length > 1
+                                  ? ` ${urlIndex + 1}`
+                                  : ""}
+                              </a>
+                            ))}
+                          </div>
+                        )}
                         <div className="flex flex-wrap items-center gap-2">
                           <select
                             value={task.ownership}
@@ -430,7 +479,9 @@ export default function TemuTouchpointModal({
             <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
               <CheckCircle2 size={16} />
               <span>
-                {result.duplicate
+                {result.updated
+                  ? "Touchpoint updated in TEMU."
+                  : result.duplicate
                   ? "This touchpoint was already in TEMU."
                   : "Touchpoint added to TEMU."}
                 {result.contactRequested && (
@@ -478,7 +529,13 @@ export default function TemuTouchpointModal({
               className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
             >
               {saving ? <Loader2 size={15} className="animate-spin" /> : <Building2 size={15} />}
-              {saving ? "Adding…" : "Confirm and add"}
+              {saving
+                ? preview.existing_touchpoint
+                  ? "Updating…"
+                  : "Adding…"
+                : preview.existing_touchpoint
+                  ? "Confirm update"
+                  : "Confirm and add"}
             </button>
           )}
         </div>

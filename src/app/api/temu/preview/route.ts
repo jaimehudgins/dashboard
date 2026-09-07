@@ -47,8 +47,14 @@ const SUMMARY_SCHEMA = {
             enum: ["jaime", "partner", "unknown"],
           },
           due_date: { type: ["string", "null"] },
+          source_urls: {
+            type: "array",
+            description:
+              "Exact Google Drive URLs from the source that are directly needed to complete this task.",
+            items: { type: "string" },
+          },
         },
-        required: ["task", "owner", "ownership", "due_date"],
+        required: ["task", "owner", "ownership", "due_date", "source_urls"],
       },
     },
   },
@@ -60,6 +66,7 @@ type SuggestedTask = {
   owner: string;
   ownership: "jaime" | "partner" | "unknown";
   dueDate: string | null;
+  sourceUrls: string[];
 };
 
 type Summary = {
@@ -107,6 +114,16 @@ function isoDate(value: string | null | undefined): string {
     : parsed.toISOString();
 }
 
+function isLater(value: string | null | undefined, comparison: unknown): boolean {
+  const valueDate = value ? new Date(value) : null;
+  if (!valueDate || Number.isNaN(valueDate.valueOf())) return false;
+  if (typeof comparison !== "string") return true;
+  const comparisonDate = new Date(comparison);
+  return (
+    Number.isNaN(comparisonDate.valueOf()) || valueDate > comparisonDate
+  );
+}
+
 function validDueDate(value: unknown): string | null {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
     ? value
@@ -117,6 +134,19 @@ function ownership(value: unknown): SuggestedTask["ownership"] {
   return value === "jaime" || value === "partner" || value === "unknown"
     ? value
     : "unknown";
+}
+
+function googleUrls(value: string): string[] {
+  const matches = value.match(
+    /https:\/\/(?:docs|drive)\.google\.com\/[^\s<>"']+/gi,
+  );
+  return [
+    ...new Set(
+      (matches ?? [])
+        .map((url) => url.replace(/[)\]},.;!?]+$/g, ""))
+        .filter(Boolean),
+    ),
+  ];
 }
 
 function compactExcerpt(value: string, limit: number): string {
@@ -247,10 +277,37 @@ async function selectedPartnerMatch(partnerId: string, sender: string) {
   };
 }
 
+async function existingTouchpoint(
+  partnerId: string,
+  sourceExternalId: string,
+  latestSourceDate: string | null | undefined,
+) {
+  if (!isCrmConfigured) return null;
+  const { data, error } = await crmSupabase
+    .from("touchpoints")
+    .select("id, source_created_at, updated_at, title, notes, next_steps")
+    .eq("partner_id", partnerId)
+    .eq("source_system", "leo:temu")
+    .eq("source_external_id", sourceExternalId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    id: data.id as string,
+    syncedThrough: data.source_created_at as string | null,
+    updatedAt: data.updated_at as string | null,
+    hasNewSourceContent: isLater(latestSourceDate, data.source_created_at),
+    title: data.title as string | null,
+    notes: data.notes as string,
+    nextSteps: data.next_steps as string | null,
+  };
+}
+
 async function summarize(source: string, fallback: Summary): Promise<Summary> {
   if (!isAnthropicConfigured) return fallback;
 
   try {
+    const availableGoogleUrls = new Set(googleUrls(source));
     const response = await anthropic.messages.create({
       model: "claude-opus-4-8",
       max_tokens: 1_400,
@@ -264,6 +321,8 @@ Rules:
 - Treat information supplied for a Willow-side operational step as an actionable handoff, even when it is stated rather than phrased as a request. Examples include names of alert recipients or reviewers Jaime must configure, rosters Jaime must use to create accounts, and people whose access or role Jaime must add in the Willow platform.
 - For those operational handoffs, create a specific Jaime-owned task that preserves the relevant people, school, role, and platform action. Do not create a task merely because a person is mentioned.
 - If a later message explicitly confirms an action was completed, record the outcome in notes but do not return it as an outstanding task.
+- Put an exact URL from the source in a task's source_urls only when that Google Drive file is directly useful for completing the task. Never invent, shorten, rewrite, or attach an unrelated URL.
+- When the source contains an existing approved TEMU summary, preserve its factual and manually added context while integrating newer source material. Do not discard useful existing context unless the source corrects it.
 - Classify each task owner as jaime, partner, or unknown. Deduplicate actions repeated in replies or recaps.
 - Use ownership jaime only when Jaime clearly owns the action. Do not turn a partner-owned action into Jaime's task.
 - Use a YYYY-MM-DD due_date only when the source explicitly provides one; otherwise use null.
@@ -289,6 +348,16 @@ Rules:
             owner: typeof task.owner === "string" ? task.owner.trim() : "",
             ownership: ownership(task.ownership),
             dueDate: validDueDate(task.due_date),
+            sourceUrls: Array.isArray(task.source_urls)
+              ? [
+                  ...new Set(
+                    task.source_urls.filter(
+                      (url): url is string =>
+                        typeof url === "string" && availableGoogleUrls.has(url),
+                    ),
+                  ),
+                ].slice(0, 5)
+              : [],
           }))
           .filter((task) => task.task)
           .slice(0, 20)
@@ -346,21 +415,39 @@ async function emailPreview(
   const conversation = emailConversation(thread.messages);
   const latestWrittenText =
     stripQuotedReply(latest.body || latest.snippet) || latest.snippet;
-  const fallback = {
-    notes: `${latest.subject || "Email conversation"}: ${latestWrittenText.slice(0, 1_500)}`,
-    nextSteps: "",
-    tasks: [],
-  };
-  const summary = await summarize(
-    `Summarize this email thread as a TEMU touchpoint.\n\n${conversation}`,
-    fallback,
-  );
   const sourceExternalId = `gmail-thread:${threadId}`;
   const senderEmail = emailAddress(externalMessage.from);
+  const existing = await existingTouchpoint(
+    match.partner.id,
+    sourceExternalId,
+    latest.date,
+  );
+  const fallback = {
+    notes:
+      existing?.notes ||
+      `${latest.subject || "Email conversation"}: ${latestWrittenText.slice(0, 1_500)}`,
+    nextSteps: existing?.nextSteps || "",
+    tasks: [],
+  };
+  const existingSummary = existing
+    ? `Existing approved TEMU summary:\nTitle: ${existing.title || latest.subject || "Email conversation"}\nNotes: ${compactExcerpt(existing.notes, 6_000)}\nNext steps: ${compactExcerpt(existing.nextSteps || "(none)", 2_000)}\n\n`
+    : "";
+  const summary = await summarize(
+    `${existing ? "Refresh" : "Create"} a TEMU touchpoint summary for this email thread.\n\n${existingSummary}Full email thread:\n${conversation}`,
+    fallback,
+  );
 
   return NextResponse.json({
     preview: {
       source: "email",
+      existing_touchpoint: existing
+        ? {
+            id: existing.id,
+            syncedThrough: existing.syncedThrough,
+            updatedAt: existing.updatedAt,
+            hasNewSourceContent: existing.hasNewSourceContent,
+          }
+        : null,
       partner: { id: match.partner.id, name: match.partner.name },
       contact: match.contact
         ? { id: match.contact.id, name: match.contact.name }
@@ -391,7 +478,7 @@ async function emailPreview(
         contact_id: match.contact?.id,
         date: dateOnly(latest.date),
         author: userName,
-        title: latest.subject || "Email conversation",
+        title: existing?.title || latest.subject || "Email conversation",
         notes: summary.notes,
         next_steps: summary.nextSteps || null,
         type: "Email",
@@ -470,6 +557,7 @@ async function meetingPreview(meetingId: string, userName: string) {
       owner: userName,
       ownership: "jaime" as const,
       dueDate: validDueDate(task.due_date),
+      sourceUrls: [],
     })),
   };
   const summary = await summarize(
@@ -477,10 +565,23 @@ async function meetingPreview(meetingId: string, userName: string) {
     fallback,
   );
   const sourceExternalId = `granola-meeting:${meetingId}`;
+  const existing = await existingTouchpoint(
+    partner.id,
+    sourceExternalId,
+    meeting.meeting_date,
+  );
 
   return NextResponse.json({
     preview: {
       source: "meeting",
+      existing_touchpoint: existing
+        ? {
+            id: existing.id,
+            syncedThrough: existing.syncedThrough,
+            updatedAt: existing.updatedAt,
+            hasNewSourceContent: existing.hasNewSourceContent,
+          }
+        : null,
       partner: { id: partner.id, name: partner.name },
       contact: null,
       suggested_contact: null,

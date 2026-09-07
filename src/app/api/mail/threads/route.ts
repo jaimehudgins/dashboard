@@ -9,6 +9,50 @@ import {
   saveUrgency,
 } from "@/lib/mail-urgency";
 import type { GmailThreadSummary } from "@/lib/gmail";
+import { crmSupabase, isCrmConfigured } from "@/lib/crm-supabase";
+
+type TemuTouchpointRow = {
+  source_external_id: string;
+  source_created_at: string | null;
+};
+
+async function withTemuStatus<T extends GmailThreadSummary>(threads: T[]) {
+  if (!isCrmConfigured || threads.length === 0) return threads;
+  const sourceIds = threads.map((thread) => `gmail-thread:${thread.id}`);
+  const { data, error } = await crmSupabase
+    .from("touchpoints")
+    .select("source_external_id, source_created_at")
+    .eq("source_system", "leo:temu")
+    .in("source_external_id", sourceIds);
+  if (error) {
+    console.warn("Could not load TEMU email indicators", error.message);
+    return threads;
+  }
+  const bySourceId = new Map(
+    ((data ?? []) as TemuTouchpointRow[]).map((touchpoint) => [
+      touchpoint.source_external_id,
+      touchpoint,
+    ]),
+  );
+  return threads.map((thread) => {
+    const touchpoint = bySourceId.get(`gmail-thread:${thread.id}`);
+    if (!touchpoint) return thread;
+    const latestDate = new Date(thread.date);
+    const syncedThrough = touchpoint.source_created_at
+      ? new Date(touchpoint.source_created_at)
+      : null;
+    return {
+      ...thread,
+      temuStatus: {
+        hasNewMessages:
+          !Number.isNaN(latestDate.valueOf()) &&
+          (!syncedThrough ||
+            Number.isNaN(syncedThrough.valueOf()) ||
+            latestDate > syncedThrough),
+      },
+    };
+  });
+}
 
 async function withUrgency(threads: GmailThreadSummary[]) {
   const urgency = await fetchUrgency(threads.map((t) => t.id));
@@ -29,7 +73,9 @@ async function withUrgency(threads: GmailThreadSummary[]) {
       for (const [id, u] of judged) urgency[id] = u;
     }
   }
-  return threads.map((t) => ({ ...t, urgency: urgency[t.id] || null }));
+  return withTemuStatus(
+    threads.map((t) => ({ ...t, urgency: urgency[t.id] || null })),
+  );
 }
 
 // GET /api/mail/threads?view=all|current|potential|newsletter|willow|other&q=
