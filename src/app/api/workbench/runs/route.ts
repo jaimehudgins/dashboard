@@ -20,6 +20,7 @@ import {
   WorkResearchSource,
   WorkSource,
   Workstream,
+  workBriefSource,
   workSourceKey,
 } from "@/lib/workbench";
 import {
@@ -534,6 +535,18 @@ export async function POST(request: Request) {
   const rememberPreference = body.remember_preference === true;
   const manualOverride = body.manual_override === true;
   const sourceFeedback = sourceFeedbackFrom(body.source_feedback);
+  const workstream = workstreamFor(project, area);
+
+  if (body.preview_only === true) {
+    const brief = await createWorkBrief({
+      task,
+      project,
+      area,
+      workstream,
+      manualOverride,
+    });
+    return NextResponse.json({ brief });
+  }
 
   const { data: existing, error: existingError } = await supabase
     .from("work_runs")
@@ -554,7 +567,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ run: existingRun, existing: true });
   }
 
-  const workstream = workstreamFor(project, area);
   const now = new Date().toISOString();
   const { error: startError } = await supabase.from("work_runs").upsert(
     {
@@ -603,14 +615,7 @@ export async function POST(request: Request) {
           blocking_question: null,
           draft_title: null,
           draft: null,
-          sources: [
-            {
-              type: "brief",
-              title: "Leo routing decision",
-              excerpt: `Route: Jaime action\nReason: ${brief.rationale}`,
-              status: "used",
-            },
-          ],
+          sources: [workBriefSource(brief)],
           notification_tier: "none",
           notification_reason: null,
           updated_at: new Date().toISOString(),

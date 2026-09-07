@@ -34,6 +34,7 @@ import {
   WorkBrief,
   WorkResearchSource,
   WorkSource,
+  workBriefSource,
   workSourceKey,
 } from "./workbench";
 
@@ -1163,25 +1164,7 @@ export async function gatherWorkSources(input: {
     });
   }
   if (input.brief) {
-    sources.push({
-      type: "brief",
-      title: "Leo work brief",
-      excerpt: [
-        `Route: ${input.brief.route.replace("_", " ")}`,
-        `Deliverable: ${input.brief.intendedDeliverable || "Not yet clear"}`,
-        `Audience: ${input.brief.audience || "Not specified"}`,
-        `Outcome: ${input.brief.outcome || "Not specified"}`,
-        input.brief.constraints.length
-          ? `Constraints: ${input.brief.constraints.join("; ")}`
-          : "",
-        input.brief.requiredSources.length
-          ? `Required sources: ${input.brief.requiredSources.join(", ")}`
-          : "",
-      ]
-        .filter(Boolean)
-        .join("\n"),
-      status: "used",
-    });
+    sources.push(workBriefSource(input.brief));
   }
   if (
     !taskNeedsKnowledge(input.task) &&
