@@ -440,6 +440,7 @@ async function emailPreview(
   return NextResponse.json({
     preview: {
       source: "email",
+      available_google_urls: googleUrls(conversation),
       existing_touchpoint: existing
         ? {
             id: existing.id,
@@ -574,6 +575,9 @@ async function meetingPreview(meetingId: string, userName: string) {
   return NextResponse.json({
     preview: {
       source: "meeting",
+      available_google_urls: googleUrls(
+        `${meeting.summary || ""}\n${taskLines}`,
+      ),
       existing_touchpoint: existing
         ? {
             id: existing.id,

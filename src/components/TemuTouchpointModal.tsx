@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ExternalLink,
   Loader2,
+  Plus,
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -13,6 +14,7 @@ import { readJsonResponse } from "@/lib/http";
 
 export interface TemuTouchpointPreview {
   source: "email" | "meeting";
+  available_google_urls: string[];
   existing_touchpoint: {
     id: string;
     syncedThrough: string | null;
@@ -108,6 +110,21 @@ export default function TemuTouchpointModal({
         taskIndex === index ? { ...task, ...patch } : task,
       ),
     );
+  };
+
+  const addTask = () => {
+    setTasks((current) => [
+      ...current,
+      {
+        source_external_id: `${preview.data.source_external_id}:task:manual:${crypto.randomUUID()}`,
+        task: "",
+        owner: preview.data.author || "Jaime",
+        ownership: "jaime",
+        dueDate: null,
+        sourceUrls: [],
+        selected: true,
+      },
+    ]);
   };
 
   const suggestedContactInvalid = Boolean(
@@ -366,14 +383,24 @@ export default function TemuTouchpointModal({
           </label>
 
           <section className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-            <div className="mb-3">
-              <h3 className="text-sm font-semibold text-slate-800">
-                Tasks for Work
-              </h3>
-              <p className="mt-0.5 text-xs text-slate-500">
-                Jaime-owned actions are selected automatically. Partner-owned
-                actions stay in the touchpoint unless you select them as waiting.
-              </p>
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800">
+                  Tasks for Work
+                </h3>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Jaime-owned actions are selected automatically. Partner-owned
+                  actions stay in the touchpoint unless you select them as waiting.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={addTask}
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-indigo-200 bg-white px-2.5 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
+              >
+                <Plus size={13} />
+                Add task
+              </button>
             </div>
 
             {tasks.length === 0 ? (
@@ -412,21 +439,64 @@ export default function TemuTouchpointModal({
                         {task.sourceUrls.length > 0 && (
                           <div className="flex flex-wrap gap-2">
                             {task.sourceUrls.map((url, urlIndex) => (
-                              <a
+                              <span
                                 key={url}
-                                href={url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                                className="inline-flex items-center rounded-full bg-emerald-50 text-xs font-medium text-emerald-700"
                               >
-                                <ExternalLink size={11} />
-                                Related Google file
-                                {task.sourceUrls.length > 1
-                                  ? ` ${urlIndex + 1}`
-                                  : ""}
-                              </a>
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 py-1 pl-2 hover:text-emerald-900"
+                                >
+                                  <ExternalLink size={11} />
+                                  Related Google file
+                                  {task.sourceUrls.length > 1
+                                    ? ` ${urlIndex + 1}`
+                                    : ""}
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateTask(index, {
+                                      sourceUrls: task.sourceUrls.filter(
+                                        (sourceUrl) => sourceUrl !== url,
+                                      ),
+                                    })
+                                  }
+                                  className="p-1.5 text-emerald-500 hover:text-emerald-800"
+                                  aria-label="Remove related Google file"
+                                >
+                                  <X size={11} />
+                                </button>
+                              </span>
                             ))}
                           </div>
+                        )}
+                        {preview.available_google_urls.some(
+                          (url) => !task.sourceUrls.includes(url),
+                        ) && (
+                          <select
+                            value=""
+                            onChange={(event) => {
+                              const url = event.target.value;
+                              if (!url) return;
+                              updateTask(index, {
+                                sourceUrls: [...task.sourceUrls, url],
+                              });
+                            }}
+                            className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600"
+                            aria-label={`Attach a Google file to ${task.task || "new task"}`}
+                          >
+                            <option value="">Attach a Google file…</option>
+                            {preview.available_google_urls
+                              .filter((url) => !task.sourceUrls.includes(url))
+                              .map((url, urlIndex) => (
+                                <option key={url} value={url}>
+                                  Google file {urlIndex + 1}
+                                </option>
+                              ))}
+                          </select>
                         )}
                         <div className="flex flex-wrap items-center gap-2">
                           <select
