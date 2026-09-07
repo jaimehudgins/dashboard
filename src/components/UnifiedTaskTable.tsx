@@ -21,6 +21,7 @@ import { useApp } from "@/store/store";
 import { Task } from "@/types";
 import { WorkRun } from "@/lib/workbench";
 import TaskEditModal from "./TaskEditModal";
+import TaskDetailModal from "./TaskDetailModal";
 import {
   crmSupabase,
   isCrmConfigured,
@@ -98,6 +99,7 @@ export default function UnifiedTaskTable({
   workRuns = [],
 }: Props) {
   const { state, dispatch } = useApp();
+  const [selectedRow, setSelectedRow] = useState<UnifiedRow | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [editingPartner, setEditingPartner] = useState<UnifiedRow | null>(null);
   const [partnerEditTitle, setPartnerEditTitle] = useState("");
@@ -720,9 +722,12 @@ export default function UnifiedTaskTable({
                       />
                     </td>
                     <td className="px-3 py-2 align-top">
-                      <div className="text-slate-900 font-medium">
+                      <button
+                        onClick={() => setSelectedRow(row)}
+                        className="text-left font-medium text-slate-900 hover:text-indigo-700 hover:underline hover:decoration-indigo-200 hover:underline-offset-2"
+                      >
                         {row.title}
-                      </div>
+                      </button>
                       {workRun && workRun.status !== "reviewed" && (
                         <span
                           title={workRun.rationale || undefined}
@@ -865,6 +870,54 @@ export default function UnifiedTaskTable({
 
       {editingTask && (
         <TaskEditModal task={editingTask} onClose={() => setEditingTask(null)} />
+      )}
+
+      {selectedRow && (
+        <TaskDetailModal
+          title={selectedRow.title}
+          description={selectedRow.task?.description || selectedRow.notes}
+          link={selectedRow.task?.link}
+          relatedLinks={selectedRow.relatedLinks}
+          dueDate={selectedRow.dueDate}
+          status={selectedRow.status}
+          priority={selectedRow.priority}
+          area={selectedRow.area}
+          projectName={
+            selectedRow.task?.projectId
+              ? state.projects.find(
+                  (project) => project.id === selectedRow.task?.projectId,
+                )?.name
+              : undefined
+          }
+          partnerName={selectedRow.partnerName}
+          comments={
+            selectedRow.task
+              ? state.comments.filter(
+                  (comment) => comment.taskId === selectedRow.task?.id,
+                )
+              : []
+          }
+          attachments={
+            selectedRow.task
+              ? state.attachments.filter(
+                  (attachment) => attachment.taskId === selectedRow.task?.id,
+                )
+              : []
+          }
+          onClose={() => setSelectedRow(null)}
+          onEdit={() => {
+            const row = selectedRow;
+            setSelectedRow(null);
+            if (row.task) setEditingTask(row.task);
+            else openPartnerEditor(row);
+          }}
+          onFocus={() => {
+            const row = selectedRow;
+            setSelectedRow(null);
+            if (row.task) onFocusTask?.(row.task);
+            else focusPartnerRow(row);
+          }}
+        />
       )}
 
       {editingPartner &&
