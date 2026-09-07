@@ -43,6 +43,7 @@ interface ThreadSummary {
   unread: boolean;
   messageCount: number;
   urgency?: Urgency;
+  temuStatus?: { hasNewMessages: boolean };
 }
 
 // Bucket accent colors for the view chips.
@@ -124,6 +125,48 @@ function EmailFrame({ html }: { html: string }) {
   );
 }
 
+function emailLinkLabel(url: string): string {
+  if (url.includes("docs.google.com/document/")) return "Open Google Doc";
+  if (url.includes("docs.google.com/spreadsheets/")) return "Open Google Sheet";
+  if (url.includes("docs.google.com/presentation/")) return "Open Google Slides";
+  if (url.includes("drive.google.com/")) return "Open Google Drive file";
+  return url;
+}
+
+function EmailText({ text }: { text: string }) {
+  const parts: React.ReactNode[] = [];
+  const pattern = /https?:\/\/[^\s<>"']+/gi;
+  let lastIndex = 0;
+
+  for (const match of text.matchAll(pattern)) {
+    const matchIndex = match.index ?? 0;
+    const rawUrl = match[0];
+    const url = rawUrl.replace(/[)\]},.;!?]+$/g, "");
+    const trailingText = rawUrl.slice(url.length);
+    parts.push(text.slice(lastIndex, matchIndex));
+    parts.push(
+      <a
+        key={`${matchIndex}-${url}`}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-medium text-indigo-600 underline decoration-indigo-200 underline-offset-2 hover:text-indigo-800"
+      >
+        {emailLinkLabel(url)}
+      </a>,
+    );
+    if (trailingText) parts.push(trailingText);
+    lastIndex = matchIndex + rawUrl.length;
+  }
+
+  parts.push(text.slice(lastIndex));
+  return (
+    <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
+      {parts}
+    </div>
+  );
+}
+
 function ThreadMessageCard({ message }: { message: ThreadMessage }) {
   const [showQuoted, setShowQuoted] = useState(false);
   const cleanBody = message.cleanBody || message.body || message.snippet;
@@ -142,20 +185,14 @@ function ThreadMessageCard({ message }: { message: ThreadMessage }) {
         message.html ? (
           <EmailFrame html={message.html} />
         ) : (
-          <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
-            {message.body || message.snippet}
-          </div>
+          <EmailText text={message.body || message.snippet} />
         )
       ) : message.hasQuotedContent ? (
-        <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
-          {cleanBody}
-        </div>
+        <EmailText text={cleanBody} />
       ) : message.html ? (
         <EmailFrame html={message.html} />
       ) : (
-        <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
-          {cleanBody}
-        </div>
+        <EmailText text={cleanBody} />
       )}
       {message.hasQuotedContent && (
         <button
@@ -172,6 +209,12 @@ function ThreadMessageCard({ message }: { message: ThreadMessage }) {
 interface FullThread {
   id: string;
   messages: ThreadMessage[];
+  temuStatus: {
+    touchpointId: string;
+    syncedThrough: string | null;
+    updatedAt: string | null;
+    hasNewMessages: boolean;
+  } | null;
 }
 
 interface DraftSource {
@@ -603,14 +646,24 @@ export default function Mail() {
               onClick={() => reviewTemuTouchpoint()}
               disabled={temuPreviewing || loadingThread}
               className="inline-flex items-center gap-1.5 text-sm text-emerald-600 hover:text-emerald-800 disabled:opacity-50"
-              title="Review this email before adding it to TEMU"
+              title={
+                thread?.temuStatus
+                  ? "Review and update this email thread in TEMU"
+                  : "Review this email before adding it to TEMU"
+              }
             >
               {temuPreviewing ? (
                 <Loader2 size={15} className="animate-spin" />
               ) : (
                 <Building2 size={15} />
               )}
-              {temuPreviewing ? "Preparing…" : "TEMU touchpoint?"}
+              {temuPreviewing
+                ? "Preparing…"
+                : thread?.temuStatus?.hasNewMessages
+                  ? "Update TEMU"
+                  : thread?.temuStatus
+                    ? "Added to TEMU"
+                    : "TEMU touchpoint?"}
             </button>
             <button
               onClick={() => archive(selectedId)}
@@ -646,6 +699,19 @@ export default function Mail() {
               <h1 className="text-xl font-bold text-slate-900">
                 {thread.messages[0]?.subject || "(no subject)"}
               </h1>
+              {thread.temuStatus && (
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                    thread.temuStatus.hasNewMessages
+                      ? "bg-amber-50 text-amber-700"
+                      : "bg-emerald-50 text-emerald-700"
+                  }`}
+                >
+                  {thread.temuStatus.hasNewMessages
+                    ? "New email since TEMU summary"
+                    : "Summarized in TEMU"}
+                </span>
+              )}
             </div>
             <div className="space-y-3">
               {thread.messages.map((m, i) => (
@@ -740,6 +806,22 @@ export default function Mail() {
           <TemuTouchpointModal
             preview={temuPreview}
             onClose={() => setTemuPreview(null)}
+            onSaved={() =>
+              setThread((current) =>
+                current
+                  ? {
+                      ...current,
+                      temuStatus: {
+                        touchpointId:
+                          temuPreview.existing_touchpoint?.id || "synced",
+                        syncedThrough: temuPreview.data.source_created_at,
+                        updatedAt: new Date().toISOString(),
+                        hasNewMessages: false,
+                      },
+                    }
+                  : current,
+              )
+            }
           />
         )}
         {temuPartnerSelection && (
@@ -903,6 +985,23 @@ export default function Mail() {
                     {t.messageCount > 1 && (
                       <span className="text-xs text-slate-400">
                         {t.messageCount}
+                      </span>
+                    )}
+                    {t.temuStatus && (
+                      <span
+                        title={
+                          t.temuStatus.hasNewMessages
+                            ? "New email since this thread was summarized in TEMU"
+                            : "This thread has been summarized in TEMU"
+                        }
+                        className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                          t.temuStatus.hasNewMessages
+                            ? "bg-amber-50 text-amber-700"
+                            : "bg-emerald-50 text-emerald-700"
+                        }`}
+                      >
+                        <Building2 size={10} />
+                        {t.temuStatus.hasNewMessages ? "Update" : "TEMU"}
                       </span>
                     )}
                   </div>

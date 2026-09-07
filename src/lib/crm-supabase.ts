@@ -71,6 +71,7 @@ export interface CrmFollowUpTask {
   completed: boolean;
   status: string;
   notes?: string;
+  source_metadata?: Record<string, unknown> | null;
   created_at?: string;
   updated_at?: string;
 }

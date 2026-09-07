@@ -51,6 +51,7 @@ interface UnifiedRow {
   partnerId?: string;
   partnerName?: string;
   notes?: string;
+  relatedLinks?: string[];
 }
 
 interface Props {
@@ -77,6 +78,12 @@ const DUE_FILTERS = [
 ] as const;
 
 type DueFilter = (typeof DUE_FILTERS)[number]["id"];
+
+function relatedGoogleLinks(task: CrmFollowUpTask): string[] {
+  const metadataLinks = task.source_metadata?.related_google_urls;
+  if (!Array.isArray(metadataLinks)) return [];
+  return metadataLinks.filter((url): url is string => typeof url === "string");
+}
 
 export default function UnifiedTaskTable({
   onFocusTask,
@@ -144,6 +151,7 @@ export default function UnifiedTaskTable({
           partnerId: t.partner_id || "",
           partnerName: partner?.name || "Unknown Partner",
           notes: t.notes,
+          relatedLinks: relatedGoogleLinks(t),
         });
       });
       (onboardingData || []).forEach((t: CrmOnboardingTask) => {
@@ -192,7 +200,9 @@ export default function UnifiedTaskTable({
       createdAt: new Date(),
       focusMinutes: 0,
       areaId: partnerArea?.id,
-      link: "https://willow-crm-three.vercel.app/tasks",
+      description: row.notes,
+      link:
+        row.relatedLinks?.[0] || "https://willow-crm-three.vercel.app/tasks",
     };
     dispatch({ type: "ADD_TASK", payload: mirror });
     onFocusTask?.(mirror);
@@ -860,6 +870,26 @@ export default function UnifiedTaskTable({
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
                       placeholder="Add notes..."
                     />
+                    {editingPartner.relatedLinks &&
+                      editingPartner.relatedLinks.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {editingPartner.relatedLinks.map((url, index) => (
+                            <a
+                              key={url}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                            >
+                              <ExternalLink size={11} />
+                              Related Google file
+                              {editingPartner.relatedLinks!.length > 1
+                                ? ` ${index + 1}`
+                                : ""}
+                            </a>
+                          ))}
+                        </div>
+                      )}
                   </div>
                 )}
                 <div>

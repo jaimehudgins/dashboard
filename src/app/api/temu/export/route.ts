@@ -11,6 +11,7 @@ import {
   TemuExportData,
   TemuExportResult,
   TemuResource,
+  updateTemuTouchpoint,
 } from "@/lib/temu-api";
 
 const UUID_PATTERN =
@@ -44,6 +45,19 @@ const RESOURCE_FIELDS: Record<TemuResource, readonly string[]> = {
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isGoogleUrl(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      (url.hostname === "docs.google.com" || url.hostname === "drive.google.com")
+    );
+  } catch {
+    return false;
+  }
 }
 
 function sanitizeData(
@@ -156,6 +170,21 @@ export async function POST(request: Request) {
     if (!isObject(body.data)) {
       return NextResponse.json({ error: "Export data is required" }, { status: 400 });
     }
+    if (
+      body.update_existing !== undefined &&
+      typeof body.update_existing !== "boolean"
+    ) {
+      return NextResponse.json(
+        { error: "Update existing must be a boolean" },
+        { status: 400 },
+      );
+    }
+    if (body.update_existing === true && body.resource !== "touchpoints") {
+      return NextResponse.json(
+        { error: "Only touchpoints can be updated" },
+        { status: 400 },
+      );
+    }
     const newContact = body.new_contact;
     if (newContact !== undefined) {
       if (body.resource !== "touchpoints" || !isObject(newContact)) {
@@ -192,9 +221,9 @@ export async function POST(request: Request) {
           { status: 400 },
         );
       }
-      if (body.follow_up_tasks.length > 10) {
+      if (body.follow_up_tasks.length > 20) {
         return NextResponse.json(
-          { error: "No more than 10 follow-up tasks may be exported at once" },
+          { error: "No more than 20 follow-up tasks may be exported at once" },
           { status: 400 },
         );
       }
@@ -210,7 +239,11 @@ export async function POST(request: Request) {
           !task.source_external_id.trim() ||
           task.source_external_id.length > 255 ||
           typeof task.task !== "string" ||
-          !task.task.trim(),
+          !task.task.trim() ||
+          (task.source_urls !== undefined &&
+            (!Array.isArray(task.source_urls) ||
+              task.source_urls.length > 5 ||
+              task.source_urls.some((url: unknown) => !isGoogleUrl(url)))),
       );
       if (invalidTask) {
         return NextResponse.json(
@@ -280,12 +313,24 @@ export async function POST(request: Request) {
           )
         : null;
     if (existingTouchpoint) {
-      result = {
-        data: existingTouchpoint,
-        duplicate: true,
-        request_id: "existing-temu-record",
-      };
+      result =
+        body.update_existing === true
+          ? await updateTemuTouchpoint({
+              actor: session.user.email,
+              data,
+            })
+          : {
+              data: existingTouchpoint,
+              duplicate: true,
+              request_id: "existing-temu-record",
+            };
     } else {
+      if (body.update_existing === true) {
+        return NextResponse.json(
+          { error: "The TEMU touchpoint no longer exists; refresh and try again" },
+          { status: 409 },
+        );
+      }
       try {
         result = await createTemuRecord({
           resource: body.resource,
@@ -317,6 +362,9 @@ export async function POST(request: Request) {
     for (const rawTask of body.follow_up_tasks) {
       const ownership =
         rawTask.ownership === "partner" ? "partner" : "jaime";
+      const sourceUrls = Array.isArray(rawTask.source_urls)
+        ? [...new Set(rawTask.source_urls.filter(isGoogleUrl))]
+        : [];
       const existingTask = await findExistingSourceRecord(
         "follow_up_tasks",
         data.partner_id,
@@ -335,6 +383,11 @@ export async function POST(request: Request) {
         source_metadata: {
           parent_source_external_id: data.source_external_id,
           ownership,
+          related_google_urls: sourceUrls,
+          source_email_url:
+            typeof data.source_metadata?.gmail_url === "string"
+              ? data.source_metadata.gmail_url
+              : undefined,
         },
         touchpoint_id: touchpointId,
         touchpoint_source_external_id: touchpointId
@@ -344,10 +397,16 @@ export async function POST(request: Request) {
         due_date: rawTask.due_date ?? null,
         completed: false,
         status: ownership === "partner" ? "Waiting" : "Not Started",
-        notes:
+        notes: [
           typeof rawTask.owner === "string" && rawTask.owner.trim()
             ? `Owner identified by Leo: ${rawTask.owner.trim()}`
             : "Created from a reviewed TEMU touchpoint in Leo",
+          sourceUrls.length > 0
+            ? `Related Google ${sourceUrls.length === 1 ? "file" : "files"}:\n${sourceUrls.map((url) => `- ${url}`).join("\n")}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
       });
 
       try {
