@@ -2,15 +2,18 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Archive,
   Bell,
   Bot,
   Check,
   ChevronDown,
   CircleHelp,
+  Clipboard,
   ExternalLink,
   LoaderCircle,
   MessageSquareText,
   RefreshCw,
+  RotateCcw,
   Save,
   Search,
   ThumbsDown,
@@ -29,6 +32,8 @@ interface WorkbenchPanelProps {
     taskId: string,
     options?: WorkbenchRevisionOptions,
   ) => Promise<void>;
+  completedTaskIds: string[];
+  onCompleteTask: (taskId: string) => void;
 }
 
 const STATUS_LABELS: Record<WorkRun["status"], string> = {
@@ -137,6 +142,8 @@ export default function WorkbenchPanel({
   configured,
   onRefresh,
   onRevise,
+  completedTaskIds,
+  onCompleteTask,
 }: WorkbenchPanelProps) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState<Record<string, string>>({});
@@ -148,6 +155,7 @@ export default function WorkbenchPanel({
   >({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -197,6 +205,17 @@ export default function WorkbenchPanel({
           return rank[a.status] - rank[b.status];
         })
         .slice(0, 10),
+    [runs],
+  );
+
+  const reviewedRuns = useMemo(
+    () =>
+      runs
+        .filter((run) => run.status === "reviewed" && Boolean(run.draft))
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+        ),
     [runs],
   );
 
@@ -273,6 +292,41 @@ export default function WorkbenchPanel({
     });
   };
 
+  const reopenRun = async (run: WorkRun) => {
+    setSavingId(run.id);
+    setError(null);
+    try {
+      const response = await fetch("/api/workbench/runs", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: run.id, status: "draft_ready" }),
+      });
+      const raw = await response.text();
+      const data = raw ? (JSON.parse(raw) as { error?: string }) : {};
+      if (!response.ok) {
+        throw new Error(data.error || "Could not reopen Leo's work");
+      }
+      await onRefresh();
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not reopen Leo's work",
+      );
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const copyDraft = async (run: WorkRun) => {
+    setError(null);
+    try {
+      await navigator.clipboard.writeText(run.draft ?? "");
+      setCopiedId(run.id);
+      window.setTimeout(() => setCopiedId(null), 2_000);
+    } catch {
+      setError("Could not copy the draft");
+    }
+  };
+
   if (configured === false) {
     return (
       <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
@@ -299,7 +353,7 @@ export default function WorkbenchPanel({
     );
   }
 
-  if (visibleRuns.length === 0) return null;
+  if (visibleRuns.length === 0 && reviewedRuns.length === 0) return null;
 
   return (
     <section className="overflow-hidden rounded-2xl border border-violet-100 bg-white shadow-sm">
@@ -661,6 +715,82 @@ export default function WorkbenchPanel({
           </details>
         ))}
       </div>
+
+      {reviewedRuns.length > 0 && (
+        <details className="group border-t border-slate-200 bg-slate-50/70">
+          <summary className="flex cursor-pointer list-none items-center gap-3 px-5 py-4 hover:bg-slate-100/70">
+            <Archive size={17} className="text-slate-500" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-slate-800">Reviewed work</p>
+              <p className="text-xs font-normal text-slate-500">
+                Finished drafts remain connected to their original tasks.
+              </p>
+            </div>
+            <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-500">
+              {reviewedRuns.length}
+            </span>
+            <ChevronDown
+              size={17}
+              className="text-slate-400 transition-transform group-open:rotate-180"
+            />
+          </summary>
+          <div className="divide-y divide-slate-200 border-t border-slate-200">
+            {reviewedRuns.map((run) => {
+              const taskCompleted = completedTaskIds.includes(run.taskId);
+              return (
+                <details key={run.id} className="group/item bg-white">
+                  <summary className="flex cursor-pointer list-none items-start gap-3 px-5 py-4 hover:bg-slate-50">
+                    <ChevronDown
+                      size={16}
+                      className="mt-0.5 text-slate-400 transition-transform group-open/item:rotate-180"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-slate-900">{run.taskTitle}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Reviewed {formatCheckedAt(run.updatedAt)} · Original task {taskCompleted ? "completed" : "open"}
+                      </p>
+                    </div>
+                  </summary>
+                  <div className="space-y-3 border-t border-slate-100 bg-slate-50/50 px-5 py-4">
+                    {run.draftTitle && (
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        {run.draftTitle}
+                      </p>
+                    )}
+                    <div className="max-h-96 overflow-y-auto whitespace-pre-wrap rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700">
+                      {run.draft}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => void copyDraft(run)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        <Clipboard size={14} />
+                        {copiedId === run.id ? "Copied" : "Copy draft"}
+                      </button>
+                      <button
+                        onClick={() => void reopenRun(run)}
+                        disabled={savingId === run.id}
+                        className="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-50"
+                      >
+                        <RotateCcw size={14} /> Reopen in Workbench
+                      </button>
+                      <button
+                        onClick={() => onCompleteTask(run.taskId)}
+                        disabled={taskCompleted}
+                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-500"
+                      >
+                        <Check size={14} />
+                        {taskCompleted ? "Task completed" : "Complete task"}
+                      </button>
+                    </div>
+                  </div>
+                </details>
+              );
+            })}
+          </div>
+        </details>
+      )}
     </section>
   );
 }
