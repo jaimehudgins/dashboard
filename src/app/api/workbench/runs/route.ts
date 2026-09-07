@@ -17,12 +17,15 @@ import {
   WorkRunDeliverable,
   WorkRunStatus,
   WorkBrief,
+  WorkQualityReview,
   WorkResearchSource,
   WorkSource,
   Workstream,
   workBriefSource,
+  workQualitySource,
   workSourceKey,
 } from "@/lib/workbench";
+import { runWorkQualityGate } from "@/lib/workbench-quality";
 import {
   directDriveSources,
   gatherWorkSources,
@@ -647,7 +650,10 @@ export async function POST(request: Request) {
       : [];
     const seenSources = new Set<string>();
     const sources: WorkSource[] = [...linkedDriveSources, ...gatheredSources]
-      .filter((source) => source.type !== "feedback")
+      .filter(
+        (source) =>
+          source.type !== "feedback" && source.type !== "quality",
+      )
       .filter((source) => {
         const key = source.url || workSourceKey(source);
         if (seenSources.has(key)) return false;
@@ -671,7 +677,7 @@ export async function POST(request: Request) {
       sources,
       brief.requiredSources,
     );
-    const result = missingSources.length > 0
+    let result = missingSources.length > 0
       ? {
           deliverable_type: "context_packet" as const,
           confidence: "low" as const,
@@ -700,10 +706,40 @@ export async function POST(request: Request) {
           feedback,
           previousDraft: existingRun?.draft ?? undefined,
         });
-    const state = finalState(result);
+    let qualityReview: WorkQualityReview | null = null;
+    if (result.draft.trim() && result.deliverable_type !== "human_only") {
+      const qualityGate = await runWorkQualityGate({
+        task,
+        brief,
+        draftTitle: result.draft_title,
+        draft: result.draft,
+        sources,
+      });
+      result = {
+        ...result,
+        draft_title: qualityGate.draftTitle,
+        draft: qualityGate.draft,
+      };
+      qualityReview = qualityGate.review;
+      sources.push(workQualitySource(qualityReview));
+    }
+    let state = finalState(result);
+    if (
+      qualityReview &&
+      !qualityReview.overallPass &&
+      state.status === "draft_ready"
+    ) {
+      state = { ...state, status: "needs_input" };
+    }
     const notification = notificationFor(task, state.status);
+    const qualityGap =
+      qualityReview && !qualityReview.overallPass
+        ? qualityReview.remainingGap ||
+          "Leo's quality review found an unresolved gap. Review the draft before using it."
+        : "";
     const blockingQuestion =
       result.blocking_question.trim() ||
+      qualityGap ||
       (state.status === "needs_input"
         ? "What outcome or constraint should Leo use to take this further?"
         : "");

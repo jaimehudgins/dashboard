@@ -16,12 +16,18 @@ import {
   RotateCcw,
   Save,
   Search,
+  ShieldCheck,
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
 
 import { WorkbenchRevisionOptions } from "@/lib/workbench-client";
-import { WorkRun, WorkSource, workSourceKey } from "@/lib/workbench";
+import {
+  WorkQualityReview,
+  WorkRun,
+  WorkSource,
+  workSourceKey,
+} from "@/lib/workbench";
 
 interface WorkbenchPanelProps {
   runs: WorkRun[];
@@ -75,6 +81,93 @@ const SOURCE_LABELS: Partial<Record<WorkSource["type"], string>> = {
   platform: "Platform guidance",
   memory: "Leo memory",
 };
+
+const QUALITY_DIMENSIONS: Array<{
+  key: keyof WorkQualityReview["dimensions"];
+  label: string;
+}> = [
+  { key: "grounding", label: "Grounding" },
+  { key: "completeness", label: "Completeness" },
+  { key: "usefulness", label: "Usefulness" },
+  { key: "sourceCoverage", label: "Source coverage" },
+  { key: "briefAlignment", label: "Work Brief alignment" },
+];
+
+function QualityReviewCard({ run }: { run: WorkRun }) {
+  const review = run.sources.find(
+    (source) => source.type === "quality",
+  )?.qualityReview;
+  if (!review) return null;
+  return (
+    <div
+      className={`rounded-xl border p-4 ${
+        review.overallPass
+          ? "border-emerald-200 bg-emerald-50/70"
+          : "border-amber-200 bg-amber-50/70"
+      }`}
+    >
+      <div className="flex flex-wrap items-start gap-3">
+        <ShieldCheck
+          size={18}
+          className={review.overallPass ? "text-emerald-600" : "text-amber-600"}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-semibold text-slate-900">
+              Leo quality check
+            </p>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                review.overallPass
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "bg-amber-100 text-amber-800"
+              }`}
+            >
+              {review.overallPass ? "Passed" : "Needs review"}
+            </span>
+            {review.revised && (
+              <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-800">
+                Automatically revised
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-xs leading-5 text-slate-600">{review.summary}</p>
+        </div>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+        {QUALITY_DIMENSIONS.map(({ key, label }) => {
+          const dimension = review.dimensions[key];
+          return (
+            <div
+              key={key}
+              title={dimension.note}
+              className="rounded-lg border border-white/80 bg-white/80 px-3 py-2"
+            >
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    dimension.status === "pass"
+                      ? "bg-emerald-500"
+                      : "bg-amber-500"
+                  }`}
+                />
+                <p className="text-[11px] font-semibold text-slate-700">{label}</p>
+              </div>
+              <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-slate-500">
+                {dimension.note}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+      {!review.overallPass && review.remainingGap && (
+        <p className="mt-3 text-xs font-medium text-amber-900">
+          Remaining gap: {review.remainingGap}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function sourceCoverage(sources: WorkSource[]) {
   return SOURCE_ORDER.flatMap((type) => {
@@ -512,6 +605,8 @@ export default function WorkbenchPanel({
                 </div>
               )}
 
+              <QualityReviewCard run={run} />
+
               {run.draft && run.status !== "researching" && (
                 <div>
                   <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -566,6 +661,7 @@ export default function WorkbenchPanel({
                       const canRate =
                         source.type !== "task" &&
                         source.type !== "brief" &&
+                        source.type !== "quality" &&
                         source.type !== "feedback" &&
                         !source.title.startsWith("Drive anchor ·") &&
                         (!source.status || source.status === "used");
