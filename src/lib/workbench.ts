@@ -62,6 +62,7 @@ export interface WorkSource {
   url?: string;
   excerpt?: string;
   modifiedAt?: string;
+  checkedAt?: string;
   status?: "used" | "no_match" | "unavailable" | "error";
   feedback?: "useful" | "irrelevant";
 }
