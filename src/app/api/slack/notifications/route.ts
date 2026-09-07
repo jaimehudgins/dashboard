@@ -7,9 +7,11 @@ import {
   recentNotifications,
 } from "@/lib/notification-store";
 import {
+  isSlackInboundConfigured,
   isSlackConfigured,
   isSlackNotificationsConfigured,
 } from "@/lib/slack";
+import { slackInboundStoreConfigured } from "@/lib/slack-inbound";
 import { sendSlackDigest } from "@/lib/slack-notifications";
 
 export async function GET() {
@@ -17,13 +19,16 @@ export async function GET() {
   if (!session?.user?.email) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
-  const [storeConfigured, notifications] = await Promise.all([
+  const [storeConfigured, inboundStoreConfigured, notifications] = await Promise.all([
     notificationStoreConfigured(),
+    slackInboundStoreConfigured(),
     recentNotifications(),
   ]);
   return NextResponse.json({
     searchConfigured: isSlackConfigured,
     notificationsConfigured: isSlackNotificationsConfigured,
+    inboundConfigured: isSlackInboundConfigured,
+    inboundStoreConfigured,
     storeConfigured,
     notifications,
     schedule: {
