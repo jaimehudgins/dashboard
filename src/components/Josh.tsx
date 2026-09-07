@@ -24,6 +24,8 @@ export default function Josh() {
   const [notificationStatus, setNotificationStatus] = useState<{
     notificationsConfigured: boolean;
     storeConfigured: boolean;
+    inboundConfigured: boolean;
+    inboundStoreConfigured: boolean;
     schedule?: { morning: string; evening: string; urgentScan: string };
   } | null>(null);
   const [notificationAction, setNotificationAction] = useState<string | null>(
@@ -57,7 +59,14 @@ export default function Josh() {
     period?: "morning" | "evening",
   ) => {
     setNotificationAction(`${action}:${period || "connection"}`);
-    setNotificationMessage(null);
+    if (action === "preview" && period) {
+      setBriefPreview(null);
+      setNotificationMessage(
+        `Gathering Leo's sources for the ${period} preview. This may take 15–30 seconds.`,
+      );
+    } else {
+      setNotificationMessage(null);
+    }
     try {
       const response = await fetch("/api/slack/notifications", {
         method: "POST",
@@ -164,6 +173,19 @@ export default function Josh() {
                     Alerts {notificationStatus.schedule?.urgentScan.toLowerCase()}
                   </span>
                 </div>
+                <div
+                  className={`rounded-lg border px-3 py-2 text-xs ${
+                    notificationStatus.inboundConfigured &&
+                    notificationStatus.inboundStoreConfigured
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      : "border-amber-200 bg-amber-50 text-amber-800"
+                  }`}
+                >
+                  {notificationStatus.inboundConfigured &&
+                  notificationStatus.inboundStoreConfigured
+                    ? "Direct messages to Leo are ready."
+                    : "Inbound Slack still needs its signing secret, message.im subscription, and leo-slack-inbound.sql migration."}
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => void notificationRequest("test")}
@@ -175,16 +197,30 @@ export default function Josh() {
                   <button
                     onClick={() => void notificationRequest("preview", "morning")}
                     disabled={notificationAction !== null}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    aria-busy={notificationAction === "preview:morning"}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-60"
                   >
-                    Preview morning
+                    {notificationAction === "preview:morning" ? (
+                      <>
+                        <Loader2 size={13} className="animate-spin" /> Building morning…
+                      </>
+                    ) : (
+                      "Preview morning"
+                    )}
                   </button>
                   <button
                     onClick={() => void notificationRequest("preview", "evening")}
                     disabled={notificationAction !== null}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    aria-busy={notificationAction === "preview:evening"}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-60"
                   >
-                    Preview evening
+                    {notificationAction === "preview:evening" ? (
+                      <>
+                        <Loader2 size={13} className="animate-spin" /> Building evening…
+                      </>
+                    ) : (
+                      "Preview evening"
+                    )}
                   </button>
                 </div>
                 {briefPreview && (

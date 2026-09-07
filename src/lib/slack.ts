@@ -8,10 +8,14 @@ const BOT_TOKEN =
   process.env.SLACK_BOT_TOKEN?.trim() || process.env.SLACK_TOKEN?.trim();
 const ALERT_USER_ID = process.env.SLACK_ALERT_USER_ID?.trim();
 const ALERT_CHANNEL_ID = process.env.SLACK_ALERT_CHANNEL_ID?.trim();
+export const slackAlertUserId = ALERT_USER_ID;
+export const slackSigningSecret = process.env.SLACK_SIGNING_SECRET?.trim();
 
 export const isSlackConfigured = !!SEARCH_TOKEN;
 export const isSlackNotificationsConfigured =
   !!BOT_TOKEN && !!(ALERT_USER_ID || ALERT_CHANNEL_ID);
+export const isSlackInboundConfigured =
+  !!BOT_TOKEN && !!ALERT_USER_ID && !!slackSigningSecret;
 
 interface SlackApiResponse {
   ok: boolean;
@@ -121,6 +125,13 @@ export async function postSlackNotification(
     throw new Error("Slack notifications are not configured");
   }
   const channel = await notificationChannel();
+  return postSlackMessage(channel, text);
+}
+
+export async function postSlackMessage(
+  channel: string,
+  text: string,
+): Promise<SlackNotificationResult> {
   const posted = await slackFetch<
     SlackApiResponse & { channel: string; ts: string }
   >(
@@ -135,6 +146,23 @@ export async function postSlackNotification(
     BOT_TOKEN,
   );
   return { channel: posted.channel, ts: posted.ts };
+}
+
+export async function updateSlackMessage(
+  channel: string,
+  ts: string,
+  text: string,
+): Promise<void> {
+  await slackFetch<SlackApiResponse>(
+    "chat.update",
+    {
+      channel,
+      ts,
+      text: text.slice(0, 39_000),
+      mrkdwn: "true",
+    },
+    BOT_TOKEN,
+  );
 }
 
 export async function slackNotificationAuthTest(): Promise<{
