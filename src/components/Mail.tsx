@@ -243,6 +243,8 @@ export default function Mail() {
   >([]);
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [loadingList, setLoadingList] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [classifying, setClassifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -351,22 +353,47 @@ export default function Mail() {
       .catch(() => {});
   }, []);
 
-  const loadThreads = useCallback((view: string, q?: string) => {
-    setLoadingList(true);
-    setError(null);
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    else params.set("view", view);
-    fetch(`/api/mail/threads?${params}`)
-      .then(async (r) => {
-        const d = await r.json();
-        if (!r.ok) throw new Error(d.error || "Failed to load mail");
-        return d;
-      })
-      .then((d) => setThreads(d.threads || []))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoadingList(false));
-  }, []);
+  const loadThreads = useCallback(
+    (view: string, q?: string, pageToken?: string) => {
+      const isLoadingMore = Boolean(pageToken);
+      if (isLoadingMore) setLoadingMore(true);
+      else {
+        setLoadingList(true);
+        setNextPageToken(null);
+      }
+      setError(null);
+      const params = new URLSearchParams();
+      if (q) params.set("q", q);
+      else params.set("view", view);
+      if (pageToken) params.set("pageToken", pageToken);
+      fetch(`/api/mail/threads?${params}`)
+        .then(async (r) => {
+          const d = await r.json();
+          if (!r.ok) throw new Error(d.error || "Failed to load mail");
+          return d;
+        })
+        .then((d) => {
+          const incoming = (d.threads || []) as ThreadSummary[];
+          setThreads((current) => {
+            if (!isLoadingMore) return incoming;
+            const existingIds = new Set(current.map((thread) => thread.id));
+            return [
+              ...current,
+              ...incoming.filter((thread) => !existingIds.has(thread.id)),
+            ];
+          });
+          setNextPageToken(
+            typeof d.nextPageToken === "string" ? d.nextPageToken : null,
+          );
+        })
+        .catch((e) => setError(e.message))
+        .finally(() => {
+          if (isLoadingMore) setLoadingMore(false);
+          else setLoadingList(false);
+        });
+    },
+    [],
+  );
 
   // Silent background sort — refreshes the counters when done.
   const backgroundClassify = useCallback(async () => {
@@ -944,11 +971,12 @@ export default function Mail() {
           Nothing here.
         </div>
       ) : (
-        <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 overflow-hidden">
-          {threads.map((t) => {
-            const av = avatarFor(t.from);
-            const u = t.urgency ? URGENCY[t.urgency] : null;
-            return (
+        <>
+          <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 overflow-hidden">
+            {threads.map((t) => {
+              const av = avatarFor(t.from);
+              const u = t.urgency ? URGENCY[t.urgency] : null;
+              return (
               <div
                 key={t.id}
                 className={`flex items-stretch gap-3 pr-4 py-3 cursor-pointer group transition-colors hover:bg-slate-50 ${
@@ -1032,9 +1060,35 @@ export default function Mail() {
                   </button>
                 </div>
               </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-between gap-3 px-1 text-xs text-slate-500">
+            <span>
+              Showing {threads.length} conversation
+              {threads.length === 1 ? "" : "s"}
+            </span>
+            {nextPageToken ? (
+              <button
+                type="button"
+                onClick={() =>
+                  loadThreads(
+                    activeView,
+                    search.trim() || undefined,
+                    nextPageToken,
+                  )
+                }
+                disabled={loadingMore}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {loadingMore && <Loader2 size={13} className="animate-spin" />}
+                {loadingMore ? "Loading more…" : "Load 50 more"}
+              </button>
+            ) : (
+              <span>All loaded</span>
+            )}
+          </div>
+        </>
       )}
 
       {composing && (

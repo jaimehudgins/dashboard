@@ -78,6 +78,16 @@ async function withUrgency(threads: GmailThreadSummary[]) {
   );
 }
 
+async function threadPageResponse(page: {
+  threads: GmailThreadSummary[];
+  nextPageToken: string | null;
+}) {
+  return NextResponse.json({
+    threads: await withUrgency(page.threads),
+    nextPageToken: page.nextPageToken,
+  });
+}
+
 // GET /api/mail/threads?view=all|current|potential|newsletter|willow|other&q=
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
@@ -88,17 +98,28 @@ export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
   const q = params.get("q")?.trim();
   const view = params.get("view") || "all";
+  const requestedPageToken = params.get("pageToken")?.trim();
+  const pageToken =
+    requestedPageToken && /^\S{1,2048}$/.test(requestedPageToken)
+      ? requestedPageToken
+      : undefined;
+  if (requestedPageToken && !pageToken) {
+    return NextResponse.json({ error: "Invalid page token" }, { status: 400 });
+  }
 
   try {
     // Free-text search overrides the view.
     if (q) {
-      const threads = await listThreads(token, { q }, 25);
-      return NextResponse.json({ threads: await withUrgency(threads) });
+      const page = await listThreads(token, { q, pageToken });
+      return threadPageResponse(page);
     }
 
     if (view === "all") {
-      const threads = await listThreads(token, { labelIds: ["INBOX"] }, 25);
-      return NextResponse.json({ threads: await withUrgency(threads) });
+      const page = await listThreads(token, {
+        labelIds: ["INBOX"],
+        pageToken,
+      });
+      return threadPageResponse(page);
     }
 
     const leo = await ensureLeoLabels(token);
@@ -108,20 +129,22 @@ export async function GET(req: Request) {
       const names = Object.values(LEO_LABEL_NAMES)
         .map((n) => `-label:"${n}"`)
         .join(" ");
-      const threads = await listThreads(token, { q: `in:inbox ${names}` }, 25);
-      return NextResponse.json({ threads: await withUrgency(threads) });
+      const page = await listThreads(token, {
+        q: `in:inbox ${names}`,
+        pageToken,
+      });
+      return threadPageResponse(page);
     }
 
     const labelId = leo[view as LeoBucket];
     if (!labelId) {
       return NextResponse.json({ error: "Unknown view" }, { status: 400 });
     }
-    const threads = await listThreads(
+    const page = await listThreads(
       token,
-      { labelIds: ["INBOX", labelId] },
-      25,
+      { labelIds: ["INBOX", labelId], pageToken },
     );
-    return NextResponse.json({ threads: await withUrgency(threads) });
+    return threadPageResponse(page);
   } catch (err) {
     console.error("Mail threads error:", err);
     return NextResponse.json({ error: "Failed to load mail" }, { status: 500 });

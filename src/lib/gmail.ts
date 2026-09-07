@@ -155,6 +155,11 @@ function header(headers: any[], name: string): string {
   return h?.value || "";
 }
 
+function emailAddresses(value: string): string[] {
+  const matches = value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi);
+  return matches?.map((address) => address.toLowerCase()) ?? [];
+}
+
 export interface GmailMessageSummary {
   id: string;
   threadId: string;
@@ -295,37 +300,48 @@ export interface GmailThreadSummary {
   messageCount: number;
 }
 
+export interface GmailThreadPage {
+  threads: GmailThreadSummary[];
+  nextPageToken: string | null;
+}
+
 // List threads (one row per conversation) for an inbox view. Pass either a
 // Gmail search `q` or a set of `labelIds` (AND-ed); defaults to the inbox.
 export async function listThreads(
   token: string,
-  opts: { q?: string; labelIds?: string[] },
-  max = 25,
-): Promise<GmailThreadSummary[]> {
+  opts: { q?: string; labelIds?: string[]; pageToken?: string },
+  max = 50,
+): Promise<GmailThreadPage> {
   const params = new URLSearchParams({ maxResults: String(Math.min(max, 50)) });
   if (opts.labelIds) opts.labelIds.forEach((id) => params.append("labelIds", id));
   if (opts.q) params.set("q", opts.q);
+  if (opts.pageToken) params.set("pageToken", opts.pageToken);
   if (!opts.q && !opts.labelIds) params.set("q", "in:inbox");
   const list = await gmailFetch(token, `/threads?${params}`);
   const threads: { id: string; snippet?: string }[] = list.threads || [];
-  return mapLimit(threads, 5, async (t) => {
-      const full = await gmailFetch(
-        token,
-        `/threads/${t.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`,
-      );
-      const msgs: any[] = full.messages || [];
-      const last = msgs[msgs.length - 1];
-      const h = last?.payload?.headers || [];
-      return {
-        id: t.id,
-        from: header(h, "From"),
-        subject: header(h, "Subject"),
-        date: header(h, "Date"),
-        snippet: t.snippet || last?.snippet || "",
-        unread: msgs.some((m) => (m.labelIds || []).includes("UNREAD")),
-        messageCount: msgs.length,
-      };
+  const summaries = await mapLimit(threads, 5, async (t) => {
+    const full = await gmailFetch(
+      token,
+      `/threads/${t.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`,
+    );
+    const msgs: any[] = full.messages || [];
+    const last = msgs[msgs.length - 1];
+    const h = last?.payload?.headers || [];
+    return {
+      id: t.id,
+      from: header(h, "From"),
+      subject: header(h, "Subject"),
+      date: header(h, "Date"),
+      snippet: t.snippet || last?.snippet || "",
+      unread: msgs.some((m) => (m.labelIds || []).includes("UNREAD")),
+      messageCount: msgs.length,
+    };
   });
+  return {
+    threads: summaries,
+    nextPageToken:
+      typeof list.nextPageToken === "string" ? list.nextPageToken : null,
+  };
 }
 
 /* ------------------------------ Labels ------------------------------ */
@@ -393,6 +409,7 @@ export async function modifyThreadLabels(
 export interface ClassifyThread {
   id: string;
   from: string;
+  participants: string[];
   subject: string;
   snippet: string;
   labelIds: string[];
@@ -410,15 +427,26 @@ export async function fetchInboxForClassify(
   return mapLimit(threads, 5, async (t) => {
     const full = await gmailFetch(
       token,
-      `/threads/${t.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=List-Unsubscribe`,
+      `/threads/${t.id}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Cc&metadataHeaders=Subject&metadataHeaders=List-Unsubscribe`,
     );
     const msgs: any[] = full.messages || [];
     const last = msgs[msgs.length - 1];
     const h = last?.payload?.headers || [];
     const labelIds = Array.from(new Set(msgs.flatMap((m) => m.labelIds || [])));
+    const participants = Array.from(
+      new Set(
+        msgs.flatMap((message) => {
+          const headers = message.payload?.headers || [];
+          return ["From", "To", "Cc"].flatMap((name) =>
+            emailAddresses(header(headers, name)),
+          );
+        }),
+      ),
+    );
     return {
       id: t.id,
       from: header(h, "From"),
+      participants,
       subject: header(h, "Subject"),
       snippet: last?.snippet || "",
       labelIds,
