@@ -21,6 +21,29 @@ export type WorkRunDeliverable =
 export type WorkRunConfidence = "high" | "medium" | "low";
 export type NotificationTier = "immediate" | "digest" | "none";
 
+export type WorkRoute = "leo_starts" | "leo_prepares" | "jaime_action";
+
+export type WorkResearchSource =
+  | "drive"
+  | "curriculum_repo"
+  | "gmail"
+  | "granola"
+  | "crm"
+  | "platform"
+  | "slack";
+
+export interface WorkBrief {
+  route: WorkRoute;
+  confidence: WorkRunConfidence;
+  rationale: string;
+  intendedDeliverable: string;
+  audience: string;
+  outcome: string;
+  constraints: string[];
+  requiredSources: WorkResearchSource[];
+  searchTerms: string[];
+}
+
 export interface WorkSource {
   type:
     | "task"
@@ -33,6 +56,7 @@ export interface WorkSource {
     | "slack"
     | "crm"
     | "platform"
+    | "brief"
     | "feedback";
   title: string;
   url?: string;

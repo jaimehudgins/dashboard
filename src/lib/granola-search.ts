@@ -89,6 +89,66 @@ export interface TranscriptHit {
   excerpts: string[];
 }
 
+export async function meetingContext(
+  meetingId: string,
+  query: string,
+  maxChars = 10_000,
+): Promise<string> {
+  const [{ data: meeting, error: meetingError }, { data: transcript, error: transcriptError }] =
+    await Promise.all([
+      supabase
+        .from("granola_meetings")
+        .select("title, meeting_date, attendees, summary")
+        .eq("id", meetingId)
+        .maybeSingle(),
+      supabase
+        .from("granola_transcripts")
+        .select("transcript")
+        .eq("meeting_id", meetingId)
+        .maybeSingle(),
+    ]);
+  if (meetingError) throw meetingError;
+  if (transcriptError) throw transcriptError;
+
+  const fullTranscript =
+    typeof transcript?.transcript === "string" ? transcript.transcript : "";
+  const terms = (query.toLowerCase().match(/[a-z0-9']+/g) || []).filter(
+    (word) => word.length >= 3 && !STOP.has(word),
+  );
+  const lines = fullTranscript.split("\n");
+  const windows: string[] = [];
+  const seen = new Set<number>();
+  for (let index = 0; index < lines.length && windows.length < 8; index++) {
+    const lower = lines[index].toLowerCase();
+    if (!terms.some((term) => lower.includes(term))) continue;
+    const start = Math.max(0, index - 3);
+    if (seen.has(start)) continue;
+    seen.add(start);
+    windows.push(lines.slice(start, index + 5).join("\n"));
+  }
+
+  const attendees = Array.isArray(meeting?.attendees)
+    ? (meeting.attendees as { name?: string; email?: string }[])
+        .map((attendee) => attendee.name || attendee.email)
+        .filter(Boolean)
+        .join(", ")
+    : "";
+  return [
+    meeting?.title ? `Meeting: ${meeting.title}` : "",
+    meeting?.meeting_date ? `Date: ${meeting.meeting_date}` : "",
+    attendees ? `Attendees: ${attendees}` : "",
+    meeting?.summary ? `Summary:\n${meeting.summary}` : "",
+    windows.length
+      ? `Relevant transcript sections:\n${windows.join("\n\n…\n\n")}`
+      : fullTranscript
+        ? `Transcript opening:\n${lines.slice(0, 80).join("\n")}`
+        : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n")
+    .slice(0, maxChars);
+}
+
 // Search cached transcripts for the query terms, optionally scoped to meetings
 // involving `person`. Returns the best-matching meetings with short excerpts.
 export async function searchTranscripts(
@@ -171,5 +231,11 @@ export async function searchTranscripts(
   }
 
   results.sort((a, b) => b.score - a.score);
-  return results.slice(0, max).map(({ score: _score, ...r }) => r);
+  return results.slice(0, max).map((result) => ({
+    id: result.id,
+    title: result.title,
+    date: result.date,
+    attendees: result.attendees,
+    excerpts: result.excerpts,
+  }));
 }
