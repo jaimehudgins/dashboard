@@ -433,18 +433,34 @@ export async function GET() {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const { data, error } = await supabase
-    .from("work_runs")
-    .select("*")
-    .order("updated_at", { ascending: false })
-    .limit(50);
+  const [activeResult, reviewedResult] = await Promise.all([
+    supabase
+      .from("work_runs")
+      .select("*")
+      .neq("status", "reviewed")
+      .order("updated_at", { ascending: false })
+      .limit(50),
+    supabase
+      .from("work_runs")
+      .select("*")
+      .eq("status", "reviewed")
+      .order("updated_at", { ascending: false })
+      .limit(25),
+  ]);
+  const error = activeResult.error || reviewedResult.error;
   if (error) {
     if (isMissingTable(error)) {
       return NextResponse.json({ configured: false, runs: [] });
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  return NextResponse.json({ configured: true, runs: (data ?? []).map(toWorkRun) });
+  return NextResponse.json({
+    configured: true,
+    runs: [
+      ...(activeResult.data ?? []),
+      ...(reviewedResult.data ?? []),
+    ].map(toWorkRun),
+  });
 }
 
 export async function POST(request: Request) {
@@ -756,8 +772,8 @@ export async function PATCH(request: Request) {
     updated_at: new Date().toISOString(),
   };
   if (typeof body.draft === "string") updates.draft = body.draft.slice(0, 50_000);
-  if (body.status === "reviewed") {
-    updates.status = "reviewed";
+  if (body.status === "reviewed" || body.status === "draft_ready") {
+    updates.status = body.status;
     updates.notification_tier = "none";
   }
 

@@ -107,7 +107,7 @@ function EmptyWork({ label }: { label: string }) {
 }
 
 export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
-  const { state } = useApp();
+  const { state, dispatch } = useApp();
   const [view, setView] = useState<WorkView>("shared");
   const [workRuns, setWorkRuns] = useState<WorkRun[]>([]);
   const [workbenchLoading, setWorkbenchLoading] = useState(true);
@@ -126,6 +126,13 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
       state.tasks
         .filter((task) => task.status !== "completed" && !task.parentTaskId)
         .sort(taskSort),
+    [state.tasks],
+  );
+  const completedTaskIds = useMemo(
+    () =>
+      state.tasks
+        .filter((task) => task.status === "completed")
+        .map((task) => task.id),
     [state.tasks],
   );
   const taskRefreshKey = useMemo(
@@ -258,6 +265,18 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
     [prepareTask],
   );
 
+  const completeTask = useCallback(
+    (taskId: string) => {
+      const task = state.tasks.find((item) => item.id === taskId);
+      if (!task || task.status === "completed") return;
+      dispatch({
+        type: "UPDATE_TASK",
+        payload: { ...task, status: "completed" },
+      });
+    },
+    [dispatch, state.tasks],
+  );
+
   const viewOptions: Array<{ id: WorkView; label: string }> = [
     { id: "shared", label: "Shared queue" },
     { id: "weekly", label: "Weekly workstream scan" },
@@ -339,6 +358,8 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
             configured={workbenchConfigured}
             onRefresh={refreshWorkRuns}
             onRevise={prepareTask}
+            completedTaskIds={completedTaskIds}
+            onCompleteTask={completeTask}
           />
 
           <UnifiedTaskTable
