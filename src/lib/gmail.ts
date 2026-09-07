@@ -408,11 +408,14 @@ export async function modifyThreadLabels(
 // Fetch inbox threads with the metadata needed to classify them into buckets.
 export interface ClassifyThread {
   id: string;
+  lastMessageId: string;
   from: string;
   participants: string[];
   subject: string;
+  date: string;
   snippet: string;
   labelIds: string[];
+  unread: boolean;
   listUnsub: boolean;
 }
 export async function fetchInboxForClassify(
@@ -427,7 +430,7 @@ export async function fetchInboxForClassify(
   return mapLimit(threads, 5, async (t) => {
     const full = await gmailFetch(
       token,
-      `/threads/${t.id}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Cc&metadataHeaders=Subject&metadataHeaders=List-Unsubscribe`,
+      `/threads/${t.id}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Cc&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=List-Unsubscribe`,
     );
     const msgs: any[] = full.messages || [];
     const last = msgs[msgs.length - 1];
@@ -445,11 +448,14 @@ export async function fetchInboxForClassify(
     );
     return {
       id: t.id,
+      lastMessageId: last?.id || t.id,
       from: header(h, "From"),
       participants,
       subject: header(h, "Subject"),
+      date: header(h, "Date"),
       snippet: last?.snippet || "",
       labelIds,
+      unread: (last?.labelIds || []).includes("UNREAD"),
       listUnsub: !!header(h, "List-Unsubscribe"),
     };
   });
