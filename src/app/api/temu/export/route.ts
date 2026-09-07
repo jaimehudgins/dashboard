@@ -185,32 +185,58 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    const newContact = body.new_contact;
-    if (newContact !== undefined) {
-      if (body.resource !== "touchpoints" || !isObject(newContact)) {
+    const rawNewContacts = Array.isArray(body.new_contacts)
+      ? body.new_contacts
+      : isObject(body.new_contact)
+        ? [body.new_contact]
+        : [];
+    if (
+      (body.new_contacts !== undefined && !Array.isArray(body.new_contacts)) ||
+      (body.new_contact !== undefined && !isObject(body.new_contact))
+    ) {
+      return NextResponse.json(
+        { error: "New contacts must be an array" },
+        { status: 400 },
+      );
+    }
+    if (rawNewContacts.length > 0) {
+      if (body.resource !== "touchpoints") {
         return NextResponse.json(
-          { error: "A new contact requires a touchpoint export" },
+          { error: "New contacts require a touchpoint export" },
           { status: 400 },
         );
       }
-      if (
-        typeof newContact.source_external_id !== "string" ||
-        !newContact.source_external_id.trim() ||
-        newContact.source_external_id.length > 255 ||
-        typeof newContact.name !== "string" ||
-        !newContact.name.trim() ||
-        typeof newContact.email !== "string" ||
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newContact.email.trim()) ||
-        (newContact.role !== undefined &&
-          newContact.role !== null &&
-          typeof newContact.role !== "string")
-      ) {
+      if (rawNewContacts.length > 20) {
         return NextResponse.json(
-          { error: "The new contact needs a name, valid email, and stable source ID" },
+          { error: "No more than 20 contacts may be added at once" },
+          { status: 400 },
+        );
+      }
+      const invalidContact = rawNewContacts.find(
+        (contact) =>
+          !isObject(contact) ||
+          typeof contact.source_external_id !== "string" ||
+          !contact.source_external_id.trim() ||
+          contact.source_external_id.length > 255 ||
+          typeof contact.name !== "string" ||
+          !contact.name.trim() ||
+          typeof contact.email !== "string" ||
+          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email.trim()) ||
+          (contact.role !== undefined &&
+            contact.role !== null &&
+            typeof contact.role !== "string"),
+      );
+      if (invalidContact) {
+        return NextResponse.json(
+          {
+            error:
+              "Every new contact needs a name, valid email, and stable source ID",
+          },
           { status: 400 },
         );
       }
     }
+    const newContacts = rawNewContacts.filter(isObject);
     if (body.follow_up_tasks !== undefined) {
       if (
         body.resource !== "touchpoints" ||
@@ -254,34 +280,26 @@ export async function POST(request: Request) {
     }
 
     const data = sanitizeData(body.resource, body.data);
-    let contactResult: {
-      requested: boolean;
-      created: boolean;
-      duplicate: boolean;
-      existing: boolean;
-    } | null = null;
+    const contactResult = {
+      requested: newContacts.length,
+      created: 0,
+      duplicates: 0,
+      existing: 0,
+    };
+    let shouldLinkContact = !data.contact_id && !data.contact_source_external_id;
 
-    if (isObject(newContact)) {
-      if (data.contact_id || data.contact_source_external_id) {
-        return NextResponse.json(
-          { error: "Choose either the matched contact or the suggested new contact" },
-          { status: 400 },
-        );
-      }
-
+    for (const newContact of newContacts) {
       const normalizedEmail = String(newContact.email).trim().toLowerCase();
       const existingContact = await findExistingContact(
         data.partner_id,
         normalizedEmail,
       );
       if (existingContact) {
-        data.contact_id = existingContact.id;
-        contactResult = {
-          requested: true,
-          created: false,
-          duplicate: false,
-          existing: true,
-        };
+        contactResult.existing += 1;
+        if (shouldLinkContact) {
+          data.contact_id = existingContact.id;
+          shouldLinkContact = false;
+        }
       } else {
         const contactData = sanitizeData("contacts", {
           ...newContact,
@@ -293,13 +311,15 @@ export async function POST(request: Request) {
           actor: session.user.email,
           data: contactData,
         });
-        data.contact_source_external_id = contactData.source_external_id;
-        contactResult = {
-          requested: true,
-          created: !createdContact.duplicate,
-          duplicate: createdContact.duplicate,
-          existing: false,
-        };
+        if (createdContact.duplicate) {
+          contactResult.duplicates += 1;
+        } else {
+          contactResult.created += 1;
+        }
+        if (shouldLinkContact) {
+          data.contact_source_external_id = contactData.source_external_id;
+          shouldLinkContact = false;
+        }
       }
     }
 
@@ -338,12 +358,12 @@ export async function POST(request: Request) {
           data,
         });
       } catch (error) {
-        if (contactResult && error instanceof TemuApiError) {
+        if (contactResult.requested > 0 && error instanceof TemuApiError) {
           return NextResponse.json(
             {
               error: `Contact handled, but the touchpoint failed: ${error.message}`,
               code: error.code,
-              partial: { contact: contactResult },
+              partial: { contacts: contactResult },
             },
             { status: errorStatus(error) },
           );
@@ -354,7 +374,7 @@ export async function POST(request: Request) {
 
     if (body.follow_up_tasks === undefined) {
       return NextResponse.json(
-        { ...result, contact: contactResult },
+        { ...result, contacts: contactResult },
         { status: result.duplicate ? 200 : 201 },
       );
     }
@@ -437,7 +457,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ...result,
-        contact: contactResult,
+        contacts: contactResult,
         follow_up_tasks: {
           requested: taskResults.length,
           created: taskResults.filter((task) => !task.duplicate).length,
