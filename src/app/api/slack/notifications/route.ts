@@ -32,8 +32,8 @@ export async function GET() {
     storeConfigured,
     notifications,
     schedule: {
-      morning: "8:00 AM Central",
-      evening: "5:00 PM Central",
+      morning: "8:05 AM Central",
+      evening: "5:05 PM Central",
       urgentScan: "Every 15 minutes",
     },
   });
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
         key: `test:${Date.now()}`,
         kind: "test",
         title: "Leo Slack connection test",
-        content: `👋 *Leo is connected*\nUrgent partner alerts and the 8:00 AM / 5:00 PM Central briefings can now reach you here.`,
+        content: `👋 *Leo is connected*\nUrgent partner alerts and the 8:05 AM / 5:05 PM Central briefings can now reach you here.`,
         metadata: { requestedBy: session.user.email },
       });
       return NextResponse.json({ ok: true, result });

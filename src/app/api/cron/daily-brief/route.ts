@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { sendDailyBrief, DailyBriefPeriod } from "@/lib/daily-brief";
 import { getGoogleAccessToken, isGoogleServerConfigured } from "@/lib/google-auth";
-import { classifyInbox } from "@/lib/mail-classify";
 import { isSlackNotificationsConfigured } from "@/lib/slack";
 import { zonedParts } from "@/lib/time-zone";
 
@@ -37,7 +36,6 @@ export async function GET(request: Request) {
 
   try {
     const token = await getGoogleAccessToken();
-    await classifyInbox(token);
     const result = await sendDailyBrief(period, token);
     return NextResponse.json({
       ok: true,
