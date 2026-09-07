@@ -904,6 +904,36 @@ export default function UnifiedTaskTable({
                 )
               : []
           }
+          task={onPrepareTask ? selectedRow.task : undefined}
+          project={
+            selectedRow.task?.projectId
+              ? state.projects.find(
+                  (project) => project.id === selectedRow.task?.projectId,
+                )
+              : undefined
+          }
+          taskArea={
+            selectedRow.task?.areaId
+              ? state.areas.find(
+                  (area) => area.id === selectedRow.task?.areaId,
+                )
+              : undefined
+          }
+          workRun={
+            selectedRow.task
+              ? workRunByTaskId.get(selectedRow.task.id)
+              : undefined
+          }
+          preparingWork={
+            selectedRow.task
+              ? preparingTaskIds.has(selectedRow.task.id)
+              : false
+          }
+          onPrepareWork={
+            selectedRow.task && onPrepareTask
+              ? () => onPrepareTask(selectedRow.task!.id)
+              : undefined
+          }
           onClose={() => setSelectedRow(null)}
           onEdit={() => {
             const row = selectedRow;

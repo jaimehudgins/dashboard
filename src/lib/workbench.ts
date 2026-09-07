@@ -65,6 +65,32 @@ export interface WorkSource {
   checkedAt?: string;
   status?: "used" | "no_match" | "unavailable" | "error";
   feedback?: "useful" | "irrelevant";
+  brief?: WorkBrief;
+}
+
+export function workBriefSource(brief: WorkBrief): WorkSource {
+  return {
+    type: "brief",
+    title: "Leo work brief",
+    excerpt: [
+      `Route: ${brief.route.replace("_", " ")}`,
+      `Confidence: ${brief.confidence}`,
+      `Reason: ${brief.rationale}`,
+      `Deliverable: ${brief.intendedDeliverable || "Not yet clear"}`,
+      `Audience: ${brief.audience || "Not specified"}`,
+      `Outcome: ${brief.outcome || "Not specified"}`,
+      brief.constraints.length
+        ? `Constraints: ${brief.constraints.join("; ")}`
+        : "",
+      brief.requiredSources.length
+        ? `Required sources: ${brief.requiredSources.join(", ")}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    status: "used",
+    brief,
+  };
 }
 
 export function workSourceKey(source: Pick<WorkSource, "type" | "title">) {

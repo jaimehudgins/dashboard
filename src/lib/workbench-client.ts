@@ -1,5 +1,5 @@
 import { Area, Project, Task } from "@/types";
-import { WorkSource } from "@/lib/workbench";
+import { WorkBrief, WorkSource } from "@/lib/workbench";
 
 export interface WorkbenchRevisionOptions {
   feedback?: string;
@@ -58,4 +58,31 @@ export async function prepareTaskWithLeo(input: WorkbenchTaskContext) {
     );
   }
   return data;
+}
+
+export async function previewTaskWorkBrief(input: WorkbenchTaskContext) {
+  const response = await fetch("/api/workbench/runs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      task: serializeTask(input.task),
+      project: input.project,
+      area: input.area,
+      manual_override: input.manualOverride ?? false,
+      preview_only: true,
+    }),
+  });
+  const raw = await response.text();
+  let data: { brief?: WorkBrief; error?: string } = {};
+  if (raw) {
+    try {
+      data = JSON.parse(raw) as { brief?: WorkBrief; error?: string };
+    } catch {
+      throw new Error(`Leo returned an invalid response (${response.status})`);
+    }
+  }
+  if (!response.ok || !data.brief) {
+    throw new Error(data.error || "Leo could not prepare a work brief");
+  }
+  return data.brief;
 }
