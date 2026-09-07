@@ -485,6 +485,7 @@ export async function getThread(
   messages: {
     from: string;
     to: string;
+    cc: string;
     subject: string;
     date: string;
     snippet: string;
@@ -504,6 +505,7 @@ export async function getThread(
       return {
         from: header(h, "From"),
         to: header(h, "To"),
+        cc: header(h, "Cc"),
         subject: header(h, "Subject"),
         date: header(h, "Date"),
         snippet: msg.snippet || "",

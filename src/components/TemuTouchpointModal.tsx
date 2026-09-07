@@ -23,7 +23,7 @@ export interface TemuTouchpointPreview {
   } | null;
   partner: { id: string; name: string };
   contact: { id: string; name: string } | null;
-  suggested_contact: {
+  suggested_contacts: Array<{
     source_external_id: string;
     source_created_at: string;
     source_metadata: Record<string, unknown>;
@@ -32,7 +32,7 @@ export interface TemuTouchpointPreview {
     role: string;
     is_primary_contact: boolean;
     selected: boolean;
-  } | null;
+  }>;
   data: {
     partner_id: string;
     source_external_id: string;
@@ -58,15 +58,15 @@ export interface TemuTouchpointPreview {
 }
 
 type SuggestedTask = TemuTouchpointPreview["suggested_tasks"][number];
-type SuggestedContact = NonNullable<TemuTouchpointPreview["suggested_contact"]>;
+type SuggestedContact = TemuTouchpointPreview["suggested_contacts"][number];
 
 type ExportResult = {
   duplicate: boolean;
   updated: boolean;
-  contactRequested: boolean;
-  contactCreated: boolean;
-  contactDuplicate: boolean;
-  contactExisting: boolean;
+  contactsRequested: number;
+  contactsCreated: number;
+  contactDuplicates: number;
+  contactsExisting: number;
   tasksRequested: number;
   tasksCreated: number;
   taskDuplicates: number;
@@ -86,8 +86,8 @@ export default function TemuTouchpointModal({
   const [notes, setNotes] = useState(preview.data.notes);
   const [nextSteps, setNextSteps] = useState(preview.data.next_steps ?? "");
   const [tasks, setTasks] = useState<SuggestedTask[]>(preview.suggested_tasks);
-  const [suggestedContact, setSuggestedContact] =
-    useState<SuggestedContact | null>(preview.suggested_contact);
+  const [suggestedContacts, setSuggestedContacts] =
+    useState<SuggestedContact[]>(preview.suggested_contacts);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<ExportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -98,7 +98,7 @@ export default function TemuTouchpointModal({
     setNotes(preview.data.notes);
     setNextSteps(preview.data.next_steps ?? "");
     setTasks(preview.suggested_tasks);
-    setSuggestedContact(preview.suggested_contact);
+    setSuggestedContacts(preview.suggested_contacts);
     setSaving(false);
     setResult(null);
     setError(null);
@@ -108,6 +108,17 @@ export default function TemuTouchpointModal({
     setTasks((current) =>
       current.map((task, taskIndex) =>
         taskIndex === index ? { ...task, ...patch } : task,
+      ),
+    );
+  };
+
+  const updateSuggestedContact = (
+    index: number,
+    patch: Partial<SuggestedContact>,
+  ) => {
+    setSuggestedContacts((current) =>
+      current.map((contact, contactIndex) =>
+        contactIndex === index ? { ...contact, ...patch } : contact,
       ),
     );
   };
@@ -127,10 +138,11 @@ export default function TemuTouchpointModal({
     ]);
   };
 
-  const suggestedContactInvalid = Boolean(
-    suggestedContact?.selected &&
-      (!suggestedContact.name.trim() ||
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(suggestedContact.email.trim())),
+  const suggestedContactInvalid = suggestedContacts.some(
+    (contact) =>
+      contact.selected &&
+      (!contact.name.trim() ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email.trim())),
   );
 
   const save = async () => {
@@ -155,17 +167,17 @@ export default function TemuTouchpointModal({
             notes: notes.trim(),
             next_steps: nextSteps.trim() || null,
           },
-          new_contact: suggestedContact?.selected
-            ? {
-                source_external_id: suggestedContact.source_external_id,
-                source_created_at: suggestedContact.source_created_at,
-                source_metadata: suggestedContact.source_metadata,
-                name: suggestedContact.name.trim(),
-                email: suggestedContact.email.trim().toLowerCase(),
-                role: suggestedContact.role.trim() || null,
-                is_primary_contact: suggestedContact.is_primary_contact,
-              }
-            : undefined,
+          new_contacts: suggestedContacts
+            .filter((contact) => contact.selected)
+            .map((contact) => ({
+              source_external_id: contact.source_external_id,
+              source_created_at: contact.source_created_at,
+              source_metadata: contact.source_metadata,
+              name: contact.name.trim(),
+              email: contact.email.trim().toLowerCase(),
+              role: contact.role.trim() || null,
+              is_primary_contact: contact.is_primary_contact,
+            })),
           follow_up_tasks: selectedTasks.map((task) => ({
             source_external_id: task.source_external_id,
             task: task.task.trim(),
@@ -180,12 +192,12 @@ export default function TemuTouchpointModal({
         duplicate: boolean;
         updated: boolean;
         error: string;
-        contact: {
-          requested: boolean;
-          created: boolean;
-          duplicate: boolean;
-          existing: boolean;
-        } | null;
+        contacts: {
+          requested: number;
+          created: number;
+          duplicates: number;
+          existing: number;
+        };
         follow_up_tasks: {
           requested: number;
           created: number;
@@ -198,10 +210,10 @@ export default function TemuTouchpointModal({
       setResult({
         duplicate: Boolean(body.duplicate),
         updated: Boolean(body.updated),
-        contactRequested: Boolean(body.contact?.requested),
-        contactCreated: Boolean(body.contact?.created),
-        contactDuplicate: Boolean(body.contact?.duplicate),
-        contactExisting: Boolean(body.contact?.existing),
+        contactsRequested: body.contacts?.requested ?? 0,
+        contactsCreated: body.contacts?.created ?? 0,
+        contactDuplicates: body.contacts?.duplicates ?? 0,
+        contactsExisting: body.contacts?.existing ?? 0,
         tasksRequested: body.follow_up_tasks?.requested ?? 0,
         tasksCreated: body.follow_up_tasks?.created ?? 0,
         taskDuplicates: body.follow_up_tasks?.duplicates ?? 0,
@@ -263,80 +275,93 @@ export default function TemuTouchpointModal({
             </div>
           )}
 
-          {suggestedContact && (
-            <section
-              className={`rounded-xl border p-3 ${
-                suggestedContact.selected
-                  ? "border-amber-200 bg-amber-50/60"
-                  : "border-slate-200 bg-slate-50/60"
-              }`}
-            >
-              <label className="flex cursor-pointer items-start gap-2">
-                <input
-                  type="checkbox"
-                  checked={suggestedContact.selected}
-                  onChange={(event) =>
-                    setSuggestedContact((current) =>
-                      current
-                        ? { ...current, selected: event.target.checked }
-                        : current,
-                    )
-                  }
-                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-amber-600"
-                />
-                <span>
-                  <span className="block text-sm font-semibold text-slate-800">
-                    Add this sender as a TEMU contact
-                  </span>
-                  <span className="mt-0.5 block text-xs text-slate-500">
-                    Leo matched the email domain to this partner but found no
-                    contact with this exact email. Review and select to add.
-                  </span>
-                </span>
-              </label>
+          {suggestedContacts.length > 0 && (
+            <section className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold text-slate-800">
+                  New contacts found in this thread
+                </h3>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Leo excluded Willow staff and contacts already on this TEMU
+                  partner. Select only the people you want to add.
+                </p>
+              </div>
+              <div className="space-y-2">
+                {suggestedContacts.map((contact, index) => (
+                  <div
+                    key={contact.source_external_id}
+                    className={`rounded-lg border p-3 ${
+                      contact.selected
+                        ? "border-amber-200 bg-amber-50/60"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <label className="flex cursor-pointer items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={contact.selected}
+                        onChange={(event) =>
+                          updateSuggestedContact(index, {
+                            selected: event.target.checked,
+                          })
+                        }
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-amber-600"
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-slate-800">
+                          Add {contact.name || contact.email} as a TEMU contact
+                        </span>
+                        <span className="mt-0.5 block truncate text-xs text-slate-500">
+                          {contact.email}
+                        </span>
+                      </span>
+                    </label>
 
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <label className="text-xs font-medium text-slate-600">
-                  Name
-                  <input
-                    value={suggestedContact.name}
-                    onChange={(event) =>
-                      setSuggestedContact((current) =>
-                        current ? { ...current, name: event.target.value } : current,
-                      )
-                    }
-                    disabled={!suggestedContact.selected}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-800 disabled:bg-slate-100 disabled:text-slate-500"
-                  />
-                </label>
-                <label className="text-xs font-medium text-slate-600">
-                  Role (optional)
-                  <input
-                    value={suggestedContact.role}
-                    onChange={(event) =>
-                      setSuggestedContact((current) =>
-                        current ? { ...current, role: event.target.value } : current,
-                      )
-                    }
-                    disabled={!suggestedContact.selected}
-                    placeholder="e.g. School counselor"
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-800 disabled:bg-slate-100 disabled:text-slate-500"
-                  />
-                </label>
-                <label className="text-xs font-medium text-slate-600 sm:col-span-2">
-                  Email
-                  <input
-                    type="email"
-                    value={suggestedContact.email}
-                    onChange={(event) =>
-                      setSuggestedContact((current) =>
-                        current ? { ...current, email: event.target.value } : current,
-                      )
-                    }
-                    disabled={!suggestedContact.selected}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-800 disabled:bg-slate-100 disabled:text-slate-500"
-                  />
-                </label>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <label className="text-xs font-medium text-slate-600">
+                        Name
+                        <input
+                          value={contact.name}
+                          onChange={(event) =>
+                            updateSuggestedContact(index, {
+                              name: event.target.value,
+                            })
+                          }
+                          disabled={!contact.selected}
+                          className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-800 disabled:bg-slate-100 disabled:text-slate-500"
+                        />
+                      </label>
+                      <label className="text-xs font-medium text-slate-600">
+                        Role (optional)
+                        <input
+                          value={contact.role}
+                          onChange={(event) =>
+                            updateSuggestedContact(index, {
+                              role: event.target.value,
+                            })
+                          }
+                          disabled={!contact.selected}
+                          placeholder="e.g. School counselor"
+                          className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-800 disabled:bg-slate-100 disabled:text-slate-500"
+                        />
+                      </label>
+                      <label className="text-xs font-medium text-slate-600 sm:col-span-2">
+                        Email
+                        <input
+                          type="email"
+                          value={contact.email}
+                          onChange={(event) =>
+                            updateSuggestedContact(index, {
+                              email: event.target.value,
+                            })
+                          }
+                          disabled={!contact.selected}
+                          className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-800 disabled:bg-slate-100 disabled:text-slate-500"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ))}
               </div>
             </section>
           )}
@@ -554,16 +579,14 @@ export default function TemuTouchpointModal({
                   : result.duplicate
                   ? "This touchpoint was already in TEMU."
                   : "Touchpoint added to TEMU."}
-                {result.contactRequested && (
+                {result.contactsRequested > 0 && (
                   <>
                     {" "}
-                    {result.contactCreated
-                      ? "Contact added."
-                      : result.contactExisting
-                        ? "Existing contact linked."
-                        : result.contactDuplicate
-                          ? "Contact was already added."
-                          : "Contact reviewed."}
+                    {result.contactsCreated > 0
+                      ? `${result.contactsCreated} contact${result.contactsCreated === 1 ? "" : "s"} added.`
+                      : result.contactsExisting + result.contactDuplicates > 0
+                        ? "Selected contacts were already in TEMU."
+                        : "Contacts reviewed."}
                   </>
                 )}
                 {result.tasksRequested > 0 && (

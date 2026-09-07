@@ -100,6 +100,61 @@ function contactName(value: string, email: string): string {
     .join(" ");
 }
 
+type EmailParticipant = {
+  name: string;
+  email: string;
+  lastSeenAt: string;
+};
+
+function emailParticipants(value: string): Array<{ name: string; email: string }> {
+  const participants: Array<{ name: string; email: string }> = [];
+  const pattern =
+    /(?:(?:"([^"]+)"|([^,<"]+))\s*)?<([^<>@\s]+@[^<>@\s]+)>|([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/gi;
+  for (const match of value.matchAll(pattern)) {
+    const email = (match[3] || match[4] || "").trim().toLowerCase();
+    if (!email) continue;
+    const rawName = (match[1] || match[2] || "").trim();
+    participants.push({
+      name: rawName
+        ? rawName.replace(/^['"]|['"]$/g, "")
+        : contactName(email, email),
+      email,
+    });
+  }
+  return participants;
+}
+
+function threadParticipants(
+  messages: Awaited<ReturnType<typeof getThread>>["messages"],
+  userEmail: string,
+): EmailParticipant[] {
+  const userAddress = userEmail.trim().toLowerCase();
+  const participants = new Map<string, EmailParticipant>();
+
+  for (const message of messages) {
+    for (const headerValue of [message.from, message.to, message.cc]) {
+      for (const participant of emailParticipants(headerValue)) {
+        const [localPart, domain] = participant.email.split("@");
+        if (
+          participant.email === userAddress ||
+          domain === "willowed.org" ||
+          /^(?:no-?reply|notifications?|mailer-daemon|calendar-notification)/i.test(
+            localPart || "",
+          )
+        ) {
+          continue;
+        }
+        participants.set(participant.email, {
+          ...participant,
+          lastSeenAt: isoDate(message.date),
+        });
+      }
+    }
+  }
+
+  return [...participants.values()];
+}
+
 function dateOnly(value: string | null | undefined): string {
   const parsed = value ? new Date(value) : new Date();
   return Number.isNaN(parsed.valueOf())
@@ -171,11 +226,12 @@ function emailConversation(
         `Message ${index + 1} of ${messages.length}`,
         `From: ${message.from}`,
         `To: ${message.to}`,
+        message.cc ? `Cc: ${message.cc}` : null,
         `Date: ${message.date}`,
         `Subject: ${message.subject}`,
         "",
         compactExcerpt(writtenText, messageLimit),
-      ].join("\n");
+      ].filter((line): line is string => line !== null).join("\n");
     })
     .join("\n\n--- next chronological message ---\n\n");
 }
@@ -275,6 +331,16 @@ async function selectedPartnerMatch(partnerId: string, sender: string) {
     partner: partner as CrmPartner,
     contact: (contacts?.[0] as CrmContact | undefined) ?? null,
   };
+}
+
+async function contactsForPartner(partnerId: string): Promise<CrmContact[]> {
+  if (!isCrmConfigured) return [];
+  const { data, error } = await crmSupabase
+    .from("contacts")
+    .select("id, partner_id, name, role, email, phone, is_primary_contact")
+    .eq("partner_id", partnerId);
+  if (error) throw error;
+  return (data ?? []) as CrmContact[];
 }
 
 async function existingTouchpoint(
@@ -417,6 +483,41 @@ async function emailPreview(
     stripQuotedReply(latest.body || latest.snippet) || latest.snippet;
   const sourceExternalId = `gmail-thread:${threadId}`;
   const senderEmail = emailAddress(externalMessage.from);
+  const participants = threadParticipants(thread.messages, userEmail);
+  const existingContacts = await contactsForPartner(match.partner.id);
+  const existingByEmail = new Map(
+    existingContacts
+      .filter((contact) => contact.email)
+      .map((contact) => [contact.email!.trim().toLowerCase(), contact]),
+  );
+  const matchedContact =
+    match.contact ??
+    participants
+      .map((participant) => existingByEmail.get(participant.email))
+      .find((contact): contact is CrmContact => Boolean(contact)) ??
+    null;
+  const suggestedContacts = [...participants]
+    .sort((left, right) =>
+      left.email === senderEmail ? -1 : right.email === senderEmail ? 1 : 0,
+    )
+    .filter((participant) => !existingByEmail.has(participant.email))
+    .slice(0, 20)
+    .map((participant) => ({
+      source_external_id: contactSourceId(
+        match.partner.id,
+        participant.email,
+      ),
+      source_created_at: participant.lastSeenAt,
+      source_metadata: {
+        gmail_thread_id: threadId,
+        detected_email: participant.email,
+      },
+      name: participant.name,
+      email: participant.email,
+      role: "",
+      is_primary_contact: false,
+      selected: false,
+    }));
   const existing = await existingTouchpoint(
     match.partner.id,
     sourceExternalId,
@@ -450,24 +551,10 @@ async function emailPreview(
           }
         : null,
       partner: { id: match.partner.id, name: match.partner.name },
-      contact: match.contact
-        ? { id: match.contact.id, name: match.contact.name }
+      contact: matchedContact
+        ? { id: matchedContact.id, name: matchedContact.name }
         : null,
-      suggested_contact: match.contact
-        ? null
-        : {
-            source_external_id: contactSourceId(match.partner.id, senderEmail),
-            source_created_at: isoDate(externalMessage.date),
-            source_metadata: {
-              gmail_thread_id: threadId,
-              detected_from_email: senderEmail,
-            },
-            name: contactName(externalMessage.from, senderEmail),
-            email: senderEmail,
-            role: "",
-            is_primary_contact: false,
-            selected: false,
-          },
+      suggested_contacts: suggestedContacts,
       data: {
         partner_id: match.partner.id,
         source_external_id: sourceExternalId,
@@ -476,7 +563,7 @@ async function emailPreview(
           gmail_thread_id: threadId,
           gmail_url: `https://mail.google.com/mail/u/0/#all/${threadId}`,
         },
-        contact_id: match.contact?.id,
+        contact_id: matchedContact?.id,
         date: dateOnly(latest.date),
         author: userName,
         title: existing?.title || latest.subject || "Email conversation",
@@ -588,7 +675,7 @@ async function meetingPreview(meetingId: string, userName: string) {
         : null,
       partner: { id: partner.id, name: partner.name },
       contact: null,
-      suggested_contact: null,
+      suggested_contacts: [],
       data: {
         partner_id: partner.id,
         source_external_id: sourceExternalId,
