@@ -1,7 +1,16 @@
 "use client";
 
-import React, { useCallback, useState } from "react";
-import { Hash, Search, Loader2, ExternalLink, Slack } from "lucide-react";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  Bell,
+  ExternalLink,
+  Hash,
+  Loader2,
+  Moon,
+  Search,
+  Slack,
+  Sunrise,
+} from "lucide-react";
 import CharacterQuote from "./CharacterQuote";
 import { SlackHit } from "@/lib/slack";
 
@@ -12,6 +21,74 @@ export default function Josh() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notificationStatus, setNotificationStatus] = useState<{
+    notificationsConfigured: boolean;
+    storeConfigured: boolean;
+    schedule?: { morning: string; evening: string; urgentScan: string };
+  } | null>(null);
+  const [notificationAction, setNotificationAction] = useState<string | null>(
+    null,
+  );
+  const [notificationMessage, setNotificationMessage] = useState<string | null>(
+    null,
+  );
+  const [briefPreview, setBriefPreview] = useState<{
+    period: "morning" | "evening";
+    content: string;
+  } | null>(null);
+
+  const loadNotificationStatus = useCallback(() => {
+    fetch("/api/slack/notifications", { cache: "no-store" })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not load Slack status");
+        return data;
+      })
+      .then((data) => setNotificationStatus(data))
+      .catch((requestError) => setNotificationMessage(requestError.message));
+  }, []);
+
+  useEffect(() => {
+    loadNotificationStatus();
+  }, [loadNotificationStatus]);
+
+  const notificationRequest = async (
+    action: "test" | "preview" | "send",
+    period?: "morning" | "evening",
+  ) => {
+    setNotificationAction(`${action}:${period || "connection"}`);
+    setNotificationMessage(null);
+    try {
+      const response = await fetch("/api/slack/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, period }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Slack action failed");
+      if (action === "preview" && period) {
+        setBriefPreview({ period, content: data.content });
+        setNotificationMessage(
+          data.errors?.length
+            ? `Preview created with ${data.errors.length} unavailable source(s).`
+            : "Preview created from current Leo data.",
+        );
+      } else {
+        setNotificationMessage(
+          data.result === "duplicate"
+            ? "That update was already sent today."
+            : "Slack message sent.",
+        );
+        loadNotificationStatus();
+      }
+    } catch (requestError) {
+      setNotificationMessage(
+        requestError instanceof Error ? requestError.message : "Slack action failed",
+      );
+    } finally {
+      setNotificationAction(null);
+    }
+  };
 
   const run = useCallback((q: string) => {
     if (!q.trim()) return;
@@ -43,6 +120,106 @@ export default function Josh() {
         <CharacterQuote character="josh" />
       </div>
 
+      <section className="mb-6 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-5">
+        <div className="flex items-start gap-3">
+          <div className="rounded-xl bg-white p-2 text-indigo-600 shadow-sm">
+            <Bell size={18} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="font-semibold text-slate-900">Leo Slack updates</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Urgent partner-email alerts plus a morning plan and end-of-day
+              recap.
+            </p>
+
+            {!notificationStatus ? (
+              <p className="mt-4 flex items-center gap-2 text-sm text-slate-500">
+                <Loader2 size={14} className="animate-spin" /> Checking the connection…
+              </p>
+            ) : !notificationStatus.notificationsConfigured ? (
+              <div className="mt-4 rounded-xl border border-dashed border-indigo-200 bg-white p-4 text-sm text-slate-600">
+                Add <code>SLACK_BOT_TOKEN</code> and either{" "}
+                <code>SLACK_ALERT_USER_ID</code> or{" "}
+                <code>SLACK_ALERT_CHANNEL_ID</code> in Vercel, then redeploy.
+                The bot needs <code>chat:write</code> and <code>im:write</code>.
+              </div>
+            ) : !notificationStatus.storeConfigured ? (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                Run <code>leo-notifications.sql</code> in dashboard Supabase to
+                enable deduplication and daily snapshots.
+              </div>
+            ) : (
+              <div className="mt-4 space-y-4">
+                <div className="grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
+                  <span className="rounded-lg bg-white px-3 py-2">
+                    <Sunrise size={13} className="mr-1 inline text-amber-500" />
+                    {notificationStatus.schedule?.morning}
+                  </span>
+                  <span className="rounded-lg bg-white px-3 py-2">
+                    <Moon size={13} className="mr-1 inline text-indigo-500" />
+                    {notificationStatus.schedule?.evening}
+                  </span>
+                  <span className="rounded-lg bg-white px-3 py-2">
+                    <Bell size={13} className="mr-1 inline text-rose-500" />
+                    Alerts {notificationStatus.schedule?.urgentScan.toLowerCase()}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => void notificationRequest("test")}
+                    disabled={notificationAction !== null}
+                    className="rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+                  >
+                    {notificationAction === "test:connection" ? "Sending…" : "Send test"}
+                  </button>
+                  <button
+                    onClick={() => void notificationRequest("preview", "morning")}
+                    disabled={notificationAction !== null}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Preview morning
+                  </button>
+                  <button
+                    onClick={() => void notificationRequest("preview", "evening")}
+                    disabled={notificationAction !== null}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Preview evening
+                  </button>
+                </div>
+                {briefPreview && (
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <pre className="whitespace-pre-wrap font-sans text-sm leading-6 text-slate-700">
+                      {briefPreview.content}
+                    </pre>
+                    <button
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Send this ${briefPreview.period} update to Slack now?`,
+                          )
+                        ) {
+                          void notificationRequest("send", briefPreview.period);
+                        }
+                      }}
+                      disabled={notificationAction !== null}
+                      className="mt-4 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      Generate and send now
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            {notificationMessage && (
+              <p className="mt-3 text-xs font-medium text-slate-600">
+                {notificationMessage}
+              </p>
+            )}
+          </div>
+        </div>
+      </section>
+
       {configured === false ? (
         <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-8 text-slate-600">
           <h2 className="font-semibold text-slate-800 mb-2">Connect Slack</h2>
@@ -55,15 +232,15 @@ export default function Josh() {
               Create a Slack app for your workspace at api.slack.com/apps.
             </li>
             <li>
-              Add a <strong>user token scope</strong> of{" "}
-              <code className="bg-white px-1 rounded">search:read</code> (and{" "}
-              <code className="bg-white px-1 rounded">chat:write</code> later for
-              drafting). Install to the workspace.
+              Add the <strong>user token scope</strong>{" "}
+              <code className="bg-white px-1 rounded">search:read</code> and
+              install it to the workspace.
             </li>
             <li>
               Copy the user token (<code className="bg-white px-1 rounded">xoxp-…</code>
-              ) into <code className="bg-white px-1 rounded">SLACK_TOKEN</code> in
-              .env.local + Vercel, then redeploy.
+              ) into <code className="bg-white px-1 rounded">SLACK_SEARCH_TOKEN</code>{" "}
+              in .env.local + Vercel, then redeploy. The legacy{" "}
+              <code className="bg-white px-1 rounded">SLACK_TOKEN</code> still works.
             </li>
           </ol>
         </div>

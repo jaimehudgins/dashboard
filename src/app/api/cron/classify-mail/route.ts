@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { classifyInbox } from "@/lib/mail-classify";
 import { getGoogleAccessToken, isGoogleServerConfigured } from "@/lib/google-auth";
+import {
+  sendPendingWorkbenchAlerts,
+  sendUrgentPartnerEmailAlerts,
+} from "@/lib/slack-notifications";
+
+export const maxDuration = 300;
 
 // Scheduled inbox sort. Runs headlessly with the stored Google refresh token,
 // so it works with no browser session. Guarded by CRON_SECRET when set
@@ -16,7 +22,27 @@ export async function GET(req: Request) {
   try {
     const token = await getGoogleAccessToken();
     const result = await classifyInbox(token);
-    return NextResponse.json({ ok: true, ...result });
+    let notificationError: string | null = null;
+    let urgentAlerts = { sent: 0, duplicates: 0, disabled: true };
+    let workbenchAlerts = { sent: 0, duplicates: 0, disabled: true };
+    try {
+      [urgentAlerts, workbenchAlerts] = await Promise.all([
+        sendUrgentPartnerEmailAlerts(result.urgentPartnerThreads),
+        sendPendingWorkbenchAlerts(),
+      ]);
+    } catch (error) {
+      notificationError =
+        error instanceof Error ? error.message : "Slack notification failed";
+      console.error("Cron Slack notification error:", error);
+    }
+    return NextResponse.json({
+      ok: true,
+      ...result,
+      urgentPartnerThreads: result.urgentPartnerThreads.length,
+      urgentAlerts,
+      workbenchAlerts,
+      notificationError,
+    });
   } catch (err) {
     console.error("Cron classify error:", err);
     return NextResponse.json({ error: "Classification failed" }, { status: 500 });
