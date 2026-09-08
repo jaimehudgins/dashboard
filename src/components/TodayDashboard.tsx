@@ -16,6 +16,7 @@ import { useApp } from "@/store/store";
 import { Task } from "@/types";
 import TodayAgenda from "./TodayAgenda";
 import UnifiedTaskTable from "./UnifiedTaskTable";
+import { nextPreparationLabel } from "@/lib/partner-preparation-policy";
 
 type Urgency = "now" | "question" | "later" | null;
 
@@ -80,17 +81,6 @@ function taskDomain(
   return { label: "Willow Leadership", className: "bg-sky-50 text-sky-700" };
 }
 
-function nextBatchLabel(now: Date): string {
-  const minutes = now.getHours() * 60 + now.getMinutes();
-  const batches = [
-    { at: 8 * 60, label: "8:00 AM" },
-    { at: 11 * 60, label: "11:00 AM" },
-    { at: 14 * 60, label: "2:00 PM" },
-    { at: 16 * 60 + 45, label: "4:45 PM" },
-  ];
-  return batches.find((batch) => batch.at > minutes)?.label ?? "Tomorrow at 8:00 AM";
-}
-
 export default function TodayDashboard({ onOpenZenMode }: TodayDashboardProps) {
   const { state } = useApp();
   const [mail, setMail] = useState<MailThread[]>([]);
@@ -103,7 +93,7 @@ export default function TodayDashboard({ onOpenZenMode }: TodayDashboardProps) {
   useEffect(() => {
     const controller = new AbortController();
     Promise.allSettled([
-      fetch("/api/mail/threads?view=all", { signal: controller.signal }).then(
+      fetch("/api/attention/mail", { signal: controller.signal }).then(
         async (response) => {
           if (!response.ok) throw new Error("mail unavailable");
           return (await response.json()) as { threads?: MailThread[] };
@@ -233,7 +223,7 @@ export default function TodayDashboard({ onOpenZenMode }: TodayDashboardProps) {
             <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
               Next response window
             </p>
-            <p className="text-sm font-semibold text-slate-800">{nextBatchLabel(now)}</p>
+            <p className="text-sm font-semibold text-slate-800">{nextPreparationLabel(now)}</p>
             {!sourcesLoading && waitingReviewCount > 0 && (
               <p className="mt-0.5 text-xs font-medium text-indigo-600">
                 {waitingReviewCount} item{waitingReviewCount === 1 ? "" : "s"} waiting

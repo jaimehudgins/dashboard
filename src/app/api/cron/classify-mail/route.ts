@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { classifyInbox } from "@/lib/mail-classify";
+import { syncPartnerMail } from "@/lib/partner-mail-sync";
+import { pendingPartnerAlerts, responseStoreConfigured } from "@/lib/partner-response-store";
 import { getGoogleAccessToken, isGoogleServerConfigured } from "@/lib/google-auth";
 import {
   sendPendingWorkbenchAlerts,
@@ -21,13 +23,13 @@ export async function GET(req: Request) {
   }
   try {
     const token = await getGoogleAccessToken();
-    const result = await classifyInbox(token);
+    const result = responseStoreConfigured ? await syncPartnerMail(token) : await classifyInbox(token);
     let notificationError: string | null = null;
     let urgentAlerts = { sent: 0, duplicates: 0, disabled: true };
     let workbenchAlerts = { sent: 0, duplicates: 0, disabled: true };
     try {
       [urgentAlerts, workbenchAlerts] = await Promise.all([
-        sendUrgentPartnerEmailAlerts(result.urgentPartnerThreads),
+        sendUrgentPartnerEmailAlerts(responseStoreConfigured ? await pendingPartnerAlerts() : result.urgentPartnerThreads),
         sendPendingWorkbenchAlerts(),
       ]);
     } catch (error) {

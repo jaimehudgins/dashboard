@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Trip, loadTrips, attachEmailToTrip } from "@/lib/trips";
 import { readJsonResponse } from "@/lib/http";
+import { isStaleDraft, type PartnerResponse } from "@/types/partner-response";
 import { useApp } from "@/store/store";
 import { Task, QuickTask } from "@/types";
 import CharacterQuote from "./CharacterQuote";
@@ -86,6 +87,7 @@ function avatarFor(name: string): { initials: string; cls: string } {
   return { initials: initials || "?", cls: AVATAR_COLORS[hash % AVATAR_COLORS.length] };
 }
 interface ThreadMessage {
+  id: string;
   from: string;
   to: string;
   subject: string;
@@ -257,6 +259,8 @@ export default function Mail() {
   const [sending, setSending] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [draftSources, setDraftSources] = useState<DraftSource[]>([]);
+  const [queuedResponse, setQueuedResponse] = useState<PartnerResponse | null>(null);
+  const threadRequest = useRef(0);
   const replyRef = useRef<HTMLTextAreaElement>(null);
 
   // Grow the reply box to fit its content so a drafted email shows in full.
@@ -427,9 +431,11 @@ export default function Mail() {
     }
   };
 
-  const openThread = (id: string) => {
+  const openThread = useCallback((id: string) => {
+    const requestId = ++threadRequest.current;
     setSelectedId(id);
-    setSelectedUrgency(threads.find((t) => t.id === id)?.urgency ?? null);
+    setSelectedUrgency(null);
+    setQueuedResponse(null);
     setThread(null);
     setReplyBody("");
     setDraftSources([]);
@@ -442,10 +448,29 @@ export default function Mail() {
         if (!r.ok) throw new Error(d.error || "Failed to load thread");
         return d;
       })
-      .then((d) => setThread(d.thread))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoadingThread(false));
-  };
+      .then(async (d) => {
+        if (requestId !== threadRequest.current) return;
+        setThread(d.thread);
+        const response = await fetch(`/api/partner-responses?threadId=${encodeURIComponent(id)}`);
+        const queued = await readJsonResponse<{ item: PartnerResponse }>(response);
+        if (requestId !== threadRequest.current || !queued.item) return;
+        const item = queued.item;
+        setQueuedResponse(item);
+        setSelectedUrgency(item.urgency);
+        const latestId = d.thread.messages.at(-1)?.id;
+        if (item.draft && !isStaleDraft(item) && item.message_id === latestId && item.status !== "handled" && item.status !== "waiting") {
+          setReplyBody(item.draft);
+          setDraftSources(item.draft_sources as DraftSource[]);
+        }
+      })
+      .catch((e) => { if (requestId === threadRequest.current) setError(e.message); })
+      .finally(() => { if (requestId === threadRequest.current) setLoadingThread(false); });
+  }, []);
+
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("thread");
+    if (id && /^[a-zA-Z0-9_-]{1,200}$/.test(id)) openThread(id);
+  }, [openThread]);
 
   const doAction = async (payload: Record<string, unknown>) => {
     const res = await fetch("/api/mail/actions", {
@@ -476,6 +501,13 @@ export default function Mail() {
     setError(null);
     setDraftSources([]);
     try {
+      if (queuedResponse) {
+        const response = await fetch("/api/partner-responses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "draft", threadId: selectedId, version: queuedResponse.version, notes: replyBody.trim() || queuedResponse.notes }) });
+        const result = await readJsonResponse<{ item: PartnerResponse; error: string }>(response);
+        if (!response.ok || !result.item) throw new Error(result.error || "Could not save a reply draft.");
+        setQueuedResponse(result.item); setReplyBody(result.item.draft); setDraftSources(result.item.draft_sources as DraftSource[]);
+        return;
+      }
       const res = await fetch("/api/mail/draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -520,7 +552,7 @@ export default function Mail() {
     if (!replyBody.trim() || !selectedId) return;
     setSending(true);
     try {
-      await doAction({ action: "reply", threadId: selectedId, body: replyBody.trim() });
+      await doAction({ action: "reply", threadId: selectedId, body: replyBody.trim(), expectedMessageId: queuedResponse?.message_id });
       setReplyBody("");
       openThread(selectedId); // refresh thread
     } catch (e) {
@@ -528,6 +560,18 @@ export default function Mail() {
     } finally {
       setSending(false);
     }
+  };
+
+  const saveReply = async () => {
+    if (!queuedResponse) return;
+    setDrafting(true); setError(null);
+    try {
+      const response = await fetch("/api/partner-responses", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ threadId: queuedResponse.thread_id, version: queuedResponse.version, draft: replyBody }) });
+      const result = await readJsonResponse<{ item: PartnerResponse; error: string }>(response);
+      if (!response.ok || !result.item) throw new Error(result.error || "Could not save draft.");
+      setQueuedResponse(result.item);
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not save draft."); }
+    finally { setDrafting(false); }
   };
 
   const reviewTemuTouchpoint = async (partnerId?: string) => {
@@ -760,6 +804,12 @@ export default function Mail() {
 
             {/* Reply box */}
             <div className="bg-white border border-slate-200 rounded-xl p-4 mt-4">
+              {queuedResponse && <p className="mb-3 text-xs text-emerald-800">
+                {isStaleDraft(queuedResponse) || queuedResponse.message_id !== thread.messages.at(-1)?.id
+                  ? "This conversation has changed. Check mail in Attention before updating or sending the saved draft."
+                  : queuedResponse.draft && queuedResponse.draft === replyBody ? "Draft saved in Partner responses." : "Use Save draft to keep your edits in Partner responses."}
+                {" "}<a href="/attention#partner-responses" className="underline">Open queue</a>
+              </p>}
               <div className="text-xs text-slate-500 mb-2">
                 Reply to {senderName(thread.messages[thread.messages.length - 1]?.from || "")}
               </div>
@@ -807,7 +857,7 @@ export default function Mail() {
                   </div>
                 </div>
               )}
-              <div className="flex items-center justify-between mt-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
                 <button
                   onClick={draftWithLeo}
                   disabled={drafting || sending}
@@ -825,6 +875,7 @@ export default function Mail() {
                       ? "Draft from notes"
                       : "Draft with Leo"}
                 </button>
+                {queuedResponse && <button onClick={() => void saveReply()} disabled={drafting || sending || !replyBody.trim()} className="rounded-lg border border-emerald-200 px-3 py-2 text-sm font-medium text-emerald-800 disabled:opacity-50">Save draft</button>}
                 <button
                   onClick={sendReply}
                   disabled={sending || drafting || !replyBody.trim()}

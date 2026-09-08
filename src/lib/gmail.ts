@@ -3,7 +3,13 @@
 
 const BASE = "https://gmail.googleapis.com/gmail/v1/users/me";
 
-async function gmailFetch(
+export class GmailApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
+export async function gmailFetch(
   token: string,
   path: string,
   init?: RequestInit,
@@ -39,7 +45,7 @@ async function gmailFetch(
         "Gmail is temporarily rate-limiting Leo. Wait a minute and try again.",
       );
     }
-    throw new Error(`Gmail API ${res.status}: ${body.slice(0, 200)}`);
+    throw new GmailApiError(res.status, `Gmail API ${res.status}: ${body.slice(0, 200)}`);
   }
   if (res.status === 204) return null;
   return res.json();
@@ -138,7 +144,9 @@ export async function getReplyContext(
     token,
     `/threads/${threadId}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Message-ID&metadataHeaders=References`,
   );
-  const msgs = thread.messages || [];
+  const msgs = (thread.messages || []).filter(
+    (message: { labelIds?: string[] }) => !message.labelIds?.some((label) => ["DRAFT", "TRASH", "SPAM"].includes(label)),
+  );
   const last = msgs[msgs.length - 1];
   const h = last?.payload?.headers || [];
   const subject = header(h, "Subject");
@@ -498,6 +506,7 @@ export async function getThread(
 ): Promise<{
   id: string;
   messages: {
+    id: string;
     from: string;
     to: string;
     cc: string;
@@ -513,11 +522,14 @@ export async function getThread(
   const thread = await gmailFetch(token, `/threads/${threadId}?format=full`);
   return {
     id: thread.id,
-    messages: (thread.messages || []).map((msg: any) => {
+    messages: (thread.messages || []).filter(
+      (message: { labelIds?: string[] }) => !message.labelIds?.some((label) => ["DRAFT", "TRASH", "SPAM"].includes(label)),
+    ).map((msg: any) => {
       const h = msg.payload?.headers || [];
       const body = decodeBody(msg.payload).slice(0, 20000);
       const cleanBody = stripQuotedReply(body);
       return {
+        id: msg.id,
         from: header(h, "From"),
         to: header(h, "To"),
         cc: header(h, "Cc"),

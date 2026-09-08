@@ -7,6 +7,8 @@ import { fetchUrgencyRecords } from "./mail-urgency";
 import { latestMorningNotification } from "./notification-store";
 import { sendSlackDigest } from "./slack-notifications";
 import { supabase } from "./supabase";
+import { getMailSyncState, responseDb, responseStoreConfigured, storeError } from "./partner-response-store";
+import type { PartnerResponse } from "@/types/partner-response";
 import {
   addDaysToDateKey,
   dateKeyInZone,
@@ -237,6 +239,22 @@ async function collectContext(
   const partnerMail = await safe(
     "partner email",
     (async () => {
+      if (responseStoreConfigured) {
+        const sync = await getMailSyncState();
+        if (!sync.last_checked_at || now.getTime() - new Date(sync.last_checked_at).getTime() > 30 * 60_000 || sync.last_error || sync.page_token || sync.pending_thread_ids?.length) {
+          errors.push("partner email: The latest mail check is incomplete or older than 30 minutes. Saved responses are shown; new arrivals may be missing.");
+        }
+        const { data, error } = await responseDb().from("partner_responses").select("*")
+          .or(`status.in.(needs_response,needs_input,draft_ready),and(status.eq.waiting,follow_up_on.lte.${dateKey}),received_at.gte.${partnerMailSince.toISOString()}`)
+          .order("received_at", { ascending: false }).limit(200);
+        if (error) storeError(error);
+        return ((data ?? []) as PartnerResponse[]).filter((item) =>
+          ["needs_response", "needs_input", "draft_ready"].includes(item.status) ||
+          (item.status === "waiting" && item.follow_up_on && item.follow_up_on <= dateKey) ||
+          (item.received_at && new Date(item.received_at) >= partnerMailSince),
+        ).sort((left, right) => Number(right.urgency === "now") - Number(left.urgency === "now"))
+          .slice(0, 20).map((item) => `${item.urgency} · ${item.partner_name} · ${item.subject} · ${item.status.replaceAll("_", " ")} · ${item.preparation_message_id === item.message_id && item.preparation_reason ? item.preparation_reason : item.reason}${item.follow_up_on ? ` · follow up ${item.follow_up_on}` : ""}`);
+      }
       const labels = await ensureLeoLabels(googleToken);
       const { threads } = await listThreads(
         googleToken,

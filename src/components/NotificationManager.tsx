@@ -62,7 +62,7 @@ export default function NotificationManager() {
     if (typeof Notification === "undefined" || Notification.permission !== "granted")
       return;
     try {
-      const r = await fetch("/api/mail/threads?view=all");
+      const r = await fetch("/api/attention/mail");
       if (!r.ok) return;
       const d = await r.json();
       for (const t of d.threads || []) {

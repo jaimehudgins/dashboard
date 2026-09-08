@@ -30,7 +30,7 @@ export default function AttentionNavBadge() {
   return (
     <span
       className="ml-auto min-w-5 rounded-full bg-amber-100 px-1.5 py-0.5 text-center text-[10px] font-bold text-amber-700"
-      aria-label={`${count} meeting commitment${count === 1 ? "" : "s"} to review`}
+      aria-label={`${count} item${count === 1 ? "" : "s"} to review`}
     >
       {count > 99 ? "99+" : count}
     </span>
