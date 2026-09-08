@@ -10,6 +10,42 @@ import {
   sourcesForPrompt,
 } from "@/lib/reply-sources";
 
+interface DraftThread {
+  id: string;
+  messages: {
+    from: string;
+    subject: string;
+    date: string;
+    body: string;
+    snippet: string;
+  }[];
+}
+
+function providedThread(value: unknown, expectedId: string): DraftThread | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as { id?: unknown; messages?: unknown };
+  if (candidate.id !== expectedId || !Array.isArray(candidate.messages)) {
+    return null;
+  }
+  const messages = candidate.messages
+    .slice(-50)
+    .map((message) => {
+      if (!message || typeof message !== "object") return null;
+      const item = message as Record<string, unknown>;
+      return {
+        from: typeof item.from === "string" ? item.from.slice(0, 1000) : "",
+        subject:
+          typeof item.subject === "string" ? item.subject.slice(0, 2000) : "",
+        date: typeof item.date === "string" ? item.date.slice(0, 200) : "",
+        body: typeof item.body === "string" ? item.body.slice(0, 20000) : "",
+        snippet:
+          typeof item.snippet === "string" ? item.snippet.slice(0, 2000) : "",
+      };
+    })
+    .filter((message): message is NonNullable<typeof message> => Boolean(message));
+  return messages.length > 0 ? { id: expectedId, messages } : null;
+}
+
 // POST /api/mail/draft
 //   reply:   { threadId, notes? }    — drafts a reply to the thread
 //   compose: { to?, subject?, notes } — drafts a brand-new email
@@ -35,6 +71,7 @@ export async function POST(req: Request) {
     notes?: string;
     to?: string;
     subject?: string;
+    thread?: unknown;
   };
   try {
     body = await req.json();
@@ -51,11 +88,14 @@ export async function POST(req: Request) {
   }
 
   try {
+    const openThread = isReply
+      ? providedThread(body.thread, body.threadId!)
+      : null;
     const [thread, samples] = await Promise.all([
       isReply
-        ? getThread(token, body.threadId!)
+        ? openThread || getThread(token, body.threadId!)
         : Promise.resolve(null),
-      getSentSamples(token, 5).catch(() => [] as string[]),
+      getSentSamples(token, 3).catch(() => [] as string[]),
     ]);
     const sources = thread
       ? await gatherReplySources(token, thread).catch((error) => {
