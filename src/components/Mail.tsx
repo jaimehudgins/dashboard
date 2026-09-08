@@ -395,24 +395,15 @@ export default function Mail() {
     [],
   );
 
-  // Silent background sort — refreshes the counters when done.
-  const backgroundClassify = useCallback(async () => {
-    try {
-      const res = await fetch("/api/mail/classify", { method: "POST" });
-      if (res.ok) loadViews();
-    } catch {
-      /* ignore */
-    }
-  }, [loadViews]);
-
   useEffect(() => {
     loadViews();
     loadThreads("all");
-    // Sort on open, then quietly every few minutes while the inbox is open.
-    backgroundClassify();
-    const interval = setInterval(backgroundClassify, 5 * 60 * 1000);
+    // Classification already runs server-side every 15 minutes. Refresh only
+    // the inexpensive label counters while this page remains open; "Sort now"
+    // remains available when an immediate reclassification is needed.
+    const interval = setInterval(loadViews, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [loadViews, loadThreads, backgroundClassify]);
+  }, [loadViews, loadThreads]);
 
   const selectView = (view: string) => {
     setActiveView(view);
@@ -491,12 +482,33 @@ export default function Mail() {
         body: JSON.stringify({
           threadId: selectedId,
           notes: replyBody.trim() || undefined,
+          // The thread is already open in Leo. Reuse its clean text so a
+          // duplicate Gmail lookup cannot block drafting when Google throttles.
+          thread: thread
+            ? {
+                id: thread.id,
+                messages: thread.messages.map((message) => ({
+                  from: message.from,
+                  subject: message.subject,
+                  date: message.date,
+                  snippet: message.snippet,
+                  body: message.cleanBody || message.body || message.snippet,
+                })),
+              }
+            : undefined,
         }),
       });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "Draft failed");
-      setReplyBody(d.draft);
-      setDraftSources(d.sources || []);
+      const body = await readJsonResponse<{
+        error: string;
+        draft: string;
+        sources: DraftSource[];
+      }>(res);
+      if (!res.ok) {
+        throw new Error(body.error || `Draft failed (${res.status})`);
+      }
+      if (!body.draft) throw new Error("Leo returned no draft. Try again.");
+      setReplyBody(body.draft);
+      setDraftSources(body.sources || []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Draft failed");
     } finally {
@@ -1143,9 +1155,17 @@ function ComposeModal({
           notes: body.trim() || undefined,
         }),
       });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "Draft failed");
-      setBody(d.draft);
+      const responseBody = await readJsonResponse<{
+        error: string;
+        draft: string;
+      }>(res);
+      if (!res.ok) {
+        throw new Error(responseBody.error || `Draft failed (${res.status})`);
+      }
+      if (!responseBody.draft) {
+        throw new Error("Leo returned no draft. Try again.");
+      }
+      setBody(responseBody.draft);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Draft failed");
     } finally {

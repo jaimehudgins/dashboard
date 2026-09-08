@@ -17,13 +17,28 @@ async function gmailFetch(
       ...(init?.headers || {}),
     },
   });
-  // Retry transient rate-limit / server errors with backoff.
-  if ((res.status === 429 || res.status === 500 || res.status === 503) && attempt < 4) {
-    await new Promise((r) => setTimeout(r, 400 * (attempt + 1) * (attempt + 1)));
-    return gmailFetch(token, path, init, attempt + 1);
-  }
   if (!res.ok) {
     const body = await res.text();
+    // Gmail reports its per-user quota as 403 rather than 429. Treat that as
+    // transient too, otherwise one busy inbox refresh breaks the next action.
+    const quotaLimited =
+      res.status === 403 &&
+      /quota exceeded|rateLimitExceeded|userRateLimitExceeded/i.test(body);
+    const retryable =
+      quotaLimited || res.status === 429 || res.status === 500 || res.status === 503;
+    if (retryable && attempt < 4) {
+      const retryAfter = Number(res.headers.get("retry-after"));
+      const delay = Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter * 1000
+        : 750 * (attempt + 1) * (attempt + 1);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return gmailFetch(token, path, init, attempt + 1);
+    }
+    if (quotaLimited) {
+      throw new Error(
+        "Gmail is temporarily rate-limiting Leo. Wait a minute and try again.",
+      );
+    }
     throw new Error(`Gmail API ${res.status}: ${body.slice(0, 200)}`);
   }
   if (res.status === 204) return null;
