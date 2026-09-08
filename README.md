@@ -23,3 +23,10 @@ Local config lives in `.env.local` (gitignored). Required keys:
 - `NEXT_PUBLIC_CRM_SUPABASE_URL`, `NEXT_PUBLIC_CRM_SUPABASE_ANON_KEY` — read-only TEMU CRM bridge
 - `TEMU_API_BASE_URL`, `TEMU_API_KEY` — server-only, approval-gated TEMU exports
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `LEO_ALLOWED_EMAIL` — Google sign-in (Phase 0)
+
+## Partner response queue
+
+Setup and testing for the saved Attention queue and incremental Gmail sync are in
+[PARTNER-RESPONSE-QUEUE.md](PARTNER-RESPONSE-QUEUE.md). This optional feature needs
+`partner-response-queue.sql` in Leo's Supabase and its server-only
+`SUPABASE_SERVICE_ROLE_KEY`; never expose that key in browser configuration.

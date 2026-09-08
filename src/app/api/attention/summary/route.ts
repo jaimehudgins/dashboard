@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { responseDb, responseStoreConfigured } from "@/lib/partner-response-store";
 
 // Lightweight count for the global navigation. Source details continue to
 // load only on Today and Attention.
@@ -24,5 +25,11 @@ export async function GET() {
     );
   }
 
-  return NextResponse.json({ pendingReview: count ?? 0 });
+  let responses = 0;
+  if (responseStoreConfigured) {
+    const result = await responseDb().from("partner_responses").select("thread_id", { count: "exact", head: true }).in("status", ["needs_response", "needs_input", "draft_ready"]);
+    if (result.error) return NextResponse.json({ error: "Partner queue unavailable" }, { status: 503 });
+    responses = result.count ?? 0;
+  }
+  return NextResponse.json({ pendingReview: (count ?? 0) + responses });
 }

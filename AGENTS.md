@@ -27,6 +27,10 @@ Feature integrations additionally use `ANTHROPIC_API_KEY`, `GOOGLE_REFRESH_TOKEN
 
 ## Architecture and boundaries
 
+The optional saved partner queue requires `partner-response-queue.sql` and Leo's server-only `SUPABASE_SERVICE_ROLE_KEY`. Never use the CRM service key or expose this key to the browser. Queue tables are private; read/write them only through authenticated server routes. Gmail history sync must preserve cursor replay, leases, optimistic versions, and saved drafts. See `PARTNER-RESPONSE-QUEUE.md`; `node scripts/check-partner-queue.mjs` runs focused offline regressions without external writes.
+
+Scheduled partner replies additionally require `partner-response-preparation.sql`, `LEO_AUTO_DRAFTS_ENABLED=true`, and `CRON_SECRET`. Preserve Central-time windows, bounded batches, source requirements, per-message deduplication, and explicit human sending approval. `node scripts/check-partner-preparation.mjs` tests the worker offline; never invoke a production cron as a read-only test.
+
 - `src/app/`: App Router pages, layouts, and route handlers. Server/API behavior belongs in `src/app/api/`; add `"use client"` only to components requiring browser APIs, hooks, or context.
 - `src/components/`: UI and feature components. Keep external-service and persistence logic in `src/lib/` rather than adding new direct clients in components.
 - `src/lib/`: Supabase data access and Google, Anthropic, Granola, GitHub, Slack, Gmail, calendar, TEMU, and MCP integrations. Preserve the separation between Leo's primary `supabase` client, the read-only `crmSupabase` bridge, and server-only TEMU writes.

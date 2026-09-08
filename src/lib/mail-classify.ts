@@ -5,6 +5,7 @@ import {
   ensureLeoLabels,
   fetchInboxForClassify,
   modifyThreadLabels,
+  ClassifyThread,
 } from "@/lib/gmail";
 import { emailDomain, isNotificationMail, LeoBucket } from "@/lib/mail-views";
 import {
@@ -66,14 +67,16 @@ export interface UrgentPartnerThread {
   confidence: "high" | "medium";
 }
 
-export async function classifyInbox(token: string): Promise<{
+export async function classifyInbox(token: string, changedThreads?: ClassifyThread[]): Promise<{
   classified: number;
   applied: Record<string, number>;
   urgentPartnerThreads: UrgentPartnerThread[];
+  buckets: Record<string, LeoBucket | "other">;
+  decisions: Record<string, UrgencyDecision>;
 }> {
   const leo = await ensureLeoLabels(token);
   const leoIds = new Set(Object.values(leo));
-  const threads = await fetchInboxForClassify(token, 100);
+  const threads = changedThreads ?? await fetchInboxForClassify(token, 100);
 
   const needsClassification = threads.filter((thread) => {
     const assignedLeoLabels = thread.labelIds.filter((id) => leoIds.has(id));
@@ -278,8 +281,9 @@ export async function classifyInbox(token: string): Promise<{
   await saveUrgencyDecisions(decisions, fingerprints);
 
   const urgencyByThread = new Map<string, UrgencyDecision>();
+  const currentFingerprints = new Map(threads.map((thread) => [thread.id, thread.lastMessageId]));
   for (const [id, record] of Object.entries(existing)) {
-    urgencyByThread.set(id, record);
+    if (record.messageFingerprint === currentFingerprints.get(id)) urgencyByThread.set(id, record);
   }
   for (const [id, decision] of decisions) urgencyByThread.set(id, decision);
 
@@ -306,5 +310,6 @@ export async function classifyInbox(token: string): Promise<{
       };
     });
 
-  return { classified: decided.length, applied, urgentPartnerThreads };
+  return { classified: decided.length, applied, urgentPartnerThreads,
+    buckets: Object.fromEntries(bucketByThread), decisions: Object.fromEntries(urgencyByThread) };
 }

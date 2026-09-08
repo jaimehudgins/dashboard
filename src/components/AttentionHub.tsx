@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
+import PartnerResponseQueue from "./PartnerResponseQueue";
 import {
   AlertTriangle,
   ArrowRight,
@@ -98,6 +99,7 @@ export default function AttentionHub() {
   const [sourceErrors, setSourceErrors] = useState<string[]>([]);
   const [lastCheckedAt, setLastCheckedAt] = useState<Date | null>(null);
   const [receipt, setReceipt] = useState<string | null>(null);
+  const [queueEnabled, setQueueEnabled] = useState(false);
 
   const seedDrafts = useCallback((nextMeetings: Meeting[]) => {
     setDrafts((current) => {
@@ -125,7 +127,12 @@ export default function AttentionHub() {
     async (showLoader = true) => {
       if (showLoader) setLoading(true);
       const [mailResult, meetingResult] = await Promise.allSettled([
-        fetch("/api/mail/threads?view=all").then(async (response) => {
+        fetch("/api/partner-responses").then(async (queueResponse) => {
+          const queue = await queueResponse.json();
+          if (!queueResponse.ok) throw new Error(queue.error || "Partner responses unavailable");
+          setQueueEnabled(Boolean(queue.configured));
+          if (queue.configured) return { threads: [] as MailThread[] };
+          const response = await fetch("/api/mail/threads?view=all");
           const data = await response.json();
           if (!response.ok) throw new Error(data.error || "Email is unavailable");
           return data as { threads?: MailThread[] };
@@ -357,23 +364,25 @@ export default function AttentionHub() {
         </div>
       </header>
 
+      <PartnerResponseQueue />
+
       <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-2xl font-bold text-slate-950">
             {loading ? "—" : reviewCount}
           </p>
-          <p className="text-sm text-slate-500">items waiting for your judgment</p>
+          <p className="text-sm text-slate-500">{queueEnabled ? "meeting commitments waiting for your judgment" : "items waiting for your judgment"}</p>
         </div>
         <div className="flex flex-wrap gap-2 text-xs font-semibold">
-          <span className="rounded-full bg-rose-50 px-3 py-1.5 text-rose-700">
+          {!queueEnabled && <span className="rounded-full bg-rose-50 px-3 py-1.5 text-rose-700">
             {urgentMail.length} critical
-          </span>
+          </span>}
           <span className="rounded-full bg-amber-50 px-3 py-1.5 text-amber-700">
             {pendingCommitments} meeting commitments
           </span>
-          <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-700">
+          {!queueEnabled && <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-700">
             {quickMail.length} quick responses
-          </span>
+          </span>}
         </div>
       </section>
 
@@ -679,7 +688,7 @@ export default function AttentionHub() {
       )}
 
       {!loading &&
-        reviewCount === 0 &&
+        !queueEnabled && reviewCount === 0 &&
         watchMail.length === 0 &&
         sourceErrors.length === 0 && (
           <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-5 text-slate-600 shadow-sm">
