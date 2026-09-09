@@ -107,7 +107,7 @@ export default function PartnerResponseQueue() {
                 <span className="font-semibold text-emerald-800">{item.partner_name}</span>
                 {item.urgency === "now" && item.status !== "handled" && <span className="rounded-full bg-rose-50 px-2 py-1 text-rose-700">Critical</span>}
                 <span className="text-slate-500">{lanes.find(([key]) => key === item.status)?.[1]}</span>
-                {isStaleDraft(item) && <span className="font-semibold text-amber-700">Draft needs updating</span>}
+                {isStaleDraft(item) && !["waiting", "handled"].includes(item.status) && <span className="font-semibold text-amber-700">Draft needs updating</span>}
                 {item.follow_up_on && <span className="text-amber-800">Follow up {item.follow_up_on}</span>}
               </div>
               <h3 className="mt-2 font-semibold text-slate-900">{item.subject || "No subject"}</h3>
@@ -223,9 +223,9 @@ function ResponseEditor({ item, policyReady = false, onBack, onSaved, onSent }: 
       <p className="mt-2 text-xs text-slate-500">Saves your edits, clears the follow-up date, and moves this to Handled recently. A new incoming email brings it back after the next mail check. Nothing is sent or archived in Gmail.</p>
     </div>}
     {item.preparation_reason && item.preparation_message_id === item.message_id && <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">Leo’s preparation decision: {item.preparation_reason}</p>}
-    {isStaleDraft(item) && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">This draft is from an earlier message. Review the latest thread and update the draft before sending.</p>}
+    {isStaleDraft(item) && !["waiting", "handled"].includes(item.status) && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">This draft is from an earlier message. Review the latest thread and update the draft before sending.</p>}
     <a href={`/mail?thread=${encodeURIComponent(item.thread_id)}`} onClick={(event) => { if (dirty && !window.confirm("Your edits are not saved. Open Mail anyway?")) event.preventDefault(); }} className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-800">Open thread in Mail · send, tasks, and TEMU <ExternalLink size={14} /></a>
-    <PartnerEmailContext threadId={item.thread_id} basedOnMessageId={item.draft ? item.draft_message_id : null} />
+    <PartnerEmailContext threadId={item.thread_id} basedOnMessageId={item.draft ? item.draft_message_id : null} queueStatus={item.status} onRefreshStatus={recheckReply} refreshDisabled={busy || dirty} />
     {policyReady && <div className="space-y-3 rounded-lg border border-emerald-100 p-4">
       <h4 className="font-semibold text-slate-800">What does this conversation need?</h4>
       {assessment ? <p className="text-sm text-slate-600">Leo suggests <strong>{RESPONSE_CHOICES.find(([key]) => key === assessment.decision)?.[1]}</strong> ({assessment.confidence} confidence): {assessment.reason}</p> : <p className="text-sm text-slate-500">Not yet assessed for the latest email.</p>}

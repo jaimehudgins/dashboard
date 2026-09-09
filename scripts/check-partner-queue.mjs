@@ -296,4 +296,76 @@ const missingSourceMarkup = renderToStaticMarkup(React.createElement(emailContex
 assert.match(missingSourceMarkup, /not in the available conversation/);
 const emptyMarkup = renderToStaticMarkup(React.createElement(emailContext.EmailConversation, { thread: { id: "t", messages: [] }, basedOnMessageId: null }));
 assert.match(emptyMarkup, /No messages were returned/);
+
+// The same sent reply must not be presented as a new incoming request.
+const sentFixture = { ...emailFixture, id: "sent", from: "Owner <owner@willowed.org>", isOwnMessage: true };
+const sentMarkup = renderToStaticMarkup(React.createElement(emailContext.EmailConversation, {
+  thread: { id: "t", messages: [emailFixture, sentFixture] }, basedOnMessageId: "old", queueStatus: "waiting",
+}));
+assert.match(sentMarkup, /already replied/);
+assert.match(sentMarkup, /Your latest sent reply/);
+assert.doesNotMatch(sentMarkup, /There are newer messages/);
+const handledMarkup = renderToStaticMarkup(React.createElement(emailContext.EmailConversation, {
+  thread: { id: "t", messages: [emailFixture, sentFixture] }, basedOnMessageId: "old", queueStatus: "handled",
+}));
+assert.match(handledMarkup, /no follow-up needed/);
+assert.doesNotMatch(handledMarkup, /Waiting for the partner/);
+const reopenedMarkup = renderToStaticMarkup(React.createElement(emailContext.EmailConversation, {
+  thread: { id: "t", messages: [emailFixture, sentFixture, { ...emailFixture, id: "new-incoming", isOwnMessage: false }] }, basedOnMessageId: "old", queueStatus: "waiting",
+}));
+assert.match(reopenedMarkup, /newer messages/);
+assert.doesNotMatch(reopenedMarkup, /already replied/);
+
+// Native thread endpoint identifies SENT aliases and the authenticated owner,
+// but not other colleagues on the same domain. Initial reads do not reconcile.
+const threadApi = moduleAt("src/app/api/mail/thread/route.ts", {
+  "next/server": { NextResponse: Response }, "next-auth": { getServerSession: async () => ({ accessToken: "mock", user: { email: "owner@willowed.org" } }) },
+  "@/lib/auth": {}, "@/lib/crm-supabase": { isCrmConfigured: false }, "@/lib/gmail-history": history,
+  "@/lib/gmail": { getThread: async () => ({ id: "t", messages: [
+    { ...emailFixture, from: "Partner <partner@example.org>", sent: false },
+    { ...emailFixture, from: "Colleague <colleague@willowed.org>", sent: false },
+    { ...sentFixture, from: "Alias <alias@other-domain.example>", sent: true },
+    { ...sentFixture, from: "Owner <OWNER@willowed.org>", sent: false },
+  ] }) },
+});
+const threadResult = await threadApi.GET(new Request("https://leo.example/api/mail/thread?id=t"));
+assert.equal(threadResult.status, 200);
+assert.deepEqual((await threadResult.json()).thread.messages.map((message) => message.isOwnMessage), [false, false, true, true]);
+
+// Exercise the refresh button handler with minimal hooks. No effects or network
+// run here: initial renders cannot write queue state, and dirty editors block it.
+let refreshStates;
+let refreshIndex;
+let refreshCalls = 0;
+const refreshUi = moduleAt("src/components/PartnerEmailContext.tsx", {
+  react: {
+    useEffect() {},
+    useState(initial) { const i = refreshIndex++; if (!(i in refreshStates)) refreshStates[i] = initial; return [refreshStates[i], (value) => { refreshStates[i] = typeof value === "function" ? value(refreshStates[i]) : value; }]; },
+  }, "react/jsx-runtime": jsxRuntime, "@/lib/http": {}, "./EmailText": emailText,
+});
+function refreshRender(disabled = false, fail = false) {
+  refreshIndex = 0;
+  return refreshUi.default({ threadId: "t", basedOnMessageId: "old", refreshDisabled: disabled, onRefreshStatus: async () => { refreshCalls++; if (fail) throw new Error("Synthetic error"); } });
+}
+function firstButton(node) {
+  if (!node || typeof node !== "object") return null;
+  if (Array.isArray(node)) return node.map(firstButton).find(Boolean);
+  return node.type === "button" ? node : firstButton(node.props?.children);
+}
+refreshStates = [0, { threadId: "t", attempt: 0, thread: { id: "t", messages: [sentFixture] } }, false, null];
+const refreshButton = firstButton(refreshRender());
+assert.equal(refreshCalls, 0, "initial view stays read-only");
+refreshButton.props.onClick();
+await new Promise((resolve) => setImmediate(resolve));
+assert.equal(refreshCalls, 1, "refresh reconciles reply status");
+assert.equal(refreshStates[0], 1, "refresh reloads the conversation too");
+refreshStates[0] = 0;
+const dirtyRefresh = firstButton(refreshRender(true));
+assert.equal(dirtyRefresh.props.disabled, true);
+dirtyRefresh.props.onClick();
+await new Promise((resolve) => setImmediate(resolve));
+assert.equal(refreshCalls, 1, "unsaved edits prevent a status update and remount");
+firstButton(refreshRender(false, true)).props.onClick();
+await new Promise((resolve) => setImmediate(resolve));
+assert.match(refreshStates[3], /could not be refreshed/);
 console.log("Partner queue regression checks passed (offline, no external writes).");

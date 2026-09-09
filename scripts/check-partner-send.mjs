@@ -9,10 +9,11 @@ import * as jsxRuntime from "react/jsx-runtime";
 
 const types = moduleAt("src/types/partner-response.ts");
 const history = moduleAt("src/lib/gmail-history.ts", { "./gmail": {} });
+const recipients = moduleAt("src/lib/reply-recipients.ts");
 const original = { thread_id: "thread", version: 3, message_id: "incoming", draft_message_id: "incoming", draft: "My reviewed reply", notes: "Keep these notes", status: "draft_ready" };
-const reply = { to: "Partner <reply@school.example>", from: "person@school.example", subject: "Re: Help", messageId: "incoming", sent: false, inReplyTo: "<message@school>", references: "<previous@school> <message@school>" };
+const reply = { to: "Partner <reply@school.example>", from: "person@school.example", originalTo: "Owner <owner@willowed.org>, Team <team@school.example>", originalCc: '"Doe, Jane" <jane@school.example>, TEAM@school.example, colleague@willowed.org, alias@willowed.org', ownAddresses: ["Alias <alias@willowed.org>"], subject: "Re: Help", messageId: "incoming", sent: false, inReplyTo: "<message@school>", references: "<previous@school> <message@school>" };
 const session = { accessToken: "synthetic", user: { email: "owner@willowed.org" } };
-const confirmation = { threadId: "thread", version: 3, confirmed: true, expectedMessageId: reply.messageId, expectedTo: reply.to, expectedSubject: reply.subject };
+const confirmation = { threadId: "thread", version: 3, mode: "sender", confirmed: true, expectedMessageId: reply.messageId, expectedTo: reply.to, expectedCc: "", expectedSubject: reply.subject };
 
 function fixture(options = {}) {
   let row = { ...original, ...options.item };
@@ -24,6 +25,7 @@ function fixture(options = {}) {
     "next-auth": { getServerSession: async () => options.session === undefined ? session : options.session },
     zod: { z }, "@/lib/auth": {}, "@/types/partner-response": types,
     "@/lib/gmail-history": history,
+    "@/lib/reply-recipients": recipients,
     "@/lib/gmail": {
       async getReplyContext() { reads++; return { ...reply, ...options.context, ...(reads > 1 ? options.afterClaim : {}) }; },
       async sendEmail(token, input, thread) {
@@ -46,7 +48,7 @@ function fixture(options = {}) {
   });
   return { api, deliveries, row: () => row, writes: () => writes };
 }
-const get = () => new Request("https://leo.example/api/partner-responses/send?threadId=thread&version=3");
+const get = (mode = "sender") => new Request(`https://leo.example/api/partner-responses/send?threadId=thread&version=3&mode=${mode}`);
 const post = (patch = {}) => new Request("https://leo.example/api/partner-responses/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...confirmation, ...patch }) });
 let checks = 0;
 async function blocked(label, options, status = 409, patch = {}) {
@@ -74,6 +76,40 @@ await blocked("changed subject", {}, 409, { expectedSubject: "Different subject"
 await blocked("header injection", { context: { to: "person@school.example\r\nBcc: other@school.example" } });
 await blocked("queue changed during claim", { claimFails: true });
 await blocked("new mail after claim", { afterClaim: { messageId: "new" } });
+await blocked("unknown reply mode", {}, 400, { mode: "everyone-ever" });
+await blocked("CC cannot be injected into sender reply", {}, 409, { expectedCc: "someone@school.example" });
+
+const allTo = "reply@school.example, team@school.example";
+const allCc = "jane@school.example, colleague@willowed.org";
+const allConfirmation = { mode: "all", expectedTo: allTo, expectedCc: allCc };
+const all = fixture();
+const allPreview = await (await all.api.GET(get("all"))).json();
+assert.equal(allPreview.to, allTo);
+assert.equal(allPreview.cc, allCc);
+assert.equal(allPreview.mode, "all");
+assert.equal(all.deliveries.length, 0);
+assert.equal((await all.api.POST(post(allConfirmation))).status, 200);
+assert.equal(all.deliveries[0].input.to, allTo);
+assert.equal(all.deliveries[0].input.cc, allCc);
+checks++;
+await blocked("CC changed before send", { context: { originalCc: "new@school.example" } }, 409, allConfirmation);
+await blocked("CC changed after claim", { afterClaim: { originalCc: "new@school.example" } }, 409, allConfirmation);
+await blocked("switching mode requires reviewing new recipient list", {}, 409, { mode: "all" });
+await blocked("malformed original CC", { context: { originalCc: "bad address" } }, 409, allConfirmation);
+await blocked("missing mailbox identity", { session: { accessToken: "synthetic" } }, 409, allConfirmation);
+
+const parsed = recipients.replyRecipients({ ...reply, originalCc: '"other@private.example" <real@school.example>, reply@school.example', bcc: "hidden@school.example" }, "all", "owner@willowed.org");
+assert.equal(parsed.to, allTo);
+assert.equal(parsed.cc, "real@school.example", "quoted display-name emails and Bcc are not recipients");
+checks++;
+for (const bad of ['"Unclosed <bad@school.example>', "group: person@school.example;", "person@school.example\r\nBcc: hidden@school.example", "person@school.example,"]) {
+  assert.throws(() => recipients.replyRecipients({ ...reply, originalCc: bad }, "all", "owner@willowed.org"));
+  checks++;
+}
+const onlySender = recipients.replyRecipients({ ...reply, originalTo: "OWNER@willowed.org", originalCc: "alias@willowed.org" }, "all", "owner@willowed.org");
+assert.equal(onlySender.to, "reply@school.example");
+assert.equal(onlySender.cc, "");
+checks++;
 
 const preview = fixture();
 const previewResponse = await preview.api.GET(get());
@@ -132,8 +168,8 @@ const gmail = moduleAt("src/lib/gmail.ts", { "./mail-views": {} }, {}, "", {
     calls++;
     if (options.method === "POST") return new Response("Transient failure", { status: 503 });
     return Response.json({ messages: [
-      { id: "incoming", internalDate: "2000", payload: { headers: [{ name: "From", value: "person@school.example" }, { name: "Reply-To", value: reply.to }, { name: "Subject", value: "Help" }, { name: "Message-ID", value: reply.inReplyTo }] } },
-      { id: "older", internalDate: "1000", payload: { headers: [] } },
+      { id: "incoming", internalDate: "2000", payload: { headers: [{ name: "From", value: "person@school.example" }, { name: "Reply-To", value: reply.to }, { name: "To", value: reply.originalTo }, { name: "Cc", value: reply.originalCc }, { name: "Subject", value: "Help" }, { name: "Message-ID", value: reply.inReplyTo }] } },
+      { id: "older", internalDate: "1000", labelIds: ["SENT"], payload: { headers: [{ name: "From", value: "Alias <alias@willowed.org>" }] } },
       { id: "unsent", internalDate: "3000", labelIds: ["DRAFT"], payload: { headers: [] } },
     ] });
   },
@@ -143,8 +179,15 @@ const actualContext = await gmail.getReplyContext("synthetic", "thread");
 assert.equal(actualContext.to, reply.to);
 assert.equal(actualContext.messageId, "incoming");
 assert.equal(actualContext.subject, reply.subject);
+assert.equal(actualContext.originalTo, reply.originalTo);
+assert.equal(actualContext.originalCc, reply.originalCc);
+assert.equal(actualContext.ownAddresses[0], "Alias <alias@willowed.org>");
 await assert.rejects(() => gmail.sendEmail("synthetic", { to: reply.to, subject: reply.subject, body: "Synthetic" }, "thread"), /Gmail API 503/);
 assert.equal(calls, 2, "one metadata read and exactly one send attempt");
+const fullThread = await gmail.getThread("synthetic", "thread");
+assert.deepEqual(Array.from(fullThread.messages, (message) => message.id), ["older", "incoming"], "conversation order follows Gmail arrival times and excludes unsent drafts");
+assert.equal(fullThread.messages[0].sent, true, "full thread exposes per-message SENT evidence for aliases");
+assert.equal(fullThread.messages[1].sent, false, "a previous sent message cannot mark the latest incoming message as own");
 checks++;
 
 // Exercise the actual dialog event handlers with a minimal hook harness.
@@ -158,6 +201,7 @@ let uiPosts = 0;
 let sentNotice;
 let closeAttempted;
 let failUi = false;
+let expectedUi = confirmation;
 const mocks = {
   react: {
     useState(initial) { const i = stateIndex++; if (!(i in states)) states[i] = initial; return [states[i], (value) => { states[i] = value; }]; },
@@ -173,7 +217,7 @@ vm.runInNewContext(source, { exports: uiExports, require(id) { if (!(id in mocks
   fetch: async (_url, options) => {
     uiPosts++;
     assert.equal(options.method, "POST");
-    assert.deepEqual(JSON.parse(options.body), confirmation);
+    assert.deepEqual(JSON.parse(options.body), expectedUi);
     if (failUi) throw new Error("Synthetic network interruption");
     return Response.json({ ok: true, messageId: "sent", warning: "Reply sent. Queue will catch up." });
   },
@@ -185,7 +229,7 @@ function buttons(node) {
   return [...(node.type === "button" ? [node] : []), ...buttons(node.props?.children)];
 }
 assert.equal(buttons(render()).at(-1).props.disabled, true, "send disabled before recipient preview loads");
-states[0] = { to: reply.to, subject: reply.subject, messageId: reply.messageId, version: original.version, draft: original.draft };
+states[0] = { to: reply.to, cc: "", mode: "sender", subject: reply.subject, messageId: reply.messageId, version: original.version, draft: original.draft };
 const loaded = buttons(render());
 loaded[0].props.onClick();
 assert.equal(closeAttempted, false, "back to editing never sends");
@@ -207,5 +251,19 @@ assert.match(states[1], /check Mail or Gmail before retrying/);
 assert.equal(buttons(render()).at(-1).props.disabled, true, "uncertain delivery cannot be retried in this dialog");
 buttons(render())[0].props.onClick();
 assert.equal(closeAttempted, true, "return to queue after an attempted send");
+checks++;
+// A mode change cannot use a still-displayed preview from the previous mode.
+states = [states[0], null, false, false, "all"];
+refs.length = 0;
+failUi = false;
+assert.equal(buttons(render()).at(-1).props.disabled, true);
+const postsBefore = uiPosts;
+buttons(render()).at(-1).props.onClick();
+assert.equal(uiPosts, postsBefore);
+states[0] = { ...states[0], mode: "all", to: allTo, cc: allCc };
+expectedUi = { ...confirmation, ...allConfirmation };
+buttons(render()).at(-1).props.onClick();
+await new Promise((resolve) => setImmediate(resolve));
+assert.equal(uiPosts, postsBefore + 1);
 checks++;
 console.log(`Partner send: ${checks} offline checks passed. No real emails sent.`);

@@ -142,10 +142,10 @@ export async function sendEmail(
 export async function getReplyContext(
   token: string,
   threadId: string,
-): Promise<{ to: string; from: string; subject: string; inReplyTo: string; references: string; messageId: string; sent: boolean }> {
+): Promise<{ to: string; from: string; originalTo: string; originalCc: string; ownAddresses: string[]; subject: string; inReplyTo: string; references: string; messageId: string; sent: boolean }> {
   const thread = await gmailFetch(
     token,
-    `/threads/${threadId}?format=metadata&metadataHeaders=From&metadataHeaders=Reply-To&metadataHeaders=Subject&metadataHeaders=Message-ID&metadataHeaders=References`,
+    `/threads/${threadId}?format=metadata&metadataHeaders=From&metadataHeaders=Reply-To&metadataHeaders=To&metadataHeaders=Cc&metadataHeaders=Subject&metadataHeaders=Message-ID&metadataHeaders=References`,
   );
   const msgs = (thread.messages || []).filter(
     (message: { labelIds?: string[] }) => !message.labelIds?.some((label) => ["DRAFT", "TRASH", "SPAM"].includes(label)),
@@ -158,6 +158,12 @@ export async function getReplyContext(
   return {
     to: header(h, "Reply-To") || header(h, "From"),
     from: header(h, "From"),
+    originalTo: header(h, "To"),
+    originalCc: header(h, "Cc"),
+    // Known send-as identities from this mailbox's SENT messages in the thread.
+    // Do not exclude other Willow colleagues merely because of their domain.
+    ownAddresses: msgs.filter((message: { labelIds?: string[] }) => message.labelIds?.includes("SENT"))
+      .map((message: { payload?: { headers?: { name: string; value: string }[] } }) => header(message.payload?.headers ?? [], "From")),
     messageId: last?.id ?? "",
     sent: last?.labelIds?.includes("SENT") ?? false,
     subject: /^re:/i.test(subject) ? subject : `Re: ${subject}`,
@@ -524,6 +530,7 @@ export async function getThread(
     cleanBody: string;
     hasQuotedContent: boolean;
     html: string;
+    sent: boolean;
   }[];
 }> {
   const thread = await gmailFetch(token, `/threads/${threadId}?format=full`);
@@ -531,12 +538,13 @@ export async function getThread(
     id: thread.id,
     messages: (thread.messages || []).filter(
       (message: { labelIds?: string[] }) => !message.labelIds?.some((label) => ["DRAFT", "TRASH", "SPAM"].includes(label)),
-    ).map((msg: any) => {
+    ).sort((a: { internalDate?: string }, b: { internalDate?: string }) => Number(a.internalDate ?? 0) - Number(b.internalDate ?? 0)).map((msg: any) => {
       const h = msg.payload?.headers || [];
       const body = decodeBody(msg.payload).slice(0, 20000);
       const cleanBody = stripQuotedReply(body);
       return {
         id: msg.id,
+        sent: msg.labelIds?.includes("SENT") ?? false,
         from: header(h, "From"),
         to: header(h, "To"),
         cc: header(h, "Cc"),

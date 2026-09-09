@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { readJsonResponse } from "@/lib/http";
 import EmailText from "./EmailText";
+import type { ResponseStatus } from "@/types/partner-response";
 
 interface EmailMessage {
   id: string;
@@ -15,6 +16,7 @@ interface EmailMessage {
   cleanBody: string;
   snippet: string;
   hasQuotedContent: boolean;
+  isOwnMessage?: boolean;
 }
 interface EmailThread { id: string; messages: EmailMessage[] }
 
@@ -36,20 +38,22 @@ function MessageContent({ message }: { message: EmailMessage }) {
   </div>;
 }
 
-export function EmailConversation({ thread, basedOnMessageId }: { thread: EmailThread; basedOnMessageId: string | null }) {
+export function EmailConversation({ thread, basedOnMessageId, queueStatus }: { thread: EmailThread; basedOnMessageId: string | null; queueStatus?: ResponseStatus }) {
   const latest = thread.messages.at(-1);
   if (!latest) return <p className="p-4 text-sm text-slate-500">No messages were returned for this conversation.</p>;
   const sourceFound = thread.messages.some((message) => message.id === basedOnMessageId);
   return <div>
-    {basedOnMessageId && latest.id !== basedOnMessageId && <p role="status" className="border-b border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+    {latest.isOwnMessage ? <p role="status" className="border-b border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+      {queueStatus === "handled" ? "Your reply is the latest message. This conversation is marked no follow-up needed." : "You’ve already replied—your reply is the latest message. Waiting for the partner."} Any saved draft is retained for reference, not another reply to send.
+    </p> : basedOnMessageId && latest.id !== basedOnMessageId && <p role="status" className="border-b border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-900">
       {sourceFound ? "There are newer messages than the one this draft was based on. Review them before replying." : "The message this draft was based on is not in the available conversation. Review the latest email before using this draft."}
     </p>}
     <div className="max-h-[32rem] overflow-y-auto overscroll-contain">
       <div className="border-b border-slate-100">
-        <p className="px-4 pt-4 text-xs font-semibold text-emerald-800">Latest email{latest.id === basedOnMessageId ? " · Draft based on this message" : ""}</p>
+        <p className="px-4 pt-4 text-xs font-semibold text-emerald-800">{latest.isOwnMessage ? "Your latest sent reply" : "Latest email"}{latest.id === basedOnMessageId ? " · Draft based on this message" : ""}</p>
         <MessageContent message={latest} />
       </div>
-      {thread.messages.length > 1 && <details open={sourceFound && latest.id !== basedOnMessageId} className="p-4">
+      {thread.messages.length > 1 && <details open={!latest.isOwnMessage && sourceFound && latest.id !== basedOnMessageId} className="p-4">
         <summary className="cursor-pointer text-sm font-semibold text-slate-600">Earlier messages ({thread.messages.length - 1})</summary>
         <div className="mt-3 space-y-3">{thread.messages.slice(0, -1).reverse().map((message) => <details key={message.id} open={message.id === basedOnMessageId} className="rounded-lg border border-slate-200">
           <summary className="cursor-pointer break-words px-4 py-3 text-sm text-slate-600">{message.from}{message.id === basedOnMessageId ? " · Draft based on this message" : ""}</summary>
@@ -60,10 +64,23 @@ export function EmailConversation({ thread, basedOnMessageId }: { thread: EmailT
   </div>;
 }
 
-export default function PartnerEmailContext({ threadId, basedOnMessageId }: { threadId: string; basedOnMessageId: string | null }) {
+export default function PartnerEmailContext({ threadId, basedOnMessageId, queueStatus, onRefreshStatus, refreshDisabled = false }: { threadId: string; basedOnMessageId: string | null; queueStatus?: ResponseStatus; onRefreshStatus?: () => Promise<void>; refreshDisabled?: boolean }) {
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState<{ threadId: string; attempt: number; thread?: EmailThread; error?: string } | null>(null);
   const current = result?.threadId === threadId && result.attempt === attempt ? result : null;
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const refresh = async () => {
+    if (refreshDisabled || refreshing) return;
+    setRefreshing(true); setRefreshError(null);
+    try {
+      // Initial reads stay read-only. Only this explicit click reconciles the
+      // queue; the editor disables it while there are unsaved changes.
+      await onRefreshStatus?.();
+      setAttempt((value) => value + 1);
+    } catch { setRefreshError("Reply status could not be refreshed. Your edits are unchanged; try again."); }
+    finally { setRefreshing(false); }
+  };
   useEffect(() => {
     const controller = new AbortController();
     async function load() {
@@ -83,10 +100,12 @@ export default function PartnerEmailContext({ threadId, basedOnMessageId }: { th
   return <section aria-label="Email conversation" className="overflow-hidden rounded-xl border border-emerald-100 bg-white">
     <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-emerald-50/40 px-4 py-3">
       <h4 className="font-semibold text-slate-800">Email conversation</h4>
-      <button type="button" disabled={!current} onClick={() => setAttempt((value) => value + 1)} className="text-xs font-semibold text-emerald-800 disabled:opacity-50">Refresh emails</button>
+      <button type="button" disabled={!current || refreshDisabled || refreshing} onClick={() => void refresh()} className="text-xs font-semibold text-emerald-800 disabled:opacity-50">{refreshing ? "Refreshing…" : "Refresh emails"}</button>
     </div>
+    {refreshDisabled && <p className="px-4 py-2 text-xs text-slate-500">Finish the current action or save your edits before refreshing emails and reply status.</p>}
+    {refreshError && <p role="alert" className="px-4 py-2 text-sm text-amber-800">{refreshError}</p>}
     {!current && <p role="status" className="p-4 text-sm text-slate-500">Loading this conversation…</p>}
     {current?.error && <p role="alert" className="p-4 text-sm text-amber-800">{current.error} Your draft is unchanged. <button type="button" onClick={() => setAttempt((value) => value + 1)} className="font-semibold underline">Try again</button></p>}
-    {current?.thread && <EmailConversation thread={current.thread} basedOnMessageId={basedOnMessageId} />}
+    {current?.thread && <EmailConversation thread={current.thread} basedOnMessageId={basedOnMessageId} queueStatus={queueStatus} />}
   </section>;
 }
