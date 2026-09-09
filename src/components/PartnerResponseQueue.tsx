@@ -8,6 +8,7 @@ import PartnerPreparationStatus from "./PartnerPreparationStatus";
 import PartnerEmailContext from "./PartnerEmailContext";
 import PartnerReplySendDialog from "./PartnerReplySendDialog";
 import ResponseRulesPanel from "./ResponseRulesPanel";
+import ResponseReassessment from "./ResponseReassessment";
 import { RESPONSE_CHOICES, type ResponseNeed } from "@/lib/response-needed-policy";
 
 const lanes = [
@@ -93,6 +94,7 @@ export default function PartnerResponseQueue() {
       {data && !data.configured && <p className="p-5 text-sm text-slate-600">The saved partner queue is waiting for setup. {data.setup} Your existing Mail tools remain available.</p>}
       {data?.configured && <>
         <PartnerPreparationStatus />
+        <ResponseReassessment enabled={Boolean(data.policy?.ready && data.policy?.enabled)} counts={data.counts ?? {}} />
         {data.policy && !data.policy.ready && <p className="px-5 py-3 text-sm text-amber-800">{data.policy.error} Existing saved replies remain available.</p>}
         {data.policy?.last_error && <p role="alert" className="px-5 py-3 text-sm text-amber-800">Last response assessment: {data.policy.last_error}</p>}
         {!selected && <div className="flex flex-wrap gap-2 p-5" aria-label="Response filters">

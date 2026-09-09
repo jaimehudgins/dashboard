@@ -147,8 +147,57 @@ email history). Other outcomes remain Needs your input for approval; Leo never
 automatically closes them. Existing saved human decisions are preserved. The
 five-minute worker assesses a bounded backlog, so this is not an immediate
 send-time guarantee. No new SQL is required; question evidence is stored in the
-existing assessment JSON. Legacy Waiting entries are not bulk-changed: use
-Check reply status, then Assess response needs for each one you want to review.
+existing assessment JSON. For one legacy Waiting entry, use Check reply status,
+then Assess response needs. For many, use the bulk review below.
+
+### Bulk reassess conversations
+
+In Attention's Partner responses section, open **Reassess conversations**, choose
+a scope, then **Start new reassessment**. **All open** is the default: Needs
+response, Draft ready, Needs your input, and Waiting. **Waiting only** is useful
+for targeted cleanup. **All conversations, including Handled** is explicitly
+opt-in; Handled is excluded from the other two scopes. The scope is locked while
+a batch is running or paused so Resume cannot broaden its snapshot.
+
+This deliberately uses Claude for every snapshot
+entry, even when it has a previous assessment. No automatic migration or cron
+starts a bulk run. The snapshot covers all pages in the selected scope (including tracked
+archived conversations), not just the visible 50, with a 2,000-item safety cap.
+
+- Keep the page open. One conversation is processed per request. Stop finishes
+  the current request; Resume continues the remaining snapshot. Errors are
+  listed per item without retrying automatically or overwriting newer edits.
+- Leo reads the latest full available thread and current rules. Invalid or
+  incomplete evidence cannot silently become closure. An assessment failure
+  leaves that saved item unchanged; concurrent versions/new messages require
+  a fresh review. No drafts are generated or retired by this action.
+- Current recorded human response decisions remain unchanged and are flagged
+  for individual review, even if Leo disagrees. New partner messages invalidate
+  decisions on older messages. Direct manual Waiting selections now also record
+  a correction. Older status-only selections have no provenance and cannot
+  reliably be distinguished from the former automatic Waiting default.
+  Included Handled items remain closed even without a recorded correction;
+  only genuinely new incoming mail can reopen them, as in normal mail sync.
+  Conflicting suggestions are flagged for individual review, not bulk override.
+- High-confidence unresolved questions can stay Waiting. Other suggestions
+  move unprotected items to Needs your input, or Needs response for a new
+  incoming request. A current Draft ready item remains ready when the latest
+  assessment still supports replying. Notes, draft text, and follow-up dates
+  are preserved; a draft for an older message is never treated as current.
+- Select likely resolved results and choose **Approve selected as no follow-up
+  needed**, then **Confirm selected closures**. Each closure rechecks the queue
+  version, batch assessment, absence of a current human decision, and latest
+  Gmail message before moving it to Handled and clearing its follow-up date.
+  New email can still arrive after the Gmail read; normal sync reopens it.
+  No email is sent/archived and no task or TEMU data is changed.
+- Assessments persist in the existing JSON column; no new SQL is needed. The
+  batch progress/results list is browser memory only and is lost on refresh.
+  Saved suggestions remain visible in Attention for individual review. A new
+  run starts from the newly selected scope, not the old results list.
+
+Run `node scripts/check-response-reassessment.mjs` for offline service, routing,
+approval, pagination, and UI stop/resume checks. No live model/email/DB writes
+are used. Actual assessment quality still requires human review.
 
 Automatic drafts now require a high-confidence Reply needed assessment or your
 explicit Reply needed correction, followed by the existing source/safety checks.

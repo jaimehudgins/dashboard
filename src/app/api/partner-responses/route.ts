@@ -89,18 +89,21 @@ export async function PATCH(request: Request) {
     const { threadId, version, draft, response_decision, response_feedback, ...patch } = patchSchema.parse(await request.json());
     const item = await getResponse(threadId);
     if (!item) return NextResponse.json({ error: "Response not found" }, { status: 404 });
+    // A direct Waiting status selection is also an explicit human decision,
+    // so later bulk reassessment must be able to distinguish it from automation.
+    const chosenDecision = response_decision ?? (patch.status === "waiting" && item.status !== "waiting" ? "waiting" : undefined);
     if (response_feedback !== undefined && !response_decision) return NextResponse.json({ error: "Choose a response decision with your feedback." }, { status: 400 });
-    if (response_decision) {
+    if (chosenDecision) {
       const policy = await responsePolicyStatus();
       if (!policy.ready) return NextResponse.json({ error: "Run partner-response-policy.sql in Leo's Supabase before saving a response correction." }, { status: 503 });
-      patch.status = correctedResponseStatus(response_decision);
+      patch.status = correctedResponseStatus(chosenDecision);
     }
     if (patch.status === "draft_ready" && (draft !== undefined ? !draft.trim() : !item.draft.trim() || item.draft_message_id !== item.message_id)) {
       return NextResponse.json({ error: "Save a current draft before marking it ready." }, { status: 400 });
     }
     const updated = await updateResponse(threadId, version, {
       ...patch,
-      ...(response_decision ? { response_correction: { message_id: item.message_id, decision: response_decision, reason: response_feedback ?? "", corrected_at: new Date().toISOString() }, preparation_message_id: null } : {}),
+      ...(chosenDecision ? { response_correction: { message_id: item.message_id, decision: chosenDecision, reason: response_feedback ?? "", corrected_at: new Date().toISOString() }, preparation_message_id: null } : {}),
       ...((patch.status ?? item.status) === "handled" ? { follow_up_on: null } : {}),
       ...(draft === undefined ? {} : {
         draft, draft_message_id: item.message_id,
