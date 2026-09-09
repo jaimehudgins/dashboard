@@ -6,21 +6,24 @@ import { getReplyContext, sendEmail } from "@/lib/gmail";
 import { isOwnReply } from "@/lib/gmail-history";
 import { getResponse, updateResponse } from "@/lib/partner-response-store";
 import { isStaleDraft } from "@/types/partner-response";
+import { replyRecipients, type ReplyMode } from "@/lib/reply-recipients";
 
 const reviewSchema = z.object({
   threadId: z.string().regex(/^[a-zA-Z0-9_-]{1,200}$/),
   version: z.number().int().positive(),
+  mode: z.enum(["sender", "all"]).default("sender"),
 });
 const sendSchema = reviewSchema.extend({
   confirmed: z.literal(true),
   expectedMessageId: z.string().min(1).max(200),
   expectedTo: z.string().min(1).max(2000),
+  expectedCc: z.string().max(10000).default(""),
   expectedSubject: z.string().max(2000),
 }).strict();
 
 class ReviewError extends Error {}
 
-async function review(token: string, email: string, threadId: string, version: number) {
+async function review(token: string, email: string, threadId: string, version: number, mode: ReplyMode) {
   const item = await getResponse(threadId);
   if (!item || item.version !== version) throw new ReviewError("This saved response changed. Reopen it from the queue before sending.");
   if (!item.draft.trim() || isStaleDraft(item)) throw new ReviewError("Save a draft based on the latest message before sending.");
@@ -29,7 +32,10 @@ async function review(token: string, email: string, threadId: string, version: n
   if (!context.messageId || context.messageId !== item.message_id) throw new ReviewError("Newer email activity was found. Check mail, review the latest message, and update your draft before sending.");
   if (isOwnReply({ from: context.from, lastMessageSent: context.sent }, email)) throw new ReviewError("The latest message is already from you. Check reply status before sending another reply.");
   if (!context.to || !/@/.test(context.to) || /[\r\n]/.test(context.to + context.subject)) throw new ReviewError("The reply recipient or subject could not be verified. Open this thread in Mail.");
-  return { item, context };
+  let recipients;
+  try { recipients = replyRecipients(context, mode, email); }
+  catch { throw new ReviewError("Could not safely resolve Reply all recipients. Use Reply to sender or open the original conversation in Gmail."); }
+  return { item, context, recipients };
 }
 
 function failure(error: unknown) {
@@ -43,9 +49,9 @@ export async function GET(request: Request) {
   if (!session?.accessToken || session.error === "RefreshAccessTokenError") return NextResponse.json({ error: "Reconnect Google to review and send." }, { status: 401 });
   try {
     const params = new URL(request.url).searchParams;
-    const input = reviewSchema.parse({ threadId: params.get("threadId"), version: Number(params.get("version")) });
-    const { item, context } = await review(session.accessToken, session.user?.email ?? "", input.threadId, input.version);
-    return NextResponse.json({ to: context.to, subject: context.subject, messageId: context.messageId, draft: item.draft, version: item.version }, { headers: { "Cache-Control": "no-store" } });
+    const input = reviewSchema.parse({ threadId: params.get("threadId"), version: Number(params.get("version")), mode: params.get("mode") ?? undefined });
+    const { item, context, recipients } = await review(session.accessToken, session.user?.email ?? "", input.threadId, input.version, input.mode);
+    return NextResponse.json({ ...recipients, mode: input.mode, subject: context.subject, messageId: context.messageId, draft: item.draft, version: item.version }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return failure(error); }
 }
 
@@ -54,8 +60,8 @@ export async function POST(request: Request) {
   if (!session?.accessToken || session.error === "RefreshAccessTokenError") return NextResponse.json({ error: "Reconnect Google before sending." }, { status: 401 });
   try {
     const input = sendSchema.parse(await request.json());
-    const { item, context } = await review(session.accessToken, session.user?.email ?? "", input.threadId, input.version);
-    if (context.messageId !== input.expectedMessageId || context.to !== input.expectedTo || context.subject !== input.expectedSubject) throw new ReviewError("The reply details changed. Review the recipient and latest message again.");
+    const { item, context, recipients } = await review(session.accessToken, session.user?.email ?? "", input.threadId, input.version, input.mode);
+    if (context.messageId !== input.expectedMessageId || recipients.to !== input.expectedTo || recipients.cc !== input.expectedCc || context.subject !== input.expectedSubject) throw new ReviewError("The reply details changed. Review the recipients and latest message again.");
     // Consume this reviewed version atomically. Repeated clicks/requests with the
     // same version cannot both send, even from separate app instances.
     let claimed;
@@ -64,10 +70,11 @@ export async function POST(request: Request) {
     // Recheck after claiming, immediately before the Gmail write. Google does
     // not offer an atomic 'send only if thread unchanged' operation.
     const latest = await getReplyContext(session.accessToken, item.thread_id);
-    if (latest.messageId !== context.messageId || latest.to !== context.to || latest.subject !== context.subject) throw new ReviewError("Newer email activity was found. Nothing was sent by this request. Reopen the conversation and review it again.");
+    const latestRecipients = replyRecipients(latest, input.mode, session.user?.email ?? "");
+    if (latest.messageId !== context.messageId || latestRecipients.to !== recipients.to || latestRecipients.cc !== recipients.cc || latest.subject !== context.subject) throw new ReviewError("Newer email activity was found. Nothing was sent by this request. Reopen the conversation and review it again.");
     let sent;
     try {
-      sent = await sendEmail(session.accessToken, { to: context.to, subject: context.subject, body: item.draft.trim(), inReplyTo: context.inReplyTo, references: context.references }, item.thread_id);
+      sent = await sendEmail(session.accessToken, { to: recipients.to, cc: recipients.cc || undefined, subject: context.subject, body: item.draft.trim(), inReplyTo: context.inReplyTo, references: context.references }, item.thread_id);
       if (!sent.id) throw new Error("Missing send receipt");
     } catch {
       // A lost response can mean Gmail accepted the message. Never auto-retry.

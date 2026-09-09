@@ -6,11 +6,17 @@ prepare/edit a reply, set a follow-up date, or reopen previous drafts. The Mail
 link opens the actual conversation, with a current saved draft ready for review.
 Attention also offers **Review & send**: it saves edits, verifies the current
 Gmail recipient (honoring Reply-To), and shows the subject and reply text before
-**Confirm & send**. This is a reply to the displayed recipient, not reply-all.
-Mail remains available. Nothing sends automatically.
+**Confirm & send**. Choose **Reply to sender** (default) or **Reply all** in that
+window. Reply all includes the latest email's Reply-To/sender, To, and Cc lists;
+it deduplicates addresses and excludes the signed-in account and known send-as
+addresses from this thread's SENT messages. Other Willow colleagues stay included.
+It never retrieves or adds Bcc, and it does not add people who only appeared in
+older messages. Unusual/malformed address headers block Reply all rather than
+guessing. Review the displayed To/Cc list, especially if you use additional aliases
+not seen in this conversation. Mail remains available. Nothing sends automatically.
 
 The authenticated `/api/partner-responses/send` route rechecks the saved version,
-draft's source message, recipient, and latest Gmail message before sending. It
+draft's source message, selected reply mode, To/Cc recipients, and latest Gmail message before sending. It
 consumes the reviewed queue version so duplicate submissions of that version
 cannot both send. Gmail writes are not automatically retried. If delivery cannot
 be confirmed, inspect Mail/Gmail before reviewing another send; this is not a
@@ -30,8 +36,13 @@ checks. To verify the deployed UI safely, edit an existing draft, choose Review
 The Attention review panel also loads the email conversation on demand above
 the draft. The latest message is expanded; earlier messages and quoted text can
 be opened without leaving the panel. It labels the message used for a saved
-draft and warns about newer replies. Refresh emails reloads only the conversation
-and leaves unsaved draft edits intact. Google links remain clickable.
+draft and warns about newer incoming replies. When the latest email is your own
+sent reply, it instead says you have already replied and are waiting for the
+partner (or preserves no-follow-up-needed wording for Handled conversations).
+Refresh emails reloads the conversation **and** reconciles reply status. Save
+unsaved edits first; refreshing is disabled while edits or another action are
+pending, so a refreshed queue entry cannot overwrite your text. Initial opening
+remains read-only. Google links remain clickable.
 
 If an already-answered thread still says Needs response, open it and use **Check
 reply status** (save any edits first). This checks that one Gmail conversation
