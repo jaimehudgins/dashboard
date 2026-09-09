@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { crmSupabase, isCrmConfigured } from "./crm-supabase";
 import { GmailApiError, type ClassifyThread } from "./gmail";
-import { changedThreadIds, gmailHistory, gmailProfile, initialThreadIds, recoveryThreadIds, threadMetadata } from "./gmail-history";
+import { changedThreadIds, gmailHistory, gmailProfile, initialThreadIds, isOwnReply, recoveryThreadIds, threadMetadata } from "./gmail-history";
 import { classifyInbox } from "./mail-classify";
 import { getMailSyncState, getResponse, responseDb, storeError, updateResponse } from "./partner-response-store";
 import { responseAfterMessage } from "@/types/partner-response";
@@ -119,14 +119,13 @@ export async function syncPartnerMail(token: string) {
         else removed.push(row.id);
       }
     }
-    const classified = await classifyInbox(token, threads.filter((thread) => thread.labelIds.includes("INBOX")));
+    const classified = await classifyInbox(token, threads.filter((thread) => thread.labelIds.includes("INBOX") && !isOwnReply(thread, profile.emailAddress)));
     for (const thread of threads) {
       const previous = await getResponse(thread.id);
       const partner = matchResponsePartner(thread.participants, contacts ?? [], partners ?? []);
       const bucket = classified.buckets[thread.id];
       if (!previous && (!thread.labelIds.includes("INBOX") || (!partner && bucket !== "current" && bucket !== "potential"))) continue;
-      const sender = thread.from.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]?.toLowerCase() ?? "";
-      const incoming = sender !== profile.emailAddress.toLowerCase() && !isInternal(sender);
+      const incoming = !isOwnReply(thread, profile.emailAddress);
       const decision = classified.decisions[thread.id];
       const sameMessage = previous?.message_id === thread.lastMessageId;
       const patch = {
@@ -137,7 +136,7 @@ export async function syncPartnerMail(token: string) {
         in_inbox: thread.labelIds.includes("INBOX"),
         urgency: decision?.urgency ?? (sameMessage ? previous?.urgency : null) ?? "question",
         confidence: decision?.confidence ?? (sameMessage ? previous?.confidence : null) ?? "low",
-        reason: decision?.reason ?? (sameMessage ? previous?.reason : null) ?? "Review this partner conversation to decide whether a response is needed.",
+        reason: !incoming && previous?.status === "handled" ? "No follow-up needed unless a new incoming email arrives." : !incoming && (!sameMessage || previous?.status === "waiting") ? "Your reply is the latest message. Waiting for the partner; saved drafts are retained." : decision?.reason ?? (sameMessage ? previous?.reason : null) ?? "Review this partner conversation to decide whether a response is needed.",
         status: responseAfterMessage(previous, thread.lastMessageId, incoming, Boolean(partner)),
       };
       if (previous) {

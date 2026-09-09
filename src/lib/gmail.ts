@@ -432,6 +432,7 @@ export async function modifyThreadLabels(
 export interface ClassifyThread {
   id: string;
   lastMessageId: string;
+  lastMessageSent?: boolean;
   from: string;
   participants: string[];
   subject: string;

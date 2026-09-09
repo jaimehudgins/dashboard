@@ -7,6 +7,9 @@ import { getThread } from "@/lib/gmail";
 import { threadMetadata } from "@/lib/gmail-history";
 import { getMailSyncState, getResponse, responseDb, responseStoreConfigured, storeError, updateResponse } from "@/lib/partner-response-store";
 import { syncPartnerMail } from "@/lib/partner-mail-sync";
+import { recheckReplyStatus } from "@/lib/partner-reply-status";
+import { assessResponse, responsePolicyStatus } from "@/lib/partner-response-policy";
+import { correctedResponseStatus, effectiveResponseNeed } from "@/lib/response-needed-policy";
 
 export const maxDuration = 300;
 const statuses = ["needs_response", "draft_ready", "needs_input", "waiting", "handled"] as const;
@@ -21,6 +24,8 @@ const patchSchema = z.object({
     return !Number.isNaN(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === value;
   }).nullable().optional(),
   draft: z.string().max(30000).optional(),
+  response_decision: z.enum(["reply_needed", "action_only", "waiting", "no_reply", "judgment"]).optional(),
+  response_feedback: z.string().trim().max(800).optional(),
 }).strict();
 
 async function authorized() {
@@ -74,21 +79,29 @@ export async function GET(request: Request) {
       })),
     ]);
     if (error) storeError(error);
-    return NextResponse.json({ configured: true, items, sync, counts: Object.fromEntries(counts), hasMore: (page + 1) * 50 < (count ?? 0) });
+    return NextResponse.json({ configured: true, items, sync, policy: await responsePolicyStatus(), counts: Object.fromEntries(counts), hasMore: (page + 1) * 50 < (count ?? 0) });
   } catch (error) { return failure(error); }
 }
 
 export async function PATCH(request: Request) {
   if (!await authorized()) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   try {
-    const { threadId, version, draft, ...patch } = patchSchema.parse(await request.json());
+    const { threadId, version, draft, response_decision, response_feedback, ...patch } = patchSchema.parse(await request.json());
     const item = await getResponse(threadId);
     if (!item) return NextResponse.json({ error: "Response not found" }, { status: 404 });
+    if (response_feedback !== undefined && !response_decision) return NextResponse.json({ error: "Choose a response decision with your feedback." }, { status: 400 });
+    if (response_decision) {
+      const policy = await responsePolicyStatus();
+      if (!policy.ready) return NextResponse.json({ error: "Run partner-response-policy.sql in Leo's Supabase before saving a response correction." }, { status: 503 });
+      patch.status = correctedResponseStatus(response_decision);
+    }
     if (patch.status === "draft_ready" && (draft !== undefined ? !draft.trim() : !item.draft.trim() || item.draft_message_id !== item.message_id)) {
       return NextResponse.json({ error: "Save a current draft before marking it ready." }, { status: 400 });
     }
     const updated = await updateResponse(threadId, version, {
       ...patch,
+      ...(response_decision ? { response_correction: { message_id: item.message_id, decision: response_decision, reason: response_feedback ?? "", corrected_at: new Date().toISOString() }, preparation_message_id: null } : {}),
+      ...((patch.status ?? item.status) === "handled" ? { follow_up_on: null } : {}),
       ...(draft === undefined ? {} : {
         draft, draft_message_id: item.message_id,
         status: patch.status ?? (draft.trim() ? "draft_ready" as const : "needs_response" as const),
@@ -104,12 +117,23 @@ export async function POST(request: Request) {
   try {
     const body = z.discriminatedUnion("action", [
       z.object({ action: z.literal("sync") }).strict(),
+      z.object({ action: z.literal("recheck_reply"), threadId: idSchema, version: z.number().int().positive() }).strict(),
+      z.object({ action: z.literal("assess"), threadId: idSchema, version: z.number().int().positive() }).strict(),
       z.object({ action: z.literal("draft"), threadId: idSchema, version: z.number().int().positive(), notes: z.string().max(10000).optional() }).strict(),
     ]).parse(await request.json());
     if (body.action === "sync") return NextResponse.json(await syncPartnerMail(session.accessToken));
     const item = await getResponse(body.threadId);
     if (!item) return NextResponse.json({ error: "Response not found" }, { status: 404 });
     if (item.version !== body.version) throw new Error("This response changed. Reload it before preparing another draft.");
+    if (body.action === "recheck_reply") return NextResponse.json(await recheckReplyStatus(session.accessToken, item));
+    const policy = await responsePolicyStatus();
+    if (body.action === "assess") {
+      if (!policy.ready) return NextResponse.json({ error: "Run partner-response-policy.sql in Leo's Supabase first." }, { status: 503 });
+      return NextResponse.json({ item: await assessResponse(session.accessToken, item) });
+    }
+    if (policy.ready && effectiveResponseNeed(item) !== "reply_needed") {
+      return NextResponse.json({ error: "Assess response needs first, or explicitly save Reply needed if you want Leo to draft an email." }, { status: 409 });
+    }
     const metadata = await threadMetadata(session.accessToken, item.thread_id);
     if (!metadata || metadata.lastMessageId !== item.message_id) throw new Error("A new message or thread change needs to be synced. Check mail, then draft again.");
     const thread = await getThread(session.accessToken, item.thread_id);

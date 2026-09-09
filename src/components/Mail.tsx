@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Trip, loadTrips, attachEmailToTrip } from "@/lib/trips";
 import { readJsonResponse } from "@/lib/http";
+import EmailText from "./EmailText";
 import { isStaleDraft, type PartnerResponse } from "@/types/partner-response";
 import { useApp } from "@/store/store";
 import { Task, QuickTask } from "@/types";
@@ -127,47 +128,6 @@ function EmailFrame({ html }: { html: string }) {
   );
 }
 
-function emailLinkLabel(url: string): string {
-  if (url.includes("docs.google.com/document/")) return "Open Google Doc";
-  if (url.includes("docs.google.com/spreadsheets/")) return "Open Google Sheet";
-  if (url.includes("docs.google.com/presentation/")) return "Open Google Slides";
-  if (url.includes("drive.google.com/")) return "Open Google Drive file";
-  return url;
-}
-
-function EmailText({ text }: { text: string }) {
-  const parts: React.ReactNode[] = [];
-  const pattern = /https?:\/\/[^\s<>"']+/gi;
-  let lastIndex = 0;
-
-  for (const match of text.matchAll(pattern)) {
-    const matchIndex = match.index ?? 0;
-    const rawUrl = match[0];
-    const url = rawUrl.replace(/[)\]},.;!?]+$/g, "");
-    const trailingText = rawUrl.slice(url.length);
-    parts.push(text.slice(lastIndex, matchIndex));
-    parts.push(
-      <a
-        key={`${matchIndex}-${url}`}
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="font-medium text-indigo-600 underline decoration-indigo-200 underline-offset-2 hover:text-indigo-800"
-      >
-        {emailLinkLabel(url)}
-      </a>,
-    );
-    if (trailingText) parts.push(trailingText);
-    lastIndex = matchIndex + rawUrl.length;
-  }
-
-  parts.push(text.slice(lastIndex));
-  return (
-    <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
-      {parts}
-    </div>
-  );
-}
 
 function ThreadMessageCard({ message }: { message: ThreadMessage }) {
   const [showQuoted, setShowQuoted] = useState(false);
@@ -402,7 +362,7 @@ export default function Mail() {
   useEffect(() => {
     loadViews();
     loadThreads("all");
-    // Classification already runs server-side every 15 minutes. Refresh only
+    // Classification already runs server-side every 5 minutes. Refresh only
     // the inexpensive label counters while this page remains open; "Sort now"
     // remains available when an immediate reclassification is needed.
     const interval = setInterval(loadViews, 5 * 60 * 1000);
