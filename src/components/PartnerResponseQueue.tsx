@@ -7,6 +7,7 @@ import { isStaleDraft, type MailSyncState, type PartnerResponse, type ResponseSt
 import PartnerPreparationStatus from "./PartnerPreparationStatus";
 import PartnerEmailContext from "./PartnerEmailContext";
 import PartnerReplySendDialog from "./PartnerReplySendDialog";
+import ResponseRulesPanel from "./ResponseRulesPanel";
 import { RESPONSE_CHOICES, type ResponseNeed } from "@/lib/response-needed-policy";
 
 const lanes = [
@@ -234,8 +235,9 @@ function ResponseEditor({ item, policyReady = false, onBack, onSaved, onSent }: 
       {dirty && <p className="text-xs text-slate-500">Save your edits before reassessing.</p>}
       <label className="block text-sm text-slate-700">Your decision<select disabled={busy} value={decision} onChange={(event) => setDecision(event.target.value as ResponseNeed | "")} className="ml-2 rounded-lg border border-slate-200 p-2"><option value="" disabled>Choose a decision</option>{RESPONSE_CHOICES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
       <label className="block text-sm text-slate-700">Why? (optional)<textarea disabled={busy || !decision} value={feedback} maxLength={800} onChange={(event) => setFeedback(event.target.value)} rows={2} className="mt-1 w-full rounded-lg border border-slate-200 p-2" placeholder="Example: These names mean I need to add staff, not send another reply." /></label>
-      <p className="text-xs text-slate-500">Use Save changes below to confirm. Corrections become examples for this partner, not automatic rules. Action only stays under Needs your input; create or review its task in Mail. No task is created automatically.</p>
+      <p className="text-xs text-slate-500">Use Save changes below to confirm. Corrections become examples for this partner, not automatic rules. To teach an email-type rule or partner exception, explicitly approve it below. Action only stays under Needs your input; create or review its task in Mail. No task is created automatically.</p>
     </div>}
+    {policyReady && <ResponseRulesPanel item={item} disabled={busy || dirty} />}
     <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
       <button type="button" disabled={busy || dirty} onClick={() => void recheckReply()} className="rounded-lg border border-emerald-200 px-3 py-2 font-semibold text-emerald-800 disabled:opacity-50">Check reply status</button>
       <span>{dirty ? "Save your edits before checking reply status." : "Already replied in Gmail? Check the latest message and update this queue item."}</span>

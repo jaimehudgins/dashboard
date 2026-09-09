@@ -93,7 +93,7 @@ or approve the recommendation. No follow-up needed moves to Handled and clears
 the follow-up date; Waiting moves to Waiting; Action only/Judgment remain under
 Needs your input. Notes and drafts are retained. Corrections are stored atomically
 with the queue update and kept as partner-specific examples, NOT new standing
-rules. Only explicit future approval can broaden a preference into a global rule.
+rules. Only explicit approval in the rule editor can broaden a preference into a global rule.
 Your correction takes precedence for that message; a new email requires a fresh
 assessment. Reassess manually when linked tasks change without a new email.
 
@@ -103,6 +103,45 @@ They still run only in the four preparation windows. Messages assessed after a
 window's snapshot may wait until the next window; manual drafting remains
 available after assessment/confirmation. No-reply suggestions stay visible for
 approval, and an unresolved commitment is not erased by a later thank-you.
+
+## Approved email-type rules and partner exceptions
+
+Run `partner-response-rules.sql` **after `partner-response-policy.sql`** in Leo's
+Supabase, then deploy. No new environment variables are needed. Without this
+optional migration, existing corrections and assessments keep working; the rule
+editor displays setup guidance. The migration does not approve any rules.
+
+In an Attention conversation, save any edits, then open **Email-type rules &
+partner exceptions**. Choose the email type, **All partners** or the current
+partner, a default decision, and conditions/exceptions. **Review rule** only
+previews the proposal; **Approve for…** saves it. Switching to All partners resets
+the conditions to a generic template to avoid carrying over private details.
+Do not put partner-specific information in global rules.
+
+Templates cover meeting acceptances, new calendar invitations, declined/changed
+meetings, acknowledgments, platform access, and curriculum questions. A simple
+acceptance can suggest no reply; an invitation may require an RSVP without an
+email reply. Questions and unresolved commitments still need attention.
+
+An active partner exception replaces the general rule for that same email type.
+Other partners' exceptions never enter the assessment context. Rules are matched
+by the model against the full conversation, not blindly applied from a subject
+line. Current Jaime direction and unresolved requests take precedence; ambiguity
+requires judgment. Ordinary corrections remain examples, not automatically
+approved rules. Rules cannot send emails, RSVP, create tasks, or close threads.
+
+Use **Edit rule**, **Disable**, or **Review to re-enable** to maintain guidance.
+Disabling a partner exception falls back to the active general rule, if any.
+Concurrent changes require a fresh review. Rule IDs/versions considered are saved
+with assessments, not claimed as proof that a rule was applied. Approval affects
+future assessments only; use **Assess response needs** to reassess an existing
+thread. A saved human decision for the same message still takes precedence.
+
+Run `node scripts/check-response-rules.mjs` and
+`node scripts/check-response-policy.mjs` for offline safety/regression checks.
+These verify routing and model inputs, not Claude's real-world classification
+accuracy. After deployment, test one plain acceptance and one acceptance with a
+question, reviewing Leo's recommendation without sending anything.
 
 ## Enable after deployment
 
