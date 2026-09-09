@@ -67,7 +67,7 @@ export async function POST(req: Request) {
         try {
           const item = await getResponse(body.threadId);
           if (item && (item.message_id === body.expectedMessageId || item.message_id === sent.id)) {
-            await updateResponse(item.thread_id, item.version, { status: "waiting" });
+            await updateResponse(item.thread_id, item.version, { status: "needs_input", reason: "Reply sent. Assess whether a specific question still needs a partner answer." });
           } else if (item) {
             queueWarning = "Reply sent. Check the queue for newer activity after the next mail check.";
           }

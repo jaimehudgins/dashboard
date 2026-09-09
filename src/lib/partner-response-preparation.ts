@@ -54,7 +54,7 @@ async function prepareItem(token: string, item: PartnerResponse): Promise<Partia
   const before = await threadMetadata(token, item.thread_id);
   if (!before || before.lastMessageId !== item.message_id) throw new Error("A newer message needs to be synced before preparing this reply.");
   if (isOwnReply(before, process.env.LEO_ALLOWED_EMAIL ?? "jaime@willowed.org")) {
-    return { status: "waiting", preparation_reason: "Your reply is already the latest message. No additional draft was prepared." };
+    return { status: "needs_input", preparation_reason: "Your reply is already the latest message. Assess whether a specific question needs a partner answer; no additional draft was prepared." };
   }
   const thread = await getThread(token, item.thread_id);
   const latest = thread.messages.at(-1);

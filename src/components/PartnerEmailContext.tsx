@@ -44,7 +44,7 @@ export function EmailConversation({ thread, basedOnMessageId, queueStatus }: { t
   const sourceFound = thread.messages.some((message) => message.id === basedOnMessageId);
   return <div>
     {latest.isOwnMessage ? <p role="status" className="border-b border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-      {queueStatus === "handled" ? "Your reply is the latest message. This conversation is marked no follow-up needed." : "You’ve already replied—your reply is the latest message. Waiting for the partner."} Any saved draft is retained for reference, not another reply to send.
+      {queueStatus === "handled" ? "Your reply is the latest message. This conversation is marked no follow-up needed." : queueStatus === "waiting" ? "You’ve already replied—this conversation is marked Waiting for a partner answer." : "You’ve already replied—your reply is the latest message. Assess whether a specific question still needs a partner answer."} Any saved draft is retained for reference, not another reply to send.
     </p> : basedOnMessageId && latest.id !== basedOnMessageId && <p role="status" className="border-b border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-900">
       {sourceFound ? "There are newer messages than the one this draft was based on. Review them before replying." : "The message this draft was based on is not in the available conversation. Review the latest email before using this draft."}
     </p>}

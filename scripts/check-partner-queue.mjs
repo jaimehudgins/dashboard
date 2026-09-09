@@ -32,7 +32,7 @@ assert.equal(states.responseAfterMessage({ message_id: "10", status: "handled" }
 assert.equal(states.responseAfterMessage({ message_id: "10", status: "handled" }, "11", true, true), "needs_response", "new partner reply reopens handled work");
 assert.equal(states.responseAfterMessage({ message_id: "10", status: "handled" }, "11", false, true), "handled", "your own additional sent message must not reopen no-follow-up work");
 assert.equal(states.responseAfterMessage({ message_id: "10", status: "handled" }, "11", true, false), "needs_input", "a new unmatched incoming message still reopens for review");
-assert.equal(states.responseAfterMessage({ message_id: "10", status: "draft_ready" }, "11", false, true), "waiting", "outgoing reply moves to waiting");
+assert.equal(states.responseAfterMessage({ message_id: "10", status: "draft_ready" }, "11", false, true), "needs_input", "outgoing reply needs assessment before waiting");
 assert.equal(states.responseAfterMessage(null, "11", true, false), "needs_input", "ambiguous partner requires input");
 assert.equal(states.isStaleDraft({ draft: "Keep this", message_id: "11", draft_message_id: "10" }), true);
 
@@ -72,7 +72,11 @@ const replyStatus = moduleAt("src/lib/partner-reply-status.ts", {
 });
 const staleReply = { thread_id: "t", version: 1, partner_id: "p", message_id: "sent", status: "needs_response", draft: "Keep my saved draft" };
 await replyStatus.recheckReplyStatus("mock", staleReply);
-assert.equal(replyStatusPatch.status, "waiting", "explicit recheck repairs an already-tracked sent message");
+assert.equal(replyStatusPatch.status, "needs_input", "explicit recheck does not assume an answer is owed");
+await replyStatus.recheckReplyStatus("mock", { ...staleReply, status: "waiting" });
+assert.equal(replyStatusPatch.status, "needs_input", "legacy automatic waiting can be reassessed");
+await replyStatus.recheckReplyStatus("mock", { ...staleReply, status: "waiting", response_correction: { message_id: "sent", decision: "waiting" } });
+assert.equal(replyStatusPatch.status, "waiting", "an explicit current human decision is preserved");
 assert.equal("draft" in replyStatusPatch, false, "rechecking status must never overwrite saved draft text");
 await replyStatus.recheckReplyStatus("mock", { ...staleReply, status: "handled" });
 assert.equal(replyStatusPatch.status, "handled");
@@ -357,6 +361,11 @@ const handledMarkup = renderToStaticMarkup(React.createElement(emailContext.Emai
 }));
 assert.match(handledMarkup, /no follow-up needed/);
 assert.doesNotMatch(handledMarkup, /Waiting for the partner/);
+const reviewMarkup = renderToStaticMarkup(React.createElement(emailContext.EmailConversation, {
+  thread: { id: "t", messages: [emailFixture, sentFixture] }, basedOnMessageId: "old", queueStatus: "needs_input",
+}));
+assert.match(reviewMarkup, /specific question/);
+assert.doesNotMatch(reviewMarkup, /Waiting for/);
 const reopenedMarkup = renderToStaticMarkup(React.createElement(emailContext.EmailConversation, {
   thread: { id: "t", messages: [emailFixture, sentFixture, { ...emailFixture, id: "new-incoming", isOwnMessage: false }] }, basedOnMessageId: "old", queueStatus: "waiting",
 }));

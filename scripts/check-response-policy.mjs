@@ -54,13 +54,13 @@ function harness(options = {}) {
     "./anthropic": { isAnthropicConfigured: true, anthropic: { messages: { create: async (request) => {
       calls++; requests.push(request);
       if (options.modelFailure) throw new Error("Unavailable");
-      return { content: [{ type: "text", text: options.invalid ? "{}" : JSON.stringify({ decision: options.decision ?? "action_only", confidence: "high", reason: "Reviewer names unlock an unfinished platform task; no answer was requested." }) }] };
+      return { content: [{ type: "text", text: options.invalid ? "{}" : JSON.stringify({ decision: options.decision ?? "action_only", confidence: options.confidence ?? "high", reason: "Reviewer names unlock an unfinished platform task; no answer was requested.", waiting_question: options.question ?? null }) }] };
     } } } },
     "./gmail": { getThread: async () => ({ messages: [
       { id: "m1", from: "owner@willowed.org", subject: "Staff", body: options.long ? "x".repeat(20_000) : "I will add the staff once you send their names." },
-      { id: options.changedBefore ? "new" : "m2", from: "partner@example.org", subject: "Staff", body: "Our ALMA reviewers are Alex and Sam. Thanks!" },
+      { id: options.changedBefore ? "new" : "m2", from: options.outgoing ? "owner@willowed.org" : "partner@example.org", sent: Boolean(options.outgoing), subject: "Staff", body: options.text ?? "Our ALMA reviewers are Alex and Sam. Thanks!", cleanBody: options.cleanText ?? options.text ?? "Our ALMA reviewers are Alex and Sam. Thanks!" },
     ] }) },
-    "./gmail-history": { gmailProfile: async () => ({ emailAddress: options.wrongAccount ? "other@example.org" : "owner@willowed.org" }), threadMetadata: async () => ({ lastMessageId: options.changedAfter ? "new" : "m2" }) },
+    "./gmail-history": { gmailProfile: async () => ({ emailAddress: options.wrongAccount ? "other@example.org" : "owner@willowed.org" }), threadMetadata: async () => ({ lastMessageId: options.changedAfter ? "new" : "m2", from: options.outgoing ? "owner@willowed.org" : "partner@example.org" }), isOwnReply: (message, email) => message.lastMessageSent || message.from === email },
     "./partner-response-store": { responseDb: () => db, updateResponse: async (_id, version, patch) => {
       if (options.conflict || version !== 1) throw new Error("Changed in another tab");
       writes.push(patch); return { ...item, ...patch };
@@ -140,6 +140,35 @@ h = harness({ rulesError: { code: "08006" } });
 await assert.rejects(() => h.service.assessResponse("mock", item), /Could not load approved response rules/);
 assert.equal(h.calls(), 0);
 assert.equal(h.writes.length, 0);
+
+// Waiting requires a verified question in Jaime's own authored text, not a
+// question mark in a partner's email, invented evidence, or quoted history.
+const question = { message_id: "m2", text: "Which date works for you?" };
+for (const options of [
+  { question: null }, { question: { ...question, message_id: "missing" } },
+  { outgoing: false, question }, { question: { ...question, text: "Invented question?" } },
+  { question, cleanText: "All set. Happy to help." },
+]) {
+  h = harness({ outgoing: true, decision: "waiting", text: question.text, ...options });
+  await h.service.assessResponse("mock", { ...item, draft: "", status: "needs_input" });
+  assert.equal(h.writes[0].response_assessment.decision, "judgment");
+  assert.equal(h.writes[0].status, "needs_input");
+}
+h = harness({ outgoing: true, decision: "waiting", text: question.text, question });
+await h.service.assessResponse("mock", { ...item, draft: "", status: "needs_input" });
+assert.equal(h.writes[0].status, "waiting", "verified high-confidence partner question enters Waiting");
+for (const confidence of ["medium", "low"]) {
+  h = harness({ outgoing: true, decision: "waiting", confidence, text: question.text, question });
+  await h.service.assessResponse("mock", item);
+  assert.equal(h.writes[0].status, "needs_input");
+}
+for (const text of ["All set. Let me know if you need anything.", "Thanks!", "I'll add the staff tomorrow."]) {
+  h = harness({ outgoing: true, decision: text.includes("tomorrow") ? "action_only" : "no_reply", text });
+  await h.service.assessResponse("mock", item);
+  assert.equal(h.writes[0].status, "needs_input", "no automatic closure and no automatic Waiting");
+}
+assert.match(policy.RESPONSE_NEEDED_POLICY, /Courtesy closings/);
+assert.match(policy.RESPONSE_NEEDED_POLICY, /Jaime owes no outstanding reply or action/);
 
 const crons = JSON.parse(fs.readFileSync("vercel.json", "utf8")).crons;
 assert.equal(crons.find((c) => c.path === "/api/cron/classify-mail").schedule, "*/5 * * * *");

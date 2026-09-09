@@ -4,7 +4,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { anthropic, isAnthropicConfigured } from "./anthropic";
 import { getThread } from "./gmail";
-import { gmailProfile, threadMetadata } from "./gmail-history";
+import { gmailProfile, isOwnReply, threadMetadata } from "./gmail-history";
 import { responseDb, updateResponse } from "./partner-response-store";
 import { assessedResponseStatus, effectiveResponseRules, RESPONSE_NEEDED_POLICY, type ResponseAssessment, type ResponseRule } from "./response-needed-policy";
 import type { PartnerResponse } from "@/types/partner-response";
@@ -12,6 +12,7 @@ import type { PartnerResponse } from "@/types/partner-response";
 const schema = z.object({
   decision: z.enum(["reply_needed", "action_only", "waiting", "no_reply", "judgment"]),
   confidence: z.enum(["high", "medium", "low"]), reason: z.string().min(1).max(800),
+  waiting_question: z.object({ message_id: z.string().min(1), text: z.string().min(1).max(2000) }).strict().nullable(),
 }).strict();
 
 export async function responsePolicyStatus() {
@@ -73,11 +74,24 @@ Approved rules (empty means use the base policy): ${JSON.stringify(rules.map(({ 
     output_config: { format: { type: "json_schema", schema: {
       type: "object", additionalProperties: false,
       properties: { decision: { type: "string", enum: ["reply_needed", "action_only", "waiting", "no_reply", "judgment"] },
-        confidence: { type: "string", enum: ["high", "medium", "low"] }, reason: { type: "string" } },
-      required: ["decision", "confidence", "reason"],
+        confidence: { type: "string", enum: ["high", "medium", "low"] }, reason: { type: "string" },
+        waiting_question: { anyOf: [{ type: "null" }, { type: "object", additionalProperties: false,
+          properties: { message_id: { type: "string" }, text: { type: "string" } }, required: ["message_id", "text"] }] } },
+      required: ["decision", "confidence", "reason", "waiting_question"],
     } } },
   } as Anthropic.MessageCreateParamsNonStreaming, { timeout: 25_000, maxRetries: 0 });
   const parsed = schema.parse(JSON.parse(response.content.filter((block): block is Anthropic.TextBlock => block.type === "text").map((block) => block.text).join("")));
+  if (parsed.decision === "waiting") {
+    const question = parsed.waiting_question;
+    const source = question && thread.messages.find((message) => message.id === question.message_id);
+    // Evidence must come from Jaime's authored text, not quoted incoming mail.
+    // Semantic checks (still unanswered, specific, non-courtesy) are required
+    // by the policy; invalid evidence cannot move anything to Waiting.
+    if (!source || !isOwnReply({ from: source.from, lastMessageSent: source.sent }, profile.emailAddress) ||
+      !question || !(source.cleanBody ?? "").includes(question.text)) {
+      return { ...base, decision: "judgment", confidence: "low", reason: "Leo could not verify a specific unanswered question from Jaime. Review before marking Waiting.", waiting_question: null };
+    }
+  } else parsed.waiting_question = null;
   return { ...base, ...parsed, rules_considered: rules.map(({ id, version }) => ({ id, version })) };
 }
 
@@ -89,7 +103,8 @@ export async function assessResponse(token: string, item: PartnerResponse) {
   const latest = await bounded(threadMetadata(token, item.thread_id), 10_000);
   if (latest?.lastMessageId !== item.message_id) throw new Error("New email arrived during assessment. Check mail and reassess.");
   return updateResponse(item.thread_id, item.version, {
-    response_assessment: assessment, response_assessment_retry_at: null, status: assessedResponseStatus(item, assessment),
+    response_assessment: assessment, response_assessment_retry_at: null,
+    status: assessedResponseStatus(item, assessment, isOwnReply(latest, process.env.LEO_ALLOWED_EMAIL ?? "jaime@willowed.org")),
   });
 }
 

@@ -138,7 +138,7 @@ export async function syncPartnerMail(token: string) {
         in_inbox: thread.labelIds.includes("INBOX"),
         urgency: decision?.urgency ?? (sameMessage ? previous?.urgency : null) ?? "question",
         confidence: decision?.confidence ?? (sameMessage ? previous?.confidence : null) ?? "low",
-        reason: !incoming && previous?.status === "handled" ? "No follow-up needed unless a new incoming email arrives." : !incoming && (!sameMessage || previous?.status === "waiting") ? "Your reply is the latest message. Waiting for the partner. Confirmed-sent drafts are kept in Previous drafts." : decision?.reason ?? (sameMessage ? previous?.reason : null) ?? "Review this partner conversation to decide whether a response is needed.",
+        reason: !incoming && previous?.status === "handled" ? "No follow-up needed unless a new incoming email arrives." : !incoming && !sameMessage ? "Your reply is the latest message. Assess whether a specific question needs a partner answer. Confirmed-sent drafts are kept in Previous drafts." : decision?.reason ?? (sameMessage ? previous?.reason : null) ?? "Review this partner conversation to decide whether a response is needed.",
         status: responseAfterMessage(previous, thread.lastMessageId, incoming, Boolean(partner)),
       };
       if (previous) {
