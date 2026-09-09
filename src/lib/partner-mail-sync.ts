@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { crmSupabase, isCrmConfigured } from "./crm-supabase";
 import { GmailApiError, type ClassifyThread } from "./gmail";
-import { changedThreadIds, gmailHistory, gmailProfile, initialThreadIds, isOwnReply, recoveryThreadIds, threadMetadata } from "./gmail-history";
+import { changedThreadIds, gmailHistory, gmailProfile, initialThreadIds, isOwnReply, recoveryThreadIds, sentDraftPatch, threadMetadata } from "./gmail-history";
 import { classifyInbox } from "./mail-classify";
 import { getMailSyncState, getResponse, responseDb, storeError, updateResponse } from "./partner-response-store";
 import { responseAfterMessage } from "@/types/partner-response";
@@ -85,7 +85,7 @@ export async function syncPartnerMail(token: string) {
     }
     if (mode === "recovery" && !pendingIds) {
       // Refresh every tracked item too: archived/sent/deleted changes may have
-      // happened while the history cursor was expired. Never erase local drafts.
+      // happened while the history cursor was expired. Preserve unsent drafts.
       for (let offset = 0; ; offset += 500) {
         const { data, error } = await db.from("partner_responses").select("thread_id").order("thread_id").range(offset, offset + 499);
         if (error) storeError(error);
@@ -128,7 +128,9 @@ export async function syncPartnerMail(token: string) {
       const incoming = !isOwnReply(thread, profile.emailAddress);
       const decision = classified.decisions[thread.id];
       const sameMessage = previous?.message_id === thread.lastMessageId;
+      const retiredDraft = previous ? await sentDraftPatch(token, previous, thread.lastMessageId) : {};
       const patch = {
+        ...retiredDraft,
         partner_id: partner?.id ?? null,
         partner_name: partner?.name ?? "Partner to confirm",
         subject: thread.subject, sender: thread.from, snippet: thread.snippet,
@@ -136,7 +138,7 @@ export async function syncPartnerMail(token: string) {
         in_inbox: thread.labelIds.includes("INBOX"),
         urgency: decision?.urgency ?? (sameMessage ? previous?.urgency : null) ?? "question",
         confidence: decision?.confidence ?? (sameMessage ? previous?.confidence : null) ?? "low",
-        reason: !incoming && previous?.status === "handled" ? "No follow-up needed unless a new incoming email arrives." : !incoming && (!sameMessage || previous?.status === "waiting") ? "Your reply is the latest message. Waiting for the partner; saved drafts are retained." : decision?.reason ?? (sameMessage ? previous?.reason : null) ?? "Review this partner conversation to decide whether a response is needed.",
+        reason: !incoming && previous?.status === "handled" ? "No follow-up needed unless a new incoming email arrives." : !incoming && (!sameMessage || previous?.status === "waiting") ? "Your reply is the latest message. Waiting for the partner. Confirmed-sent drafts are kept in Previous drafts." : decision?.reason ?? (sameMessage ? previous?.reason : null) ?? "Review this partner conversation to decide whether a response is needed.",
         status: responseAfterMessage(previous, thread.lastMessageId, incoming, Boolean(partner)),
       };
       if (previous) {

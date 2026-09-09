@@ -70,5 +70,5 @@ export function effectiveResponseNeed(item: PartnerResponse): ResponseNeed | nul
 export function assessedResponseStatus(item: PartnerResponse, assessment: ResponseAssessment): ResponseStatus {
   if (item.response_correction?.message_id === item.message_id || item.status === "handled" || item.status === "waiting") return item.status;
   if (assessment.decision !== "reply_needed" || assessment.confidence !== "high") return "needs_input";
-  return item.status;
+  return item.draft ? item.status : "needs_response";
 }

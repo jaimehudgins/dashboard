@@ -1,5 +1,5 @@
 import "server-only";
-import { gmailProfile, isOwnReply, threadMetadata } from "./gmail-history";
+import { gmailProfile, isOwnReply, sentDraftPatch, threadMetadata } from "./gmail-history";
 import { updateResponse } from "./partner-response-store";
 import type { PartnerResponse } from "@/types/partner-response";
 
@@ -14,20 +14,22 @@ export async function recheckReplyStatus(token: string, item: PartnerResponse) {
   if (!thread?.lastMessageId) throw new Error("No current message was found. Saved work has not been changed.");
   const ownReply = isOwnReply(thread, profile.emailAddress);
   const newMessage = thread.lastMessageId !== item.message_id;
+  const retiredDraft = await sentDraftPatch(token, item, thread.lastMessageId);
   const status = ownReply ? item.status === "handled" ? "handled" : "waiting"
     : newMessage ? item.partner_id ? "needs_response" : "needs_input" : item.status;
   const updated = await updateResponse(item.thread_id, item.version, {
+    ...retiredDraft,
     message_id: thread.lastMessageId, sender: thread.from, received_at: thread.date || null,
     subject: thread.subject, snippet: thread.snippet, in_inbox: thread.labelIds.includes("INBOX"),
     status,
-    ...(ownReply ? { urgency: "later", confidence: "high", reason: "Your reply is the latest message. Waiting for the partner; saved drafts are retained." } : newMessage ? {
+    ...(ownReply ? { urgency: "later", confidence: "high", reason: "Your reply is the latest message. Waiting for the partner. Confirmed-sent drafts are kept in Previous drafts." } : newMessage ? {
       urgency: "question", confidence: "low", reason: "A newer incoming message arrived after the saved queue entry. Review it before replying.",
     } : {}),
   });
   return {
     item: updated,
-    notice: ownReply ? `Your reply is the latest message. ${status === "handled" ? "Kept as handled." : "Moved to Waiting / follow-up."} Saved drafts are unchanged.`
-      : newMessage ? "A newer incoming message needs review. Your earlier draft is retained."
-        : "Checked Gmail. No newer sent reply was found in this conversation; your status is unchanged.",
+    notice: (ownReply ? `Your reply is the latest message. ${status === "handled" ? "Kept as handled." : "Moved to Waiting / follow-up."}`
+      : newMessage ? "A newer incoming message needs review."
+        : "Checked Gmail. Your status is unchanged.") + (retiredDraft.draft === "" ? " The sent draft was moved to Previous drafts. Assess the latest message to decide whether another reply is needed." : " Any unsent draft is unchanged."),
   };
 }

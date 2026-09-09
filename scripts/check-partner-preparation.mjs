@@ -43,6 +43,8 @@ const example = {
   response_assessment: { message_id: "m", decision: "reply_needed", confidence: "high", reason: "Unanswered question" },
 };
 assert.equal(policy.canPrepareResponse(example), true);
+assert.equal(policy.canPrepareResponse({ ...example, preparation_message_id: "earlier-message" }), true, "an old sent draft's preparation marker cannot block the new reply");
+assert.equal(policy.canPrepareResponse({ ...example, response_assessment: { ...example.response_assessment, decision: "waiting" } }), false, "retiring a draft must not cause a needless reply");
 assert.equal(policy.canPrepareResponse({ ...example, draft: "My existing text" }), false);
 assert.equal(policy.canPrepareResponse({ ...example, status: "waiting" }), false);
 assert.equal(policy.canPrepareResponse({ ...example, preparation_message_id: "m" }), false);

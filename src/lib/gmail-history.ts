@@ -1,5 +1,24 @@
 import "server-only";
-import { gmailFetch, GmailApiError, type ClassifyThread } from "./gmail";
+import { gmailFetch, GmailApiError, getThread, type ClassifyThread } from "./gmail";
+import type { PartnerResponse } from "@/types/partner-response";
+
+// Only retire a saved draft when Gmail confirms the same text was sent AFTER
+// its source message. A newer incoming reply may already follow that send.
+// Whitespace differences are harmless; changed wording/signatures are not.
+export async function sentDraftPatch(token: string, item: PartnerResponse, latestMessageId: string): Promise<Partial<PartnerResponse>> {
+  if (!item.draft?.trim() || !item.draft_message_id) return {};
+  const thread = await getThread(token, item.thread_id);
+  if (thread.messages.at(-1)?.id !== latestMessageId) throw new Error("Email changed while checking the sent draft. Retry the mail check; saved text is unchanged.");
+  const sourceIndex = thread.messages.findIndex((message) => message.id === item.draft_message_id);
+  if (sourceIndex < 0) return {};
+  const normalize = (text: string) => text.replace(/\s+/g, " ").trim();
+  const draft = normalize(item.draft);
+  const sent = thread.messages.slice(sourceIndex + 1).some((message) => message.sent && message.body.length < 20_000 &&
+    [message.body, message.cleanBody].some((body) => body && normalize(body) === draft));
+  // The existing database trigger archives OLD.draft/sources atomically with
+  // this clear. Optimistic versions protect edits made during Gmail lookup.
+  return sent ? { draft: "", draft_message_id: null, draft_sources: [] } : {};
+}
 
 interface MessageRef { id: string; threadId: string }
 export interface GmailHistoryPage {

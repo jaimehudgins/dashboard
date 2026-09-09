@@ -10,8 +10,8 @@ export async function evaluateLifecycle(snapshot = null) {
   const store = moduleAt("src/lib/partner-response-store.ts", { "@supabase/supabase-js": { createClient: () => db }, "./supabase": { supabase: db } }, env);
   const states = moduleAt("src/types/partner-response.ts");
   class GmailApiError extends Error {}
-  const history = moduleAt("src/lib/gmail-history.ts", { "./gmail": { GmailApiError } });
   const messages = [];
+  const history = moduleAt("src/lib/gmail-history.ts", { "./gmail": { GmailApiError, getThread: async () => ({ messages: messages.map((message) => ({ id: message.id, sent: message.labelIds.includes("SENT"), body: "Different sent text", cleanBody: "Different sent text" })) }) } });
   let event = 100;
   let urgency = "question";
   let metadataFails = false;

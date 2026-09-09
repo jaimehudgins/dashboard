@@ -20,6 +20,7 @@ function fixture(options = {}) {
   let reads = 0;
   let writes = 0;
   const deliveries = [];
+  const revisions = [];
   const api = moduleAt("src/app/api/partner-responses/send/route.ts", {
     "next/server": { NextResponse: Response },
     "next-auth": { getServerSession: async () => options.session === undefined ? session : options.session },
@@ -41,12 +42,14 @@ function fixture(options = {}) {
         assert.equal(thread, "thread");
         if (version !== row.version || options.claimFails || (writes > 0 && options.queueFails)) throw new Error("Synthetic conflict");
         writes++;
+        // Mirror the existing SQL revision trigger for this transport fake.
+        if (row.draft && patch.draft !== undefined && patch.draft !== row.draft) revisions.push({ draft: row.draft, message_id: row.draft_message_id });
         row = { ...row, ...patch, version: row.version + 1 };
         return { ...row };
       },
     },
   });
-  return { api, deliveries, row: () => row, writes: () => writes };
+  return { api, deliveries, revisions, row: () => row, writes: () => writes };
 }
 const get = (mode = "sender") => new Request(`https://leo.example/api/partner-responses/send?threadId=thread&version=3&mode=${mode}`);
 const post = (patch = {}) => new Request("https://leo.example/api/partner-responses/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...confirmation, ...patch }) });
@@ -126,7 +129,11 @@ const sentResponse = await sent.api.POST(post());
 assert.equal((await sentResponse.json()).ok, true);
 assert.equal(sent.row().status, "waiting");
 assert.equal(sent.row().notes, original.notes);
-assert.equal(sent.row().draft, original.draft);
+assert.equal(sent.row().draft, "");
+assert.equal(sent.row().draft_message_id, null);
+assert.deepEqual(Array.from(sent.row().draft_sources), []);
+assert.equal(sent.revisions.length, 1);
+assert.equal(sent.revisions[0].draft, original.draft);
 assert.equal(sent.deliveries.length, 1);
 assert.equal(sent.deliveries[0].input.body, original.draft);
 assert.equal(sent.deliveries[0].input.to, reply.to);
@@ -148,6 +155,7 @@ const receipt = await failedQueue.api.POST(post());
 assert.equal(receipt.status, 200);
 assert.match((await receipt.json()).warning, /Reply sent/);
 assert.equal(failedQueue.deliveries.length, 1);
+assert.equal(failedQueue.row().draft, original.draft, "failed bookkeeping leaves text for safe reconciliation");
 checks++;
 
 const unknown = fixture({ sendFails: true });
@@ -157,6 +165,7 @@ assert.equal((await unknownResponse.json()).uncertain, true);
 assert.equal((await unknown.api.POST(post())).status, 409);
 assert.equal(unknown.deliveries.length, 1);
 assert.equal(unknown.row().draft, original.draft);
+assert.equal(unknown.revisions.length, 0, "uncertain delivery must not retire a draft");
 checks++;
 
 // Native Gmail metadata parsing honors Reply-To, filters drafts, and chooses
