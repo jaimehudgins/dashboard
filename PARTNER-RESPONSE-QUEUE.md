@@ -4,7 +4,28 @@ Attention now has a saved **Partner responses** queue: Needs response, Draft rea
 Needs your input, Waiting / follow-up, and Handled. Open a row to save notes,
 prepare/edit a reply, set a follow-up date, or reopen previous drafts. The Mail
 link opens the actual conversation, with a current saved draft ready for review.
-Sending remains an explicit action in Mail; nothing sends automatically.
+Attention also offers **Review & send**: it saves edits, verifies the current
+Gmail recipient (honoring Reply-To), and shows the subject and reply text before
+**Confirm & send**. This is a reply to the displayed recipient, not reply-all.
+Mail remains available. Nothing sends automatically.
+
+The authenticated `/api/partner-responses/send` route rechecks the saved version,
+draft's source message, recipient, and latest Gmail message before sending. It
+consumes the reviewed queue version so duplicate submissions of that version
+cannot both send. Gmail writes are not automatically retried. If delivery cannot
+be confirmed, inspect Mail/Gmail before reviewing another send; this is not a
+cross-system exactly-once guarantee. A new message can still arrive between the
+last check and Gmail accepting the send.
+
+Confirmed sends move the conversation to Waiting / follow-up without completing
+tasks or changing TEMU. If bookkeeping fails after Gmail confirms delivery, Leo
+shows a successful-send warning rather than encouraging a duplicate reply.
+No additional migration, environment variable, or OAuth scope is required.
+
+Run `node scripts/check-partner-send.mjs` for offline send/preview/duplicate-click
+checks. To verify the deployed UI safely, edit an existing draft, choose Review
+& send, verify its recipient/text, and choose Back to editing. Only click Confirm
+& send for a reply you actually intend to deliver.
 
 The Attention review panel also loads the email conversation on demand above
 the draft. The latest message is expanded; earlier messages and quoted text can

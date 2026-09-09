@@ -6,6 +6,7 @@ import { readJsonResponse } from "@/lib/http";
 import { isStaleDraft, type MailSyncState, type PartnerResponse, type ResponseStatus } from "@/types/partner-response";
 import PartnerPreparationStatus from "./PartnerPreparationStatus";
 import PartnerEmailContext from "./PartnerEmailContext";
+import PartnerReplySendDialog from "./PartnerReplySendDialog";
 import { RESPONSE_CHOICES, type ResponseNeed } from "@/lib/response-needed-policy";
 
 const lanes = [
@@ -98,7 +99,7 @@ export default function PartnerResponseQueue() {
             {label}{key !== "all" && key !== "critical" ? ` · ${data.counts?.[key] ?? 0}` : ""}
           </button>)}
         </div>}
-        {selected ? <ResponseEditor key={`${selected.thread_id}:${selected.version}`} item={selected} policyReady={data.policy?.ready} onBack={() => setSelected(null)} onSaved={(item, notice) => { setSelected(item); setReceipt(notice ?? "Changes saved."); void load(); window.dispatchEvent(new Event("leo:attention-updated")); }} /> : <>
+        {selected ? <ResponseEditor key={`${selected.thread_id}:${selected.version}`} item={selected} policyReady={data.policy?.ready} onBack={() => setSelected(null)} onSent={(notice) => { setSelected(null); setReceipt(notice); void load(); window.dispatchEvent(new Event("leo:attention-updated")); }} onSaved={(item, notice) => { setSelected(item); setReceipt(notice ?? "Changes saved."); void load(); window.dispatchEvent(new Event("leo:attention-updated")); }} /> : <>
           {loading && <p className="px-5 pb-3 text-xs text-slate-500">Loading saved responses…</p>}
           <div className="divide-y divide-slate-100">
             {data.items?.map((item) => <button key={item.thread_id} onClick={() => setSelected(item)} className="block w-full px-5 py-4 text-left hover:bg-emerald-50/40">
@@ -127,7 +128,7 @@ export default function PartnerResponseQueue() {
   );
 }
 
-function ResponseEditor({ item, policyReady = false, onBack, onSaved }: { item: PartnerResponse; policyReady?: boolean; onBack: () => void; onSaved: (item: PartnerResponse, notice?: string) => void }) {
+function ResponseEditor({ item, policyReady = false, onBack, onSaved, onSent }: { item: PartnerResponse; policyReady?: boolean; onBack: () => void; onSaved: (item: PartnerResponse, notice?: string) => void; onSent: (notice: string) => void }) {
   const [draft, setDraft] = useState(item.draft);
   const [notes, setNotes] = useState(item.notes);
   const [followUp, setFollowUp] = useState(item.follow_up_on ?? "");
@@ -140,6 +141,7 @@ function ResponseEditor({ item, policyReady = false, onBack, onSaved }: { item: 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<{ id: number; draft: string; saved_at: string }[] | null>(null);
+  const [sendItem, setSendItem] = useState<PartnerResponse | null>(null);
   const dirty = draft !== item.draft || notes !== item.notes || followUp !== (item.follow_up_on ?? "") || status !== item.status || correctionDirty;
   useEffect(() => {
     if (!dirty) return;
@@ -148,7 +150,7 @@ function ResponseEditor({ item, policyReady = false, onBack, onSaved }: { item: 
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  const save = async (makeDraft = false, noFollowUp = false) => {
+  const save = async (makeDraft = false, noFollowUp = false, reviewSend = false) => {
     setBusy(true); setError(null);
     try {
       // Save notes first so research instructions survive a failed draft request.
@@ -162,6 +164,7 @@ function ResponseEditor({ item, policyReady = false, onBack, onSaved }: { item: 
       }) });
       const saved = await readJsonResponse<{ error: string; item: PartnerResponse }>(response);
       if (!response.ok || !saved.item) throw new Error(saved.error || "Could not save response.");
+      if (reviewSend) { setSendItem(saved.item); return; }
       if (noFollowUp) {
         onSaved(saved.item, "No follow-up needed. Saved in Handled recently; a new incoming email will reopen it after the next mail check. Notes and drafts are retained.");
         onBack();
@@ -246,11 +249,14 @@ function ResponseEditor({ item, policyReady = false, onBack, onSaved }: { item: 
     {item.draft_sources.length > 0 && <div className="text-xs text-slate-500"><p className="mb-2 font-semibold">Sources used</p>{item.draft_sources.map((source) => <p key={source.id}>{source.url && /^https?:\/\//.test(source.url) ? <a href={source.url} target="_blank" rel="noreferrer" className="underline">{source.title}</a> : source.title}</p>)}</div>}
     {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
     <div className="flex flex-wrap items-center gap-3">
+      <button disabled={busy || !draft.trim() || isStaleDraft(item) || ["waiting", "handled"].includes(status)} onClick={() => void save(false, false, true)} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Review &amp; send</button>
       <button disabled={busy} onClick={() => void save()} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Working…" : "Save changes"}</button>
       <button disabled={busy} onClick={() => void save(true)} className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-800 disabled:opacity-50">{busy ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} {item.draft ? "Prepare a fresh draft" : "Draft with Leo"}</button>
       <button onClick={() => void loadHistory()} className="text-xs text-slate-500 underline">Previous drafts</button>
       <span className="text-xs text-slate-400">Saved {new Date(item.updated_at).toLocaleString()}</span>
     </div>
+    <p className="text-xs text-slate-500">Review &amp; send saves your edits first, then asks you to confirm the recipient and reply. For an older draft, review the latest email and save your updated draft first.</p>
+    {sendItem && <PartnerReplySendDialog item={sendItem} onClose={(attempted) => { onSaved(sendItem); if (attempted) onBack(); }} onSent={onSent} />}
     {history && <div className="space-y-3">{history.length ? history.map((revision) => <details key={revision.id} className="rounded-lg border border-slate-200 p-3 text-sm"><summary>Draft saved {new Date(revision.saved_at).toLocaleString()}</summary><p className="mt-3 whitespace-pre-wrap">{revision.draft}</p></details>) : <p className="text-xs text-slate-500">No previous draft versions yet.</p>}</div>}
   </div>;
 }
