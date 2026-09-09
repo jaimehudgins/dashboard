@@ -27,8 +27,11 @@ function moduleAt(path, mocks = {}, suffix = "") {
 }
 
 const states = moduleAt("src/types/partner-response.ts");
+const responsePolicy = moduleAt("src/lib/response-needed-policy.ts");
 assert.equal(states.responseAfterMessage({ message_id: "10", status: "handled" }, "10", true, true), "handled", "reading or labeling must not reopen a handled item");
 assert.equal(states.responseAfterMessage({ message_id: "10", status: "handled" }, "11", true, true), "needs_response", "new partner reply reopens handled work");
+assert.equal(states.responseAfterMessage({ message_id: "10", status: "handled" }, "11", false, true), "handled", "your own additional sent message must not reopen no-follow-up work");
+assert.equal(states.responseAfterMessage({ message_id: "10", status: "handled" }, "11", true, false), "needs_input", "a new unmatched incoming message still reopens for review");
 assert.equal(states.responseAfterMessage({ message_id: "10", status: "draft_ready" }, "11", false, true), "waiting", "outgoing reply moves to waiting");
 assert.equal(states.responseAfterMessage(null, "11", true, false), "needs_input", "ambiguous partner requires input");
 assert.equal(states.isStaleDraft({ draft: "Keep this", message_id: "11", draft_message_id: "10" }), true);
@@ -47,6 +50,34 @@ const metadata = history.classifyMetadata({ id: "a", messages: [
 assert.equal(metadata.lastMessageId, "new", "unsent Gmail drafts cannot invalidate a response draft");
 assert.equal(metadata.date, "1970-01-01T00:00:02.000Z", "use Gmail arrival timestamp");
 assert.equal(metadata.unread, false, "old unread messages do not make the latest message unread");
+const replied = history.classifyMetadata({ id: "t", messages: [
+  { id: "incoming", internalDate: "1000", labelIds: ["INBOX"] },
+  { id: "sent", internalDate: "2000", labelIds: ["SENT"], payload: { headers: [{ name: "From", value: "Owner <alias@other-domain.org>" }] } },
+] });
+assert.equal(history.isOwnReply(replied, "owner@willowed.org"), true, "Gmail's sent flag identifies replies from aliases");
+const answeredAgain = history.classifyMetadata({ id: "t", messages: [
+  { id: "sent", internalDate: "1000", labelIds: ["SENT"] },
+  { id: "new-incoming", internalDate: "2000", labelIds: ["INBOX"], payload: { headers: [{ name: "From", value: "person@school.org" }] } },
+] });
+assert.equal(history.isOwnReply(answeredAgain, "owner@willowed.org"), false, "an older SENT label must not hide a newer partner reply");
+assert.equal(history.isOwnReply({ from: "colleague@willowed.org", lastMessageSent: false }, "owner@willowed.org"), false, "another Willow colleague is not the mailbox owner");
+assert.equal(history.isOwnReply({ from: "Owner <OWNER@willowed.org>" }, "owner@willowed.org"), true);
+
+let checkedThread = replied;
+let replyStatusPatch;
+const replyStatus = moduleAt("src/lib/partner-reply-status.ts", {
+  "./gmail-history": { gmailProfile: async () => ({ emailAddress: "owner@willowed.org" }), threadMetadata: async () => checkedThread, isOwnReply: history.isOwnReply },
+  "./partner-response-store": { updateResponse: async (_id, _version, patch) => { replyStatusPatch = patch; return patch; } },
+});
+const staleReply = { thread_id: "t", version: 1, partner_id: "p", message_id: "sent", status: "needs_response", draft: "Keep my saved draft" };
+await replyStatus.recheckReplyStatus("mock", staleReply);
+assert.equal(replyStatusPatch.status, "waiting", "explicit recheck repairs an already-tracked sent message");
+assert.equal("draft" in replyStatusPatch, false, "rechecking status must never overwrite saved draft text");
+await replyStatus.recheckReplyStatus("mock", { ...staleReply, status: "handled" });
+assert.equal(replyStatusPatch.status, "handled");
+checkedThread = answeredAgain;
+await replyStatus.recheckReplyStatus("mock", { ...staleReply, status: "waiting" });
+assert.equal(replyStatusPatch.status, "needs_response", "a genuine newer incoming reply requires review");
 
 function syncHarness(options = {}) {
   const state = { history_id: "100", page_token: null, pending_thread_ids: null, pending_history_id: null, last_checked_at: "old", ...options.state };
@@ -81,6 +112,7 @@ function syncHarness(options = {}) {
       initialThreadIds: async () => options.initialIds ?? ["thread"],
       recoveryThreadIds: async () => ["thread"],
       changedThreadIds: history.changedThreadIds,
+      isOwnReply: history.isOwnReply,
       threadMetadata: async (_token, id) => {
         reads++;
         if (options.failRead) throw new Error("Rate limited");
@@ -152,6 +184,7 @@ assert.equal(matcher(["new@gmail.com"], [{ email: "known@gmail.com", partner_id:
 assert.equal(matcher(["x@one.org", "y@two.org"], [{ email: "x@one.org", partner_id: "1" }, { email: "y@two.org", partner_id: "2" }], [{ id: "1", name: "One" }, { id: "2", name: "Two" }]), null, "ambiguous thread must not silently choose a partner");
 let session = { user: { email: "owner@willowed.org", name: "Owner" }, accessToken: "mock" };
 let apiItem = { thread_id: "thread", version: 1, message_id: "11", draft: "Original", draft_message_id: "11", status: "draft_ready" };
+let policyReady = false;
 let metadataReads = 0;
 let changedDuringDraft = false;
 let writes = 0;
@@ -164,6 +197,9 @@ const api = moduleAt("src/app/api/partner-responses/route.ts", {
   "@/lib/gmail": { getThread: async () => ({ id: "thread", messages: [] }) },
   "@/lib/gmail-history": { threadMetadata: async () => ({ lastMessageId: ++metadataReads > 1 && changedDuringDraft ? "12" : "11" }) },
   "@/lib/partner-mail-sync": { syncPartnerMail: async () => ({ complete: true }) },
+  "@/lib/partner-reply-status": { recheckReplyStatus: async () => ({ item: apiItem }) },
+  "@/lib/partner-response-policy": { responsePolicyStatus: async () => ({ ready: policyReady }), assessResponse: async () => apiItem },
+  "@/lib/response-needed-policy": responsePolicy,
   "@/lib/partner-response-store": {
     responseStoreConfigured: true, getResponse: async () => apiItem,
     updateResponse: async (_id, version, patch) => {
@@ -181,8 +217,12 @@ session = { user: { email: "owner@willowed.org" }, accessToken: "mock" };
 assert.equal((await api.PATCH(request("PATCH", { threadId: "thread", version: 1, partner_id: "unauthorized" }))).status, 400, "only explicit editable fields are accepted");
 assert.equal((await api.PATCH(request("PATCH", { threadId: "thread", version: 1, follow_up_on: "2026-02-30" }))).status, 400);
 assert.equal((await api.PATCH(request("PATCH", { threadId: "thread", version: 1, draft: "", status: "draft_ready" }))).status, 400, "an empty reply is not draft-ready");
-assert.equal((await api.PATCH(request("PATCH", { threadId: "thread", version: 1, draft: "Edited", status: "handled" }))).status, 200);
+apiItem.follow_up_on = "2026-09-10";
+assert.equal((await api.PATCH(request("PATCH", { threadId: "thread", version: 1, draft: "Edited", notes: "Keep my context", status: "handled", follow_up_on: "2026-09-10" }))).status, 200);
 assert.equal(apiItem.status, "handled", "saving edited text must honor an explicit handled decision");
+assert.equal(apiItem.follow_up_on, null, "handled conversations must not retain follow-up dates");
+assert.equal(apiItem.notes, "Keep my context", "closing retains current notes");
+assert.equal(apiItem.draft, "Edited", "closing retains draft edits");
 assert.equal((await api.PATCH(request("PATCH", { threadId: "thread", version: 1, notes: "Old tab" }))).status, 409);
 assert.equal(writes, 1, "invalid and stale requests must not write");
 changedDuringDraft = true;
@@ -194,11 +234,26 @@ metadataReads = 0;
 assert.equal((await api.POST(request("POST", { action: "draft", threadId: "thread", version: 2 }))).status, 200);
 assert.equal(apiItem.draft, "New draft");
 assert.equal(apiItem.draft_message_id, "11");
+policyReady = true;
+assert.equal((await api.PATCH(request("PATCH", { threadId: "thread", version: apiItem.version, response_decision: "action_only", response_feedback: "Add the reviewers; no acknowledgment needed." }))).status, 200);
+assert.equal(apiItem.status, "needs_input");
+assert.equal(apiItem.response_correction.message_id, "11");
+assert.equal(apiItem.response_correction.decision, "action_only");
+assert.equal(apiItem.draft, "New draft", "corrections retain drafts");
+assert.equal((await api.POST(request("POST", { action: "draft", threadId: "thread", version: apiItem.version }))).status, 409, "action-only correction blocks drafting until explicitly changed");
+assert.equal((await api.PATCH(request("PATCH", { threadId: "thread", version: apiItem.version, response_decision: "no_reply", follow_up_on: "2026-09-10" }))).status, 200);
+assert.equal(apiItem.status, "handled");
+assert.equal(apiItem.follow_up_on, null);
+assert.equal((await api.PATCH(request("PATCH", { threadId: "thread", version: apiItem.version, response_decision: "reply_needed" }))).status, 200);
+assert.equal(apiItem.status, "needs_response");
+assert.equal(apiItem.preparation_message_id, null, "explicit correction permits fresh preparation without replacing saved drafts");
 
 const ui = moduleAt("src/components/PartnerResponseQueue.tsx", {
   react: React, "react/jsx-runtime": jsxRuntime, "lucide-react": icons,
   "@/lib/http": {}, "@/types/partner-response": states,
+  "@/lib/response-needed-policy": responsePolicy,
   "./PartnerPreparationStatus": { default: () => null },
+  "./PartnerEmailContext": { default: () => null },
 }, "\nexport { ResponseEditor };\n");
 const markup = renderToStaticMarkup(React.createElement(ui.ResponseEditor, {
   item: {
@@ -206,12 +261,37 @@ const markup = renderToStaticMarkup(React.createElement(ui.ResponseEditor, {
     subject: "<script>alert(1)</script>", notes: "My direction", reason: "Review the request", follow_up_on: null,
     updated_at: "2026-09-08T13:00:00Z",
     draft_sources: [{ id: "safe", title: "Source document", url: "https://docs.google.com/document/d/example/edit" }, { id: "bad", title: "Unsafe URL", url: "javascript:alert(1)" }],
-  }, onBack() {}, onSaved() {},
+  }, policyReady: true, onBack() {}, onSaved() {},
 }));
 assert.match(markup, /href="\/mail\?thread=thread"/, "open the exact conversation from the queue");
 assert.match(markup, /This draft is from an earlier message/);
 assert.match(markup, /Previous drafts/);
+assert.match(markup, />No follow-up needed<\/button>/, "a direct close action is visible without editing the status dropdown");
+assert.match(markup, /Nothing is sent or archived in Gmail/);
+assert.match(markup, /Assess response needs/);
+assert.match(markup, /Action only/);
+assert.match(markup, /Needs my judgment/);
 assert.match(markup, /https:\/\/docs.google.com\/document\/d\/example\/edit/);
 assert.doesNotMatch(markup, /href="javascript:/, "do not render unsafe source links");
 assert.doesNotMatch(markup, /<script>/, "email-derived text must be escaped");
+const emailText = moduleAt("src/components/EmailText.tsx", { "react/jsx-runtime": jsxRuntime });
+const emailContext = moduleAt("src/components/PartnerEmailContext.tsx", {
+  react: React, "react/jsx-runtime": jsxRuntime, "@/lib/http": {}, "./EmailText": emailText,
+});
+const emailFixture = { id: "old", from: "Partner <partner@example.org>", to: "owner@example.org", cc: "colleague@example.org", subject: "Guide", date: "2026-09-08T13:00:00Z", cleanBody: "Please review https://docs.google.com/document/d/example/edit", body: "Please review https://docs.google.com/document/d/example/edit\nOn Monday someone wrote: quoted reply", snippet: "Please review", hasQuotedContent: true };
+const threadMarkup = renderToStaticMarkup(React.createElement(emailContext.EmailConversation, {
+  thread: { id: "t", messages: [emailFixture, { ...emailFixture, id: "new", cleanBody: "One more question <script>bad()</script>", hasQuotedContent: false }] }, basedOnMessageId: "old",
+}));
+assert.match(threadMarkup, /Latest email/);
+assert.match(threadMarkup, /Earlier messages \(1\)/);
+assert.match(threadMarkup, /Draft based on this message/);
+assert.match(threadMarkup, /newer messages/);
+assert.match(threadMarkup, /Show full text including quoted replies/);
+assert.match(threadMarkup, /href="https:\/\/docs.google.com\/document\/d\/example\/edit"/);
+assert.doesNotMatch(threadMarkup, /<script>/);
+assert.doesNotMatch(threadMarkup, /<iframe/, "the Attention reader must not load external tracking images or HTML");
+const missingSourceMarkup = renderToStaticMarkup(React.createElement(emailContext.EmailConversation, { thread: { id: "t", messages: [emailFixture] }, basedOnMessageId: "missing" }));
+assert.match(missingSourceMarkup, /not in the available conversation/);
+const emptyMarkup = renderToStaticMarkup(React.createElement(emailContext.EmailConversation, { thread: { id: "t", messages: [] }, basedOnMessageId: null }));
+assert.match(emptyMarkup, /No messages were returned/);
 console.log("Partner queue regression checks passed (offline, no external writes).");

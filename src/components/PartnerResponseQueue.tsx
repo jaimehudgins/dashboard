@@ -5,6 +5,8 @@ import { ArrowLeft, ExternalLink, Loader2, RefreshCw, Sparkles } from "lucide-re
 import { readJsonResponse } from "@/lib/http";
 import { isStaleDraft, type MailSyncState, type PartnerResponse, type ResponseStatus } from "@/types/partner-response";
 import PartnerPreparationStatus from "./PartnerPreparationStatus";
+import PartnerEmailContext from "./PartnerEmailContext";
+import { RESPONSE_CHOICES, type ResponseNeed } from "@/lib/response-needed-policy";
 
 const lanes = [
   ["all", "All open"], ["critical", "Critical now"], ["needs_response", "Needs response"],
@@ -20,6 +22,7 @@ interface QueueData {
   counts: Record<ResponseStatus, number>;
   hasMore: boolean;
   error?: string;
+  policy?: { ready: boolean; enabled?: boolean; error?: string; last_error?: string | null };
 }
 
 export default function PartnerResponseQueue() {
@@ -88,12 +91,14 @@ export default function PartnerResponseQueue() {
       {data && !data.configured && <p className="p-5 text-sm text-slate-600">The saved partner queue is waiting for setup. {data.setup} Your existing Mail tools remain available.</p>}
       {data?.configured && <>
         <PartnerPreparationStatus />
+        {data.policy && !data.policy.ready && <p className="px-5 py-3 text-sm text-amber-800">{data.policy.error} Existing saved replies remain available.</p>}
+        {data.policy?.last_error && <p role="alert" className="px-5 py-3 text-sm text-amber-800">Last response assessment: {data.policy.last_error}</p>}
         {!selected && <div className="flex flex-wrap gap-2 p-5" aria-label="Response filters">
           {lanes.map(([key, label]) => <button key={key} aria-pressed={lane === key} onClick={() => { setLane(key); setPage(0); setSelected(null); }} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${lane === key ? "border-emerald-700 bg-emerald-700 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
             {label}{key !== "all" && key !== "critical" ? ` · ${data.counts?.[key] ?? 0}` : ""}
           </button>)}
         </div>}
-        {selected ? <ResponseEditor key={`${selected.thread_id}:${selected.version}`} item={selected} onBack={() => setSelected(null)} onSaved={(item, notice) => { setSelected(item); setReceipt(notice ?? "Changes saved."); void load(); window.dispatchEvent(new Event("leo:attention-updated")); }} /> : <>
+        {selected ? <ResponseEditor key={`${selected.thread_id}:${selected.version}`} item={selected} policyReady={data.policy?.ready} onBack={() => setSelected(null)} onSaved={(item, notice) => { setSelected(item); setReceipt(notice ?? "Changes saved."); void load(); window.dispatchEvent(new Event("leo:attention-updated")); }} /> : <>
           {loading && <p className="px-5 pb-3 text-xs text-slate-500">Loading saved responses…</p>}
           <div className="divide-y divide-slate-100">
             {data.items?.map((item) => <button key={item.thread_id} onClick={() => setSelected(item)} className="block w-full px-5 py-4 text-left hover:bg-emerald-50/40">
@@ -105,6 +110,7 @@ export default function PartnerResponseQueue() {
                 {item.follow_up_on && <span className="text-amber-800">Follow up {item.follow_up_on}</span>}
               </div>
               <h3 className="mt-2 font-semibold text-slate-900">{item.subject || "No subject"}</h3>
+              {item.response_assessment?.message_id === item.message_id && <p className="mt-1 text-xs text-emerald-800">Leo suggests: {RESPONSE_CHOICES.find(([key]) => key === item.response_assessment?.decision)?.[1]} · {item.response_assessment.reason}</p>}
               <p className="mt-1 line-clamp-2 text-sm text-slate-500">{item.snippet}</p>
             </button>)}
           </div>
@@ -115,21 +121,26 @@ export default function PartnerResponseQueue() {
             <button disabled={!data.hasMore || loading} onClick={() => setPage(page + 1)} className="text-emerald-800 disabled:opacity-30">Next</button>
           </div>
         </>}
-        <p className="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">Mail is checked every 15 minutes. Automatic preparation is limited to routine, supported replies. Existing drafts are never replaced by a scheduled run.</p>
+        <p className="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">Mail is checked every 5 minutes. Response assessments process two conversations per check; larger backlogs take longer. Draft preparation still uses the four scheduled windows. Existing drafts are never replaced by a scheduled run.</p>
       </>}
     </section>
   );
 }
 
-function ResponseEditor({ item, onBack, onSaved }: { item: PartnerResponse; onBack: () => void; onSaved: (item: PartnerResponse, notice?: string) => void }) {
+function ResponseEditor({ item, policyReady = false, onBack, onSaved }: { item: PartnerResponse; policyReady?: boolean; onBack: () => void; onSaved: (item: PartnerResponse, notice?: string) => void }) {
   const [draft, setDraft] = useState(item.draft);
   const [notes, setNotes] = useState(item.notes);
   const [followUp, setFollowUp] = useState(item.follow_up_on ?? "");
   const [status, setStatus] = useState(item.status);
+  const correction = item.response_correction?.message_id === item.message_id ? item.response_correction : null;
+  const assessment = item.response_assessment?.message_id === item.message_id ? item.response_assessment : null;
+  const [decision, setDecision] = useState<ResponseNeed | "">(correction?.decision ?? "");
+  const [feedback, setFeedback] = useState(correction?.reason ?? "");
+  const correctionDirty = decision !== (correction?.decision ?? "") || feedback !== (correction?.reason ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<{ id: number; draft: string; saved_at: string }[] | null>(null);
-  const dirty = draft !== item.draft || notes !== item.notes || followUp !== (item.follow_up_on ?? "") || status !== item.status;
+  const dirty = draft !== item.draft || notes !== item.notes || followUp !== (item.follow_up_on ?? "") || status !== item.status || correctionDirty;
   useEffect(() => {
     if (!dirty) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
@@ -137,19 +148,25 @@ function ResponseEditor({ item, onBack, onSaved }: { item: PartnerResponse; onBa
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  const save = async (makeDraft = false) => {
+  const save = async (makeDraft = false, noFollowUp = false) => {
     setBusy(true); setError(null);
     try {
       // Save notes first so research instructions survive a failed draft request.
-      const savedStatus = draft !== item.draft && status === item.status && !["waiting", "handled"].includes(status)
+      const savedStatus = noFollowUp ? "handled" : draft !== item.draft && status === item.status && !["waiting", "handled"].includes(status)
         ? draft.trim() ? "draft_ready" : "needs_response"
         : status;
       const response = await fetch("/api/partner-responses", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-        threadId: item.thread_id, version: item.version, notes, follow_up_on: followUp || null, status: savedStatus,
+        threadId: item.thread_id, version: item.version, notes, follow_up_on: savedStatus === "handled" ? null : followUp || null, status: savedStatus,
         ...(draft !== item.draft ? { draft } : {}),
+        ...(policyReady && (noFollowUp || correctionDirty) ? { response_decision: noFollowUp ? "no_reply" : decision || undefined, response_feedback: feedback } : {}),
       }) });
       const saved = await readJsonResponse<{ error: string; item: PartnerResponse }>(response);
       if (!response.ok || !saved.item) throw new Error(saved.error || "Could not save response.");
+      if (noFollowUp) {
+        onSaved(saved.item, "No follow-up needed. Saved in Handled recently; a new incoming email will reopen it after the next mail check. Notes and drafts are retained.");
+        onBack();
+        return;
+      }
       if (!makeDraft) { onSaved(saved.item); return; }
       const generated = await fetch("/api/partner-responses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "draft", threadId: item.thread_id, version: saved.item.version, notes }) });
       const result = await readJsonResponse<{ error: string; item: PartnerResponse }>(generated);
@@ -172,17 +189,58 @@ function ResponseEditor({ item, onBack, onSaved }: { item: PartnerResponse; onBa
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not load history."); }
   };
 
+  const recheckReply = async () => {
+    setBusy(true); setError(null);
+    try {
+      const response = await fetch("/api/partner-responses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "recheck_reply", threadId: item.thread_id, version: item.version }) });
+      const data = await readJsonResponse<{ item: PartnerResponse; notice: string; error: string }>(response);
+      if (!response.ok || !data.item) throw new Error(data.error || "Could not check reply status.");
+      onSaved(data.item, data.notice);
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not check reply status."); }
+    finally { setBusy(false); }
+  };
+
+  const assess = async () => {
+    setBusy(true); setError(null);
+    try {
+      const response = await fetch("/api/partner-responses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "assess", threadId: item.thread_id, version: item.version }) });
+      const data = await readJsonResponse<{ item: PartnerResponse; error: string }>(response);
+      if (!response.ok || !data.item) throw new Error(data.error || "Could not assess response needs.");
+      onSaved(data.item, "Response assessment saved. No email was sent and no conversation was automatically closed.");
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not assess response needs."); }
+    finally { setBusy(false); }
+  };
+
   return <div className="space-y-4 border-t border-slate-100 p-5">
     <button disabled={busy} onClick={() => { if (!dirty || window.confirm("Leave without saving your changes?")) onBack(); }} className="inline-flex items-center gap-2 text-sm text-slate-500"><ArrowLeft size={14} /> Back to queue</button>
     <div><p className="text-xs font-semibold text-emerald-800">{item.partner_name}</p><h3 className="mt-1 text-xl font-semibold">{item.subject}</h3><p className="mt-1 text-sm text-slate-500">{item.sender}</p></div>
-    <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">{item.reason}</p>
+    <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">{item.status === "handled" ? "No follow-up needed. This conversation stays handled unless a new incoming email arrives or you reopen it." : item.reason}</p>
+    {item.status !== "handled" && <div className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">
+      <button type="button" disabled={busy} onClick={() => void save(false, true)} className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-800 disabled:opacity-50">No follow-up needed</button>
+      <p className="mt-2 text-xs text-slate-500">Saves your edits, clears the follow-up date, and moves this to Handled recently. A new incoming email brings it back after the next mail check. Nothing is sent or archived in Gmail.</p>
+    </div>}
     {item.preparation_reason && item.preparation_message_id === item.message_id && <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">Leo’s preparation decision: {item.preparation_reason}</p>}
     {isStaleDraft(item) && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">This draft is from an earlier message. Review the latest thread and update the draft before sending.</p>}
     <a href={`/mail?thread=${encodeURIComponent(item.thread_id)}`} onClick={(event) => { if (dirty && !window.confirm("Your edits are not saved. Open Mail anyway?")) event.preventDefault(); }} className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-800">Open thread in Mail · send, tasks, and TEMU <ExternalLink size={14} /></a>
+    <PartnerEmailContext threadId={item.thread_id} basedOnMessageId={item.draft ? item.draft_message_id : null} />
+    {policyReady && <div className="space-y-3 rounded-lg border border-emerald-100 p-4">
+      <h4 className="font-semibold text-slate-800">What does this conversation need?</h4>
+      {assessment ? <p className="text-sm text-slate-600">Leo suggests <strong>{RESPONSE_CHOICES.find(([key]) => key === assessment.decision)?.[1]}</strong> ({assessment.confidence} confidence): {assessment.reason}</p> : <p className="text-sm text-slate-500">Not yet assessed for the latest email.</p>}
+      {correction && <p className="text-sm text-emerald-800">Your saved decision: {RESPONSE_CHOICES.find(([key]) => key === correction.decision)?.[1]}. Your decision takes precedence for this message.</p>}
+      <button type="button" disabled={busy || dirty} onClick={() => void assess()} className="rounded-lg border border-emerald-200 px-3 py-2 text-sm font-semibold text-emerald-800 disabled:opacity-50">Assess response needs</button>
+      {dirty && <p className="text-xs text-slate-500">Save your edits before reassessing.</p>}
+      <label className="block text-sm text-slate-700">Your decision<select disabled={busy} value={decision} onChange={(event) => setDecision(event.target.value as ResponseNeed | "")} className="ml-2 rounded-lg border border-slate-200 p-2"><option value="" disabled>Choose a decision</option>{RESPONSE_CHOICES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+      <label className="block text-sm text-slate-700">Why? (optional)<textarea disabled={busy || !decision} value={feedback} maxLength={800} onChange={(event) => setFeedback(event.target.value)} rows={2} className="mt-1 w-full rounded-lg border border-slate-200 p-2" placeholder="Example: These names mean I need to add staff, not send another reply." /></label>
+      <p className="text-xs text-slate-500">Use Save changes below to confirm. Corrections become examples for this partner, not automatic rules. Action only stays under Needs your input; create or review its task in Mail. No task is created automatically.</p>
+    </div>}
+    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+      <button type="button" disabled={busy || dirty} onClick={() => void recheckReply()} className="rounded-lg border border-emerald-200 px-3 py-2 font-semibold text-emerald-800 disabled:opacity-50">Check reply status</button>
+      <span>{dirty ? "Save your edits before checking reply status." : "Already replied in Gmail? Check the latest message and update this queue item."}</span>
+    </div>
     <label className="block text-sm font-medium text-slate-700">Notes / direction for Leo<textarea disabled={busy} value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-slate-200 p-3 font-normal" placeholder="What should Leo know before drafting?" /></label>
     <div className="flex flex-wrap gap-4">
       <label className="text-sm text-slate-600">Status<select disabled={busy} value={status} onChange={(event) => setStatus(event.target.value as ResponseStatus)} className="ml-2 rounded-lg border border-slate-200 p-2">{lanes.filter(([key]) => key !== "all" && key !== "critical").map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-      <label className="text-sm text-slate-600">Follow-up date<input disabled={busy} type="date" value={followUp} onChange={(event) => setFollowUp(event.target.value)} className="ml-2 rounded-lg border border-slate-200 p-2" /></label>
+      <label className="text-sm text-slate-600">Follow-up date<input disabled={busy || status === "handled"} type="date" value={status === "handled" ? "" : followUp} onChange={(event) => setFollowUp(event.target.value)} className="ml-2 rounded-lg border border-slate-200 p-2 disabled:opacity-50" /></label>
     </div>
     <label className="block text-sm font-medium text-slate-700">Reply draft<textarea disabled={busy} value={draft} onChange={(event) => setDraft(event.target.value)} rows={10} className="mt-1 w-full rounded-lg border border-slate-200 p-3 font-normal leading-relaxed" placeholder="Prepare a draft with Leo, or write one here." /></label>
     {item.draft_sources.length > 0 && <div className="text-xs text-slate-500"><p className="mb-2 font-semibold">Sources used</p>{item.draft_sources.map((source) => <p key={source.id}>{source.url && /^https?:\/\//.test(source.url) ? <a href={source.url} target="_blank" rel="noreferrer" className="underline">{source.title}</a> : source.title}</p>)}</div>}

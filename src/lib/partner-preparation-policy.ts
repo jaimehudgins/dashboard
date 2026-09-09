@@ -1,5 +1,6 @@
 import type { PartnerResponse } from "@/types/partner-response";
 import { dateKeyInZone, zonedDateTimeToUtc, zonedParts } from "./time-zone";
+import { effectiveResponseNeed } from "./response-needed-policy";
 
 export const PREPARATION_WINDOWS = [
   { hour: 8, minute: 0, label: "8:00 AM" },
@@ -25,8 +26,11 @@ export function nextPreparationLabel(now = new Date()): string {
 }
 
 export function canPrepareResponse(item: PartnerResponse): boolean {
+  const approved = item.response_correction?.message_id === item.message_id
+    ? item.response_correction.decision === "reply_needed"
+    : item.response_assessment?.confidence === "high";
   return item.status === "needs_response" && item.in_inbox && Boolean(item.partner_id) &&
-    !item.draft && item.preparation_message_id !== item.message_id;
+    !item.draft && item.preparation_message_id !== item.message_id && approved && effectiveResponseNeed(item) === "reply_needed";
 }
 
 // These actions require Jaime's judgment or actual platform access. A draft

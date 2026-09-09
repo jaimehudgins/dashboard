@@ -34,7 +34,7 @@ export async function GET() {
     schedule: {
       morning: "8:05 AM Central",
       evening: "5:05 PM Central",
-      urgentScan: "Every 15 minutes",
+      urgentScan: "Every 5 minutes",
     },
   });
 }

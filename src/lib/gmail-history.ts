@@ -72,6 +72,9 @@ export function classifyMetadata(thread: MetadataThread): ClassifyThread {
   return {
     id: thread.id,
     lastMessageId: last?.id ?? "",
+    // Only the latest message counts. A thread-level SENT union can refer to
+    // an old reply that a partner has since answered.
+    lastMessageSent: last?.labelIds?.includes("SENT") ?? false,
     from: header(headers, "From"),
     subject: header(headers, "Subject"),
     date: received && Number.isFinite(received) ? new Date(received).toISOString() : "",
@@ -83,6 +86,11 @@ export function classifyMetadata(thread: MetadataThread): ClassifyThread {
     unread: last?.labelIds?.includes("UNREAD") ?? false,
     listUnsub: Boolean(header(headers, "List-Unsubscribe")),
   };
+}
+
+export function isOwnReply(thread: Pick<ClassifyThread, "from" | "lastMessageSent">, accountEmail: string): boolean {
+  const sender = thread.from.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]?.toLowerCase();
+  return thread.lastMessageSent === true || sender === accountEmail.toLowerCase();
 }
 
 export async function threadMetadata(token: string, id: string): Promise<ClassifyThread | null> {

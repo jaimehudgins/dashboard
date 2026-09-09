@@ -20,7 +20,8 @@ function load(path, mocks = {}, environment = {}) {
   return exports;
 }
 const time = load("src/lib/time-zone.ts");
-const policy = load("src/lib/partner-preparation-policy.ts", { "./time-zone": time });
+const responsePolicy = load("src/lib/response-needed-policy.ts");
+const policy = load("src/lib/partner-preparation-policy.ts", { "./time-zone": time, "./response-needed-policy": responsePolicy });
 assert.equal(policy.preparationWindow(new Date("2026-09-08T13:00:00Z")).label, "8:00 AM");
 assert.equal(policy.preparationWindow(new Date("2026-12-08T14:00:00Z")).label, "8:00 AM", "CST uses the same local window");
 assert.equal(policy.preparationWindow(new Date("2026-12-08T13:59:00Z")), null);
@@ -39,12 +40,15 @@ assert.deepEqual(Array.from(policy.requiredReplySources("Where is the lesson cur
 const example = {
   thread_id: "t", version: 1, message_id: "m", partner_id: "p", partner_name: "Example school",
   status: "needs_response", in_inbox: true, draft: "", notes: "", received_at: "2026-09-08T12:30:00Z",
+  response_assessment: { message_id: "m", decision: "reply_needed", confidence: "high", reason: "Unanswered question" },
 };
 assert.equal(policy.canPrepareResponse(example), true);
 assert.equal(policy.canPrepareResponse({ ...example, draft: "My existing text" }), false);
 assert.equal(policy.canPrepareResponse({ ...example, status: "waiting" }), false);
 assert.equal(policy.canPrepareResponse({ ...example, preparation_message_id: "m" }), false);
 assert.equal(policy.canPrepareResponse({ ...example, partner_id: null }), false);
+assert.equal(policy.canPrepareResponse({ ...example, response_assessment: null }), false, "assess response need before automatic drafting");
+assert.equal(policy.canPrepareResponse({ ...example, response_correction: { message_id: "m", decision: "action_only" } }), false, "human action-only correction suppresses drafting");
 
 function harness(options = {}) {
   const ids = options.ids ?? ["t"];
@@ -80,8 +84,9 @@ function harness(options = {}) {
     "./email-draft": { generateEmailDraft: async () => { drafts++; if (options.generationFailure) throw new Error("Draft service unavailable"); return { draft: options.draft ?? "Thanks for confirming. I look forward to our conversation.", sources: [] }; } },
     "./gmail": { getThread: async () => ({ id: "t", messages: [{ id: "m", from: "partner@example.org", subject: "Next steps", date: "today", body: options.body ?? "Confirming our conversation.", cleanBody: options.body ?? "Confirming our conversation." }] }) },
     "./gmail-history": {
+      isOwnReply: (thread) => thread.lastMessageSent === true,
       gmailProfile: async () => ({ emailAddress: options.wrongAccount ? "other@example.org" : "owner@willowed.org" }),
-      threadMetadata: async () => ({ lastMessageId: ++metadataReads > 1 && options.newMessage ? "new" : "m" }),
+      threadMetadata: async () => ({ lastMessageId: ++metadataReads > 1 && options.newMessage ? "new" : "m", lastMessageSent: options.alreadySent ?? false }),
     },
     "./partner-mail-sync": { syncPartnerMail: async () => { synced++; } },
     "./partner-response-store": {
@@ -94,6 +99,7 @@ function harness(options = {}) {
       },
     },
     "./partner-preparation-policy": policy,
+    "./response-needed-policy": responsePolicy,
     "./reply-sources": { gatherReplySources: async () => options.sources ?? [], sourcesForPrompt: () => "Mock evidence" },
   });
   return { run: () => worker.runPartnerPreparation("mock", new Date("2026-09-08T13:05:00Z")), item: () => items.get(ids[0]), batch: () => run, drafts: () => drafts, saved: () => saved, synced: () => synced };
@@ -110,6 +116,11 @@ const human = harness({ body: "Please add the ALMA flag reviewers to staff" });
 await human.run();
 assert.equal(human.item().status, "needs_input");
 assert.equal(human.drafts(), 0);
+const alreadySent = harness({ alreadySent: true });
+await alreadySent.run();
+assert.equal(alreadySent.item().status, "waiting");
+assert.equal(alreadySent.drafts(), 0, "do not draft a second reply when the latest message is already sent");
+assert.equal(alreadySent.batch().needs_input, 0);
 const missing = harness({ body: "Where is the curriculum lesson?" });
 await missing.run();
 assert.equal(missing.item().status, "needs_input", "deterministic source routing cannot be bypassed by an empty model source list");

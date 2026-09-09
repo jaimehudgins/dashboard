@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/classify-mail",
-      "schedule": "*/15 * * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/cron/granola-sync",

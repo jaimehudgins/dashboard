@@ -1,3 +1,5 @@
+import type { ResponseAssessment, ResponseCorrection } from "@/lib/response-needed-policy";
+
 export type ResponseStatus = "needs_response" | "draft_ready" | "needs_input" | "waiting" | "handled";
 export type ResponseSource = {
   id: string;
@@ -31,6 +33,9 @@ export interface PartnerResponse {
   preparation_message_id?: string | null;
   preparation_reason?: string | null;
   preparation_batch_key?: string | null;
+  response_assessment?: ResponseAssessment | null;
+  response_correction?: ResponseCorrection | null;
+  response_assessment_retry_at?: string | null;
 }
 
 export interface MailSyncState {
@@ -54,7 +59,7 @@ export function responseAfterMessage(
 ): ResponseStatus {
   // Read/unread and label changes must never undo a human's review decision.
   if (previous?.message_id === messageId) return previous.status;
-  if (!incoming) return "waiting";
+  if (!incoming) return previous?.status === "handled" ? "handled" : "waiting";
   return matched ? "needs_response" : "needs_input";
 }
 
