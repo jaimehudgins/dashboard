@@ -37,7 +37,8 @@ assert.equal(states.responseAfterMessage(null, "11", true, false), "needs_input"
 assert.equal(states.isStaleDraft({ draft: "Keep this", message_id: "11", draft_message_id: "10" }), true);
 
 class GmailApiError extends Error { constructor(status) { super("Gmail error"); this.status = status; } }
-const history = moduleAt("src/lib/gmail-history.ts", { "./gmail": { GmailApiError } });
+let draftMessages = [{ id: "10", body: "Original request", sent: false }, { id: "11", body: "Different sent text", cleanBody: "Different sent text", sent: true }];
+const history = moduleAt("src/lib/gmail-history.ts", { "./gmail": { GmailApiError, getThread: async () => ({ messages: draftMessages }) } });
 assert.deepEqual(Array.from(history.changedThreadIds({ historyId: "99999999999999999999", history: [
   { messagesAdded: [{ message: { id: "1", threadId: "a" } }], messages: [{ id: "1", threadId: "a" }], labelsRemoved: [{ message: { id: "2", threadId: "b" } }] },
   { messagesDeleted: [{ message: { id: "3", threadId: "c" } }] },
@@ -66,7 +67,7 @@ assert.equal(history.isOwnReply({ from: "Owner <OWNER@willowed.org>" }, "owner@w
 let checkedThread = replied;
 let replyStatusPatch;
 const replyStatus = moduleAt("src/lib/partner-reply-status.ts", {
-  "./gmail-history": { gmailProfile: async () => ({ emailAddress: "owner@willowed.org" }), threadMetadata: async () => checkedThread, isOwnReply: history.isOwnReply },
+  "./gmail-history": { gmailProfile: async () => ({ emailAddress: "owner@willowed.org" }), threadMetadata: async () => checkedThread, isOwnReply: history.isOwnReply, sentDraftPatch: history.sentDraftPatch },
   "./partner-response-store": { updateResponse: async (_id, _version, patch) => { replyStatusPatch = patch; return patch; } },
 });
 const staleReply = { thread_id: "t", version: 1, partner_id: "p", message_id: "sent", status: "needs_response", draft: "Keep my saved draft" };
@@ -113,6 +114,7 @@ function syncHarness(options = {}) {
       recoveryThreadIds: async () => ["thread"],
       changedThreadIds: history.changedThreadIds,
       isOwnReply: history.isOwnReply,
+      sentDraftPatch: history.sentDraftPatch,
       threadMetadata: async (_token, id) => {
         reads++;
         if (options.failRead) throw new Error("Rate limited");
@@ -178,6 +180,48 @@ assert.equal(conflicted.state.history_id, "100", "concurrent user edits trigger 
 const locked = syncHarness({ busy: true });
 assert.equal((await locked.sync.syncPartnerMail("mock")).busy, true);
 assert.equal(locked.reads(), 0);
+
+// Gmail may send and receive the follow-up between two syncs. Retire only
+// matching, confirmed-sent text, even when it is no longer the latest message.
+draftMessages = [{ id: "10", body: "Original request", sent: false },
+  { id: "sent-between", body: "Keep my edit", cleanBody: "Keep my edit", sent: true },
+  { id: "11", body: "A new question", sent: false }];
+const cleanupConflict = syncHarness({ conflict: true, rows: [["thread", { ...existing, thread_id: "thread" }]] });
+await assert.rejects(() => cleanupConflict.sync.syncPartnerMail("mock"), /changed/);
+assert.equal(cleanupConflict.responses.get("thread").draft, existing.draft);
+assert.equal(cleanupConflict.state.history_id, "100", "a retirement conflict must be retried without losing mail history");
+draftMessages[1].body = "Keep  my\nedit\n\nOn Tuesday a partner wrote:\nOriginal request";
+draftMessages[1].cleanBody = "Keep  my\nedit";
+assert.equal((await history.sentDraftPatch("mock", existing, "11")).draft, "", "whitespace and quoted history do not block exact authored-text matches");
+draftMessages[1].body = "Keep my edit";
+draftMessages[1].cleanBody = "Keep my edit";
+const retirement = syncHarness({ rows: [["thread", { ...existing, thread_id: "thread", status: "draft_ready" }]] });
+await retirement.sync.syncPartnerMail("mock");
+assert.equal(retirement.responses.get("thread").draft, "");
+assert.equal(retirement.responses.get("thread").draft_message_id, null);
+assert.equal(retirement.responses.get("thread").status, "needs_response");
+const versionAfterRetirement = retirement.responses.get("thread").version;
+await retirement.sync.syncPartnerMail("mock");
+assert.equal(retirement.responses.get("thread").version, versionAfterRetirement, "replayed sync cannot archive twice");
+checkedThread = { ...answeredAgain, lastMessageId: "11" };
+await replyStatus.recheckReplyStatus("mock", { ...existing, thread_id: "thread", message_id: "11", status: "needs_input" });
+assert.equal(replyStatusPatch.draft, "", "manual refresh repairs legacy sent drafts even without newer mail");
+assert.equal(replyStatusPatch.status, "needs_input", "cleanup alone cannot decide whether a reply is needed");
+for (const change of [
+  { draft: "A new unsent edit" },
+  { draft_message_id: "sent-between" },
+  { draft_message_id: "missing" },
+  { draft_message_id: null },
+]) {
+  assert.deepEqual(Object.keys(await history.sentDraftPatch("mock", { ...existing, ...change }, "11")), [], "uncertain or unsent work must be preserved");
+}
+draftMessages[1].sent = false;
+assert.deepEqual(Object.keys(await history.sentDraftPatch("mock", existing, "11")), [], "incoming copies cannot prove delivery");
+draftMessages[1].sent = true;
+draftMessages[1].body = "x".repeat(20000);
+assert.deepEqual(Object.keys(await history.sentDraftPatch("mock", existing, "11")), [], "truncated bodies cannot prove a match");
+await assert.rejects(() => history.sentDraftPatch("mock", existing, "outdated"), /Email changed/);
+draftMessages = [{ id: "10", body: "Original request", sent: false }, { id: "11", body: "Different sent text", cleanBody: "Different sent text", sent: true }];
 
 const matcher = steady.sync.matchResponsePartner;
 assert.equal(matcher(["new@gmail.com"], [{ email: "known@gmail.com", partner_id: "p" }], [{ id: "p", name: "School" }]), null, "never match a school through a shared public email domain");
@@ -268,6 +312,8 @@ const markup = renderToStaticMarkup(React.createElement(ui.ResponseEditor, {
 assert.match(markup, /href="\/mail\?thread=thread"/, "open the exact conversation from the queue");
 assert.match(markup, /This draft is from an earlier message/);
 assert.match(markup, /Previous drafts/);
+assert.match(markup, /Removes it from Gmail’s inbox/);
+assert.match(markup, /Archive in Gmail|Not in Gmail inbox/);
 assert.match(markup, /Review &amp; send/);
 assert.match(markup, />No follow-up needed<\/button>/, "a direct close action is visible without editing the status dropdown");
 assert.match(markup, /Nothing is sent or archived in Gmail/);

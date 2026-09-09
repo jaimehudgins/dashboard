@@ -82,7 +82,9 @@ export async function POST(request: Request) {
     }
     let updated = null;
     let warning = null;
-    try { updated = await updateResponse(item.thread_id, claimed.version, { status: "waiting" }); }
+    // Clearing the confirmed-sent text archives it through the existing DB
+    // revision trigger. Failed/uncertain sends retain the active draft.
+    try { updated = await updateResponse(item.thread_id, claimed.version, { status: "waiting", draft: "", draft_message_id: null, draft_sources: [] }); }
     catch { warning = "Reply sent. The queue could not be updated immediately; Check mail will reconcile it. Do not send again."; }
     return NextResponse.json({ ok: true, messageId: sent.id, item: updated, warning });
   } catch (error) { return failure(error); }

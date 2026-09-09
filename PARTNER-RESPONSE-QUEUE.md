@@ -24,7 +24,9 @@ cross-system exactly-once guarantee. A new message can still arrive between the
 last check and Gmail accepting the send.
 
 Confirmed sends move the conversation to Waiting / follow-up without completing
-tasks or changing TEMU. If bookkeeping fails after Gmail confirms delivery, Leo
+tasks or changing TEMU. They also move the sent draft and its sources into
+Previous drafts and clear the active reply box using the existing atomic revision
+trigger. No new SQL migration is required for draft retirement. If bookkeeping fails after Gmail confirms delivery, Leo
 shows a successful-send warning rather than encouraging a duplicate reply.
 No additional migration, environment variable, or OAuth scope is required.
 
@@ -48,8 +50,24 @@ If an already-answered thread still says Needs response, open it and use **Check
 reply status** (save any edits first). This checks that one Gmail conversation
 immediately and moves it to Waiting when your sent reply is the latest message.
 Gmail's per-message SENT flag handles aliases; an old sent message does not hide
-a newer partner reply. Saved drafts and Handled decisions are retained. Replies
+a newer partner reply. Unsent drafts and Handled decisions are retained. Replies
 sent as a separate Gmail conversation are not automatically linked by this check.
+
+Mail sync and **Check reply status / Refresh emails** also repair drafts sent
+outside Attention: they check the full thread for a Gmail SENT message after the
+draft's source message with matching text (ignoring whitespace, optionally without
+quoted history). The match can be an earlier message followed by a new partner
+reply. Different wording/signatures, missing source messages, truncated bodies,
+and incoming copies are not proof of sending: those drafts stay untouched.
+If Gmail changes during lookup, the check retries instead of clearing text.
+Older already-sent drafts can be repaired with Check reply status even without a
+new incoming email. Save unsaved edits first. Nothing is sent by this repair.
+
+A new incoming email is assessed independently. Once the old sent draft is out
+of the active box, a high-confidence Reply needed assessment permits preparation
+in the next eligible scheduled window (or manual Draft with Leo). Waiting/no-reply
+assessments do not produce a needless reply. Unsent drafts still block automatic
+replacement; review and replace them manually when appropriate.
 
 Use **No follow-up needed** in the open conversation when nothing else needs
 doing. It saves current notes/draft edits, clears the follow-up date, and moves
@@ -57,6 +75,25 @@ the conversation out of All open into Handled recently. Nothing is sent or
 archived in Gmail. Read/label changes and your own additional sent messages do
 not reopen it. A new incoming message reopens it on the next mail check (normally
 within 5 minutes); you can also reopen it manually using Status and Save changes.
+
+## Archive from Attention
+
+**Archive in Gmail** is available near the top of an Attention conversation.
+Save any unsaved edits first, then confirm the archive. It removes the thread
+from the Gmail inbox without deleting it or changing Leo's follow-up status,
+notes, draft, or follow-up date. Restore it using **Move to Inbox** in Gmail.
+Use **No follow-up needed** separately when you also want to close Leo's work.
+Archived conversations can therefore remain in Attention; they show **Not in
+Gmail inbox**. New incoming mail is handled by normal mail sync.
+
+The archive route checks the authenticated Google account, reviewed queue
+version, and latest Gmail message before archiving. It consumes that version
+to prevent duplicate submissions and never automatically retries a Gmail write.
+Gmail cannot atomically combine thread archive with the latest-message check;
+if new activity arrives during the operation, the UI asks you to check Gmail.
+If delivery of the archive request is uncertain, check reply status before
+trying again. No migration or new OAuth scope is required.
+Run `node scripts/check-partner-archive.mjs` for offline regressions.
 
 ## Response-needed policy
 
@@ -202,8 +239,8 @@ assessment. Source availability does not guarantee correctness: review every dra
 Each item shows Leo's preparation decision. Model/source failures leave the email
 eligible for a later window and show a batch error. Successful assessments are
 remembered per message. Repeated checks cannot overwrite your edits or regenerate
-the same message. New arrivals can be reconsidered, but older saved drafts are
-never automatically replaced; use **Prepare a fresh draft** yourself. Set
+the same message. New arrivals can be reconsidered. Confirmed-sent drafts move
+to history; unsent drafts are never automatically replaced. Use **Prepare a fresh draft** yourself for unsent work. Set
 `LEO_AUTO_DRAFTS_ENABLED=false` and redeploy to disable background preparation
 without deleting saved work.
 
@@ -226,10 +263,11 @@ phase does not send four additional Slack notifications per day.
 - Reading a message does not resolve it. Use No follow-up needed or mark it Handled
   yourself. A new partner message reopens it; an outgoing reply moves open work
   to Waiting but leaves Handled work closed. New arrivals retain
-  earlier drafts but flag them as outdated. Updates use version checks to avoid
+  unsent earlier drafts but flag them as outdated; confirmed-sent drafts move to
+  Previous drafts. Updates use version checks to avoid
   overwriting another tab's edits. Manual changes require **Save changes** or
   **Save draft**; there is no autosave.
-- Drafts are stored in Leo, not Gmail Drafts. Replaced drafts are retained in
+- Drafts are stored in Leo, not Gmail Drafts. Replaced and confirmed-sent drafts are retained in
   Previous drafts. Source links accompany generated replies. Review factual
   claims before sending; a draft-ready label is not a correctness guarantee.
 - Slack urgent alerts use saved unresolved, confidently classified partner
@@ -262,8 +300,9 @@ After setup, pilot one real partner thread:
 3. Open it in Mail; confirm the correct conversation and saved draft load.
 4. Set a follow-up date, then use No follow-up needed. Confirm the date clears,
    notes/drafts remain in Handled recently, and read/label changes do not reopen it.
-5. After a genuine new reply, check mail: it should reopen, with the earlier draft
-   preserved and marked outdated. Do not send test mail to a partner just to test.
+5. After a genuine new reply, check mail: it should reopen. A confirmed-sent draft
+   belongs in Previous drafts; unsent text stays visible and marked outdated.
+   Do not send test mail to a partner just to test.
 6. Try saving from two tabs: the second outdated save should report a conflict
    without discarding the first edit. Check Previous drafts after replacement.
 7. Confirm the next cron updates the last-check time and the next briefing reflects

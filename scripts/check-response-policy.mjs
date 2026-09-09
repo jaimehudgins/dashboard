@@ -24,6 +24,7 @@ assert.equal(policy.assessedResponseStatus(item, { decision: "no_reply", confide
 assert.equal(policy.assessedResponseStatus({ ...item, status: "handled" }, { decision: "reply_needed", confidence: "high" }), "handled");
 assert.equal(policy.effectiveResponseNeed({ ...item, response_assessment: { message_id: "m2", decision: "reply_needed" }, response_correction: { message_id: "m2", decision: "action_only" } }), "action_only", "current human correction takes precedence");
 assert.equal(policy.effectiveResponseNeed({ ...item, response_correction: { message_id: "m1", decision: "no_reply" } }), null, "a new email invalidates the old decision");
+assert.equal(policy.assessedResponseStatus({ ...item, draft: "", status: "needs_input" }, { decision: "reply_needed", confidence: "high" }), "needs_response", "a cleared draft with a fresh affirmative assessment can enter preparation");
 
 function harness(options = {}) {
   const writes = [];

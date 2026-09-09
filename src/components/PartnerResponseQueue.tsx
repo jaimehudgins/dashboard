@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ExternalLink, Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { Archive, ArrowLeft, ExternalLink, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { readJsonResponse } from "@/lib/http";
 import { isStaleDraft, type MailSyncState, type PartnerResponse, type ResponseStatus } from "@/types/partner-response";
 import PartnerPreparationStatus from "./PartnerPreparationStatus";
@@ -204,6 +204,20 @@ function ResponseEditor({ item, policyReady = false, onBack, onSaved, onSent }: 
     finally { setBusy(false); }
   };
 
+  const archive = async () => {
+    if (busy || dirty || !item.in_inbox || !window.confirm("Archive this conversation in Gmail? It will leave your Gmail inbox, but Leo's follow-up status, notes, and drafts will stay unchanged. Nothing is deleted. You can move it back to Inbox in Gmail.")) return;
+    setBusy(true); setError(null);
+    try {
+      const response = await fetch("/api/partner-responses/archive", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ threadId: item.thread_id, version: item.version, expectedMessageId: item.message_id, confirmed: true }) });
+      const result = await readJsonResponse<{ ok?: boolean; item?: PartnerResponse; notice?: string; error?: string }>(response);
+      if (!response.ok || !result.ok) throw new Error(result.error || "Could not archive. Check reply status before trying again.");
+      const notice = result.notice || "Archived in Gmail. Leo follow-up status and saved work are unchanged.";
+      if (result.item) onSaved(result.item, notice);
+      else onSent(notice); // Reuse the completion callback to reload the queue.
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not archive."); }
+    finally { setBusy(false); }
+  };
+
   const assess = async () => {
     setBusy(true); setError(null);
     try {
@@ -218,6 +232,10 @@ function ResponseEditor({ item, policyReady = false, onBack, onSaved, onSent }: 
   return <div className="space-y-4 border-t border-slate-100 p-5">
     <button disabled={busy} onClick={() => { if (!dirty || window.confirm("Leave without saving your changes?")) onBack(); }} className="inline-flex items-center gap-2 text-sm text-slate-500"><ArrowLeft size={14} /> Back to queue</button>
     <div><p className="text-xs font-semibold text-emerald-800">{item.partner_name}</p><h3 className="mt-1 text-xl font-semibold">{item.subject}</h3><p className="mt-1 text-sm text-slate-500">{item.sender}</p></div>
+    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+      <button type="button" disabled={busy || dirty || !item.in_inbox} onClick={() => void archive()} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 font-semibold text-slate-700 disabled:opacity-50"><Archive size={14} />{item.in_inbox ? "Archive in Gmail" : "Not in Gmail inbox"}</button>
+      <span>{dirty ? "Save your edits before archiving." : "Removes it from Gmail’s inbox—not from Leo’s follow-up queue. Nothing is deleted."}</span>
+    </div>
     <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">{item.status === "handled" ? "No follow-up needed. This conversation stays handled unless a new incoming email arrives or you reopen it." : item.reason}</p>
     {item.status !== "handled" && <div className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">
       <button type="button" disabled={busy} onClick={() => void save(false, true)} className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-800 disabled:opacity-50">No follow-up needed</button>
@@ -248,6 +266,7 @@ function ResponseEditor({ item, policyReady = false, onBack, onSaved, onSent }: 
       <label className="text-sm text-slate-600">Follow-up date<input disabled={busy || status === "handled"} type="date" value={status === "handled" ? "" : followUp} onChange={(event) => setFollowUp(event.target.value)} className="ml-2 rounded-lg border border-slate-200 p-2 disabled:opacity-50" /></label>
     </div>
     <label className="block text-sm font-medium text-slate-700">Reply draft<textarea disabled={busy} value={draft} onChange={(event) => setDraft(event.target.value)} rows={10} className="mt-1 w-full rounded-lg border border-slate-200 p-3 font-normal leading-relaxed" placeholder="Prepare a draft with Leo, or write one here." /></label>
+    {!draft && <p className="text-xs text-slate-500">No active draft. Sent drafts are kept in Previous drafts. Leo prepares another reply only when the latest message needs an answer.</p>}
     {item.draft_sources.length > 0 && <div className="text-xs text-slate-500"><p className="mb-2 font-semibold">Sources used</p>{item.draft_sources.map((source) => <p key={source.id}>{source.url && /^https?:\/\//.test(source.url) ? <a href={source.url} target="_blank" rel="noreferrer" className="underline">{source.title}</a> : source.title}</p>)}</div>}
     {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
     <div className="flex flex-wrap items-center gap-3">
