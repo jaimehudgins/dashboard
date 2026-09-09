@@ -56,7 +56,7 @@ export async function evaluateCurrent(input, snapshot, call) {
   const gmail = { getThread: async () => input.thread, getSentSamples: async () => input.voiceSamples };
   const gmailHistory = { gmailProfile: async () => ({ emailAddress: "jaime@willow.example" }), threadMetadata: async () => ({ lastMessageId: latest.id, from: latest.from, lastMessageSent: false }), isOwnReply: () => false };
   const db = { from(table) {
-    const query = { select() { return this; }, or() { return this; }, eq() { return this; }, order() { return this; }, limit() { return this; },
+    const query = { select() { return this; }, or() { return this; }, eq() { return this; }, is() { return this; }, order() { return this; }, limit() { return this; },
       then(resolve) { return Promise.resolve(resolve({ data: table === "tasks" ? input.tasks : [], error: null })); } };
     return query;
   } };

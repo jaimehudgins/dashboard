@@ -34,15 +34,16 @@ function harness(options = {}) {
   const db = {
     rpc: async (name) => ({ data: name === "claim_partner_policy" ? !options.busy : options.pending ?? [item], error: null }),
     from(table) {
+      const filters = [];
       const query = {
         patch: null,
-        select() { return this; }, eq() { return this; }, order() { return this; }, limit() { return this; }, single() { return this; },
+        select() { return this; }, eq(key, value) { filters.push((row) => row[key] === value); return this; }, is(key, value) { return this.eq(key, value); }, order() { return this; }, limit() { return this; }, single() { return this; },
         or(filter) { taskQueries++; assert.match(filter, /abc123/); return this; },
         update(patch) { this.patch = patch; return this; },
         then(resolve) {
           if (this.patch) stateWrites.push(this.patch);
-          return Promise.resolve(resolve({ data: table === "partner_policy_state" ? {} : table === "tasks" ? [{ title: "Add ALMA reviewers", status: "pending" }] : [{ subject: "Staff names", correction: { decision: "action_only", reason: "I must add them" } }],
-            error: options.missingSetup && table === "partner_policy_state" ? { code: "42P01" } : options.taskFailure && table === "tasks" ? { message: "Unavailable" } : null }));
+          return Promise.resolve(resolve({ data: table === "partner_response_rules" ? (options.rules ?? []).filter((row) => filters.every((filter) => filter(row))) : table === "partner_policy_state" ? {} : table === "tasks" ? [{ title: "Add ALMA reviewers", status: "pending" }] : [{ subject: "Staff names", correction: { decision: "action_only", reason: "I must add them" } }],
+            error: table === "partner_response_rules" ? options.rulesError ?? null : options.missingSetup && table === "partner_policy_state" ? { code: "42P01" } : options.taskFailure && table === "tasks" ? { message: "Unavailable" } : null }));
         },
       }; return query;
     },
@@ -107,6 +108,37 @@ assert.equal(h.calls(), 0);
 h = harness({ modelFailure: true });
 await h.service.assessPendingResponses("mock");
 assert.match(h.stateWrites.at(-1).last_error, /Unavailable/);
+
+const rule = (id, partner_id, guidance, active = true) => ({ id, partner_id, guidance, active, email_type: "meeting_acceptance", decision: "no_reply", version: 2 });
+const globalRule = rule("global:meeting_acceptance", null, "GENERIC_ACCEPTANCE");
+const exception = rule("partner:meeting_acceptance", "partner", "PARTNER_EXCEPTION");
+const unrelated = rule("other:meeting_acceptance", "other", "OTHER_PARTNER_PRIVATE");
+assert.equal(policy.effectiveResponseRules([globalRule, exception, unrelated], "partner")[0].id, exception.id);
+assert.equal(policy.effectiveResponseRules([globalRule, { ...exception, active: false }, unrelated], "partner")[0].id, globalRule.id);
+assert.equal(policy.effectiveResponseRules([globalRule, exception, unrelated], null)[0].id, globalRule.id);
+assert.equal(policy.effectiveResponseRules([exception, unrelated], "third").length, 0);
+h = harness({ rules: [globalRule, exception, unrelated], decision: "no_reply" });
+await h.service.assessResponse("mock", item);
+assert.match(h.requests[0].system, /PARTNER_EXCEPTION/);
+assert.doesNotMatch(h.requests[0].system, /GENERIC_ACCEPTANCE|OTHER_PARTNER_PRIVATE/);
+assert.match(h.requests[0].system, /unresolved requests take precedence/);
+assert.match(h.requests[0].system, /Ordinary historical corrections remain examples and cannot create new rules/);
+assert.equal(h.writes[0].status, "needs_input", "approved rule cannot authorize automatic closure");
+assert.deepEqual(JSON.parse(JSON.stringify(h.writes[0].response_assessment.rules_considered)), [{ id: exception.id, version: 2 }]);
+h = harness({ rules: [globalRule, { ...exception, active: false }] });
+await h.service.assessResponse("mock", item);
+assert.match(h.requests[0].system, /GENERIC_ACCEPTANCE/);
+assert.doesNotMatch(h.requests[0].system, /PARTNER_EXCEPTION/);
+for (const code of ["42P01", "PGRST205"]) {
+  h = harness({ rulesError: { code } });
+  await h.service.assessResponse("mock", item);
+  assert.equal(h.calls(), 1, "missing additive rules migration preserves base policy");
+  assert.equal(h.writes[0].response_assessment.rules_considered.length, 0);
+}
+h = harness({ rulesError: { code: "08006" } });
+await assert.rejects(() => h.service.assessResponse("mock", item), /Could not load approved response rules/);
+assert.equal(h.calls(), 0);
+assert.equal(h.writes.length, 0);
 
 const crons = JSON.parse(fs.readFileSync("vercel.json", "utf8")).crons;
 assert.equal(crons.find((c) => c.path === "/api/cron/classify-mail").schedule, "*/5 * * * *");

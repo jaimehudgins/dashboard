@@ -6,12 +6,36 @@ export const RESPONSE_CHOICES = [
   ["judgment", "Needs my judgment"],
 ] as const;
 export type ResponseNeed = typeof RESPONSE_CHOICES[number][0];
+export const RESPONSE_EMAIL_TYPES = [
+  ["meeting_acceptance", "Meeting acceptance", "A simple meeting acceptance needs no email response unless it adds a question, requested change, or leaves another request unresolved."],
+  ["calendar_invitation", "New calendar invitation", "A new calendar invitation may require Jaime to accept or decline; it does not necessarily require an email reply. Flag questions or scheduling conflicts."],
+  ["meeting_change", "Declined meeting / new time", "A declined meeting, cancellation, or proposed new time needs Jaime's attention; do not assume a new time is agreed."],
+  ["acknowledgment", "Thank-you / acknowledgment", "A simple acknowledgment needs no reply only if all earlier requests and commitments are resolved."],
+  ["platform_access", "Platform access request", "Account or permission changes require Jaime's action. Never claim an account change is complete without evidence."],
+  ["curriculum_question", "Curriculum question", "Answer the actual curriculum question using verified sources; identify missing information rather than inventing steps."],
+] as const;
+export type ResponseEmailType = typeof RESPONSE_EMAIL_TYPES[number][0];
+export interface ResponseRule {
+  id: string; email_type: ResponseEmailType; partner_id: string | null;
+  decision: ResponseNeed; guidance: string; active: boolean; version: number;
+  approved_by: string; approved_at: string; updated_at: string;
+}
+
+// Disabled exceptions do not shadow a global rule. Another partner's rules
+// never enter this conversation, even if a caller supplies a broader list.
+export function effectiveResponseRules(rules: ResponseRule[], partnerId: string | null): ResponseRule[] {
+  const selected = new Map<ResponseEmailType, ResponseRule>();
+  for (const rule of rules) if (rule.active && rule.partner_id === null) selected.set(rule.email_type, rule);
+  if (partnerId) for (const rule of rules) if (rule.active && rule.partner_id === partnerId) selected.set(rule.email_type, rule);
+  return [...selected.values()];
+}
 export interface ResponseAssessment {
   message_id: string;
   decision: ResponseNeed;
   confidence: "high" | "medium" | "low";
   reason: string;
   assessed_at: string;
+  rules_considered?: { id: string; version: number }[];
 }
 export interface ResponseCorrection {
   message_id: string;
