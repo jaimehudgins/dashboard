@@ -56,7 +56,7 @@ export default function PartnerReplySendDialog({ item, onClose, onSent }: {
       const result = await readJsonResponse<{ ok?: boolean; messageId?: string; warning?: string; error?: string }>(response);
       if (!response.ok) throw new Error(result.error || "Sending was not confirmed. Check Mail before trying again.");
       if (!result.ok || !result.messageId) throw new Error("No send receipt was returned. Check Mail before trying again.");
-      onSent(result.warning || `Reply sent to ${preview.to}${preview.cc ? `; Cc: ${preview.cc}` : ""}. Moved to Waiting / follow-up.`);
+      onSent(result.warning || `Reply sent to ${preview.to}${preview.cc ? `; Cc: ${preview.cc}` : ""}. Kept under Needs your input until response needs are assessed.`);
     } catch (caught) {
       setError(`${caught instanceof Error ? caught.message : "Sending was not confirmed."} If delivery is uncertain, check Mail or Gmail before retrying; Leo will not retry automatically.`);
     } finally { setSending(false); }

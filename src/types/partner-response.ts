@@ -59,7 +59,7 @@ export function responseAfterMessage(
 ): ResponseStatus {
   // Read/unread and label changes must never undo a human's review decision.
   if (previous?.message_id === messageId) return previous.status;
-  if (!incoming) return previous?.status === "handled" ? "handled" : "waiting";
+  if (!incoming) return previous?.status === "handled" ? "handled" : "needs_input";
   return matched ? "needs_response" : "needs_input";
 }
 

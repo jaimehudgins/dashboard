@@ -23,8 +23,9 @@ be confirmed, inspect Mail/Gmail before reviewing another send; this is not a
 cross-system exactly-once guarantee. A new message can still arrive between the
 last check and Gmail accepting the send.
 
-Confirmed sends move the conversation to Waiting / follow-up without completing
-tasks or changing TEMU. They also move the sent draft and its sources into
+Confirmed sends keep the conversation in Needs your input until the latest sent
+message is synced and assessed, without completing tasks or changing TEMU.
+They also move the sent draft and its sources into
 Previous drafts and clear the active reply box using the existing atomic revision
 trigger. No new SQL migration is required for draft retirement. If bookkeeping fails after Gmail confirms delivery, Leo
 shows a successful-send warning rather than encouraging a duplicate reply.
@@ -48,7 +49,9 @@ remains read-only. Google links remain clickable.
 
 If an already-answered thread still says Needs response, open it and use **Check
 reply status** (save any edits first). This checks that one Gmail conversation
-immediately and moves it to Waiting when your sent reply is the latest message.
+immediately. Your sent reply alone no longer means Waiting: use Assess response
+needs after reconciliation. Legacy automatic Waiting entries return to Needs
+your input; a current explicit Waiting correction or verified question is retained.
 Gmail's per-message SENT flag handles aliases; an old sent message does not hide
 a newer partner reply. Unsent drafts and Handled decisions are retained. Replies
 sent as a separate Gmail conversation are not automatically linked by this check.
@@ -121,7 +124,11 @@ In an Attention conversation, **Assess response needs** runs an immediate review
 - Action only: work remains, but an email response is unnecessary (such as adding
   named ALMA reviewers). Stays in Needs your input; use Mail to create/review the
   task. This policy does not create tasks or perform platform changes.
-- Waiting on partner: the partner owes information/action.
+- Waiting on partner: Jaime asked a specific, still-unanswered question that
+  requires a partner answer and owes no outstanding reply or action. Courtesy
+  closings ("Let me know if you need anything"), FYIs, completion confirmations,
+  and a partner action/promise alone do not qualify. A specific confirmation
+  request can qualify without a question mark.
 - No follow-up needed: closure is suggested, never automatic.
 - Needs my judgment: sensitive, ambiguous, or insufficient evidence.
 
@@ -133,6 +140,15 @@ with the queue update and kept as partner-specific examples, NOT new standing
 rules. Only explicit approval in the rule editor can broaden a preference into a global rule.
 Your correction takes precedence for that message; a new email requires a fresh
 assessment. Reassess manually when linked tasks change without a new email.
+
+After an outgoing reply, a high-confidence Waiting assessment can move the item
+to Waiting only with a question quoted from Jaime's authored text (not quoted
+email history). Other outcomes remain Needs your input for approval; Leo never
+automatically closes them. Existing saved human decisions are preserved. The
+five-minute worker assesses a bounded backlog, so this is not an immediate
+send-time guarantee. No new SQL is required; question evidence is stored in the
+existing assessment JSON. Legacy Waiting entries are not bulk-changed: use
+Check reply status, then Assess response needs for each one you want to review.
 
 Automatic drafts now require a high-confidence Reply needed assessment or your
 explicit Reply needed correction, followed by the existing source/safety checks.
@@ -262,7 +278,7 @@ phase does not send four additional Slack notifications per day.
   flow to confirm a partner. This queue does not write to TEMU.
 - Reading a message does not resolve it. Use No follow-up needed or mark it Handled
   yourself. A new partner message reopens it; an outgoing reply moves open work
-  to Waiting but leaves Handled work closed. New arrivals retain
+  to Needs your input for assessment but leaves Handled work closed. New arrivals retain
   unsent earlier drafts but flag them as outdated; confirmed-sent drafts move to
   Previous drafts. Updates use version checks to avoid
   overwriting another tab's edits. Manual changes require **Save changes** or

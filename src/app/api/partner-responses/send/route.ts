@@ -84,7 +84,7 @@ export async function POST(request: Request) {
     let warning = null;
     // Clearing the confirmed-sent text archives it through the existing DB
     // revision trigger. Failed/uncertain sends retain the active draft.
-    try { updated = await updateResponse(item.thread_id, claimed.version, { status: "waiting", draft: "", draft_message_id: null, draft_sources: [] }); }
+    try { updated = await updateResponse(item.thread_id, claimed.version, { status: "needs_input", reason: "Reply sent. Check mail and assess whether a specific question still needs a partner answer.", draft: "", draft_message_id: null, draft_sources: [] }); }
     catch { warning = "Reply sent. The queue could not be updated immediately; Check mail will reconcile it. Do not send again."; }
     return NextResponse.json({ ok: true, messageId: sent.id, item: updated, warning });
   } catch (error) { return failure(error); }

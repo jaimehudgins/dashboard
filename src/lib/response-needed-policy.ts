@@ -36,6 +36,7 @@ export interface ResponseAssessment {
   reason: string;
   assessed_at: string;
   rules_considered?: { id: string; version: number }[];
+  waiting_question?: { message_id: string; text: string } | null;
 }
 export interface ResponseCorrection {
   message_id: string;
@@ -48,7 +49,7 @@ export const RESPONSE_NEEDED_POLICY = `Decide what the conversation needs, separ
 Read the full available conversation chronologically. Identify unanswered questions, requests, decisions, reported problems, and unfulfilled promises. A newest-message thank-you does not erase an earlier unresolved commitment. "I'll do that" is not "That is done".
 reply_needed: an outstanding request needs an email answer. If both an action and a reply are needed, choose reply_needed and explain the action too.
 action_only: Jaime must do work, but no email answer is needed. Named ALMA flag reviewers can unlock a task to add staff in the platform. Do not claim an action was done, create a task, or send anything.
-waiting: the partner owes information or an action and Jaime has no current unanswered request. A sent email alone does not prove the partner owes a response.
+waiting: ONLY a specific, still-unanswered question from Jaime requires a partner answer, and Jaime owes no outstanding reply or action. Identify and quote that question in waiting_question with its source message ID. A sent email alone does not prove the partner owes a response. Courtesy closings such as "Let me know if you need anything", "Happy to help", optional invitations, rhetorical questions, quoted older questions already answered, FYIs, and completion confirmations do NOT qualify. A partner action or promise alone is not Waiting unless a specific answer is also required; use no_reply or judgment as appropriate, without assuming the work is complete. A specific request for confirmation phrased as "Please confirm which date works" can qualify even without a question mark.
 no_reply: only a simple acknowledgment, thank-you, duplicate, FYI, or fully resolved conversation remains. This is a suggestion for human approval, NEVER automatic closure.
 judgment: sensitive issues, ambiguous ownership, conflicting evidence, unavailable information needed to decide, or uncertainty about completion. Never infer task completion from a promise or from absence of a linked task.
 Use linked task status as evidence only for the exact action it covers. Unlinked work may exist. Do not assume attachment contents were read. If an attachment's content matters, request judgment.
@@ -67,8 +68,10 @@ export function effectiveResponseNeed(item: PartnerResponse): ResponseNeed | nul
   return null;
 }
 
-export function assessedResponseStatus(item: PartnerResponse, assessment: ResponseAssessment): ResponseStatus {
-  if (item.response_correction?.message_id === item.message_id || item.status === "handled" || item.status === "waiting") return item.status;
+export function assessedResponseStatus(item: PartnerResponse, assessment: ResponseAssessment, latestIsOwnReply = false): ResponseStatus {
+  if (item.response_correction?.message_id === item.message_id || item.status === "handled") return item.status;
+  if (latestIsOwnReply && assessment.decision === "waiting" && assessment.confidence === "high" && assessment.waiting_question) return "waiting";
+  if (latestIsOwnReply) return "needs_input";
   if (assessment.decision !== "reply_needed" || assessment.confidence !== "high") return "needs_input";
   return item.draft ? item.status : "needs_response";
 }

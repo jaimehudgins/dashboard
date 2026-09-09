@@ -127,7 +127,7 @@ checks++;
 const sent = fixture();
 const sentResponse = await sent.api.POST(post());
 assert.equal((await sentResponse.json()).ok, true);
-assert.equal(sent.row().status, "waiting");
+assert.equal(sent.row().status, "needs_input", "sending alone does not prove a partner answer is needed");
 assert.equal(sent.row().notes, original.notes);
 assert.equal(sent.row().draft, "");
 assert.equal(sent.row().draft_message_id, null);
