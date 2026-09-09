@@ -295,6 +295,10 @@ assert.equal(apiItem.follow_up_on, null);
 assert.equal((await api.PATCH(request("PATCH", { threadId: "thread", version: apiItem.version, response_decision: "reply_needed" }))).status, 200);
 assert.equal(apiItem.status, "needs_response");
 assert.equal(apiItem.preparation_message_id, null, "explicit correction permits fresh preparation without replacing saved drafts");
+assert.equal((await api.PATCH(request("PATCH", { threadId: "thread", version: apiItem.version, status: "waiting" }))).status, 200);
+assert.equal(apiItem.response_correction.decision, "waiting", "direct manual Waiting selections are recorded for bulk protection");
+assert.equal(apiItem.response_correction.message_id, apiItem.message_id);
+assert.equal((await api.PATCH(request("PATCH", { threadId: "thread", version: apiItem.version, response_decision: "reply_needed" }))).status, 200);
 
 const ui = moduleAt("src/components/PartnerResponseQueue.tsx", {
   react: React, "react/jsx-runtime": jsxRuntime, "lucide-react": icons,
@@ -304,6 +308,7 @@ const ui = moduleAt("src/components/PartnerResponseQueue.tsx", {
   "./PartnerEmailContext": { default: () => null },
   "./PartnerReplySendDialog": { default: () => null },
   "./ResponseRulesPanel": { default: () => null },
+  "./ResponseReassessment": { default: () => null },
 }, "\nexport { ResponseEditor };\n");
 const markup = renderToStaticMarkup(React.createElement(ui.ResponseEditor, {
   item: {

@@ -37,6 +37,7 @@ export interface ResponseAssessment {
   assessed_at: string;
   rules_considered?: { id: string; version: number }[];
   waiting_question?: { message_id: string; text: string } | null;
+  bulk_run_id?: string;
 }
 export interface ResponseCorrection {
   message_id: string;

@@ -95,13 +95,20 @@ Approved rules (empty means use the base policy): ${JSON.stringify(rules.map(({ 
   return { ...base, ...parsed, rules_considered: rules.map(({ id, version }) => ({ id, version })) };
 }
 
-export async function assessResponse(token: string, item: PartnerResponse) {
+// Read-only assessment for both single-item updates and bulk review. Callers
+// perform version-checked writes only after the latest Gmail message is checked.
+export async function previewResponseAssessment(token: string, item: PartnerResponse) {
   if (!isAnthropicConfigured) throw new Error("Response assessment needs ANTHROPIC_API_KEY.");
   const assessment = await bounded(assess(token, item), 45_000);
   // All writes happen after the bounded computation. Timed-out background
   // promises cannot persist a result later. Version checks protect human edits.
   const latest = await bounded(threadMetadata(token, item.thread_id), 10_000);
   if (latest?.lastMessageId !== item.message_id) throw new Error("New email arrived during assessment. Check mail and reassess.");
+  return { assessment, latest };
+}
+
+export async function assessResponse(token: string, item: PartnerResponse) {
+  const { assessment, latest } = await previewResponseAssessment(token, item);
   return updateResponse(item.thread_id, item.version, {
     response_assessment: assessment, response_assessment_retry_at: null,
     status: assessedResponseStatus(item, assessment, isOwnReply(latest, process.env.LEO_ALLOWED_EMAIL ?? "jaime@willowed.org")),
