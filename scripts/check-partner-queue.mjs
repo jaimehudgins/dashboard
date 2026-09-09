@@ -254,6 +254,7 @@ const ui = moduleAt("src/components/PartnerResponseQueue.tsx", {
   "@/lib/response-needed-policy": responsePolicy,
   "./PartnerPreparationStatus": { default: () => null },
   "./PartnerEmailContext": { default: () => null },
+  "./PartnerReplySendDialog": { default: () => null },
 }, "\nexport { ResponseEditor };\n");
 const markup = renderToStaticMarkup(React.createElement(ui.ResponseEditor, {
   item: {
@@ -266,6 +267,7 @@ const markup = renderToStaticMarkup(React.createElement(ui.ResponseEditor, {
 assert.match(markup, /href="\/mail\?thread=thread"/, "open the exact conversation from the queue");
 assert.match(markup, /This draft is from an earlier message/);
 assert.match(markup, /Previous drafts/);
+assert.match(markup, /Review &amp; send/);
 assert.match(markup, />No follow-up needed<\/button>/, "a direct close action is visible without editing the status dropdown");
 assert.match(markup, /Nothing is sent or archived in Gmail/);
 assert.match(markup, /Assess response needs/);

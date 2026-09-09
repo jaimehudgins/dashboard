@@ -32,7 +32,10 @@ export async function gmailFetch(
       /quota exceeded|rateLimitExceeded|userRateLimitExceeded/i.test(body);
     const retryable =
       quotaLimited || res.status === 429 || res.status === 500 || res.status === 503;
-    if (retryable && attempt < 4) {
+    // Gmail writes (especially messages/send) can succeed before an error is
+    // returned. Retrying them automatically risks duplicate delivery.
+    const safeToRetry = !init?.method || init.method.toUpperCase() === "GET";
+    if (retryable && safeToRetry && attempt < 4) {
       const retryAfter = Number(res.headers.get("retry-after"));
       const delay = Number.isFinite(retryAfter) && retryAfter > 0
         ? retryAfter * 1000
@@ -139,21 +142,24 @@ export async function sendEmail(
 export async function getReplyContext(
   token: string,
   threadId: string,
-): Promise<{ to: string; subject: string; inReplyTo: string; references: string }> {
+): Promise<{ to: string; from: string; subject: string; inReplyTo: string; references: string; messageId: string; sent: boolean }> {
   const thread = await gmailFetch(
     token,
-    `/threads/${threadId}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Message-ID&metadataHeaders=References`,
+    `/threads/${threadId}?format=metadata&metadataHeaders=From&metadataHeaders=Reply-To&metadataHeaders=Subject&metadataHeaders=Message-ID&metadataHeaders=References`,
   );
   const msgs = (thread.messages || []).filter(
     (message: { labelIds?: string[] }) => !message.labelIds?.some((label) => ["DRAFT", "TRASH", "SPAM"].includes(label)),
-  );
+  ).sort((a: { internalDate?: string }, b: { internalDate?: string }) => Number(a.internalDate ?? 0) - Number(b.internalDate ?? 0));
   const last = msgs[msgs.length - 1];
   const h = last?.payload?.headers || [];
   const subject = header(h, "Subject");
   const messageId = header(h, "Message-ID");
   const refs = header(h, "References");
   return {
-    to: header(h, "From"),
+    to: header(h, "Reply-To") || header(h, "From"),
+    from: header(h, "From"),
+    messageId: last?.id ?? "",
+    sent: last?.labelIds?.includes("SENT") ?? false,
     subject: /^re:/i.test(subject) ? subject : `Re: ${subject}`,
     inReplyTo: messageId,
     references: [refs, messageId].filter(Boolean).join(" "),
