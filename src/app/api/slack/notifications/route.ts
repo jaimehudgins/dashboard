@@ -13,16 +13,18 @@ import {
 } from "@/lib/slack";
 import { slackInboundStoreConfigured } from "@/lib/slack-inbound";
 import { sendSlackDigest } from "@/lib/slack-notifications";
+import { slackMentionStatus } from "@/lib/slack-mentions";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
+  if (session?.user?.email?.toLowerCase() !== (process.env.LEO_ALLOWED_EMAIL ?? "jaime@willowed.org").toLowerCase()) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
-  const [storeConfigured, inboundStoreConfigured, notifications] = await Promise.all([
+  const [storeConfigured, inboundStoreConfigured, notifications, mentions] = await Promise.all([
     notificationStoreConfigured(),
     slackInboundStoreConfigured(),
     recentNotifications(),
+    slackMentionStatus(),
   ]);
   return NextResponse.json({
     searchConfigured: isSlackConfigured,
@@ -31,6 +33,7 @@ export async function GET() {
     inboundStoreConfigured,
     storeConfigured,
     notifications,
+    mentions,
     schedule: {
       morning: "8:05 AM Central",
       evening: "5:05 PM Central",

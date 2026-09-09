@@ -35,7 +35,9 @@ async function slackFetch<T extends SlackApiResponse>(
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: new URLSearchParams(params),
+    signal: AbortSignal.timeout(15_000),
   });
+  if (!res.ok) throw new Error(`Slack ${method}: HTTP ${res.status}`);
   const data = (await res.json()) as T;
   if (!data.ok) throw new Error(`Slack ${method}: ${data.error}`);
   return data;
@@ -174,4 +176,41 @@ export async function slackNotificationAuthTest(): Promise<{
     {},
     BOT_TOKEN,
   );
+}
+
+// Mentions always acknowledge privately, even if alerts use a shared channel.
+export async function openSlackOwnerDm(): Promise<string> {
+  if (!ALERT_USER_ID) throw new Error("SLACK_ALERT_USER_ID is required");
+  const opened = await slackFetch<SlackApiResponse & { channel?: { id?: string } }>(
+    "conversations.open", { users: ALERT_USER_ID, return_im: "true" }, BOT_TOKEN,
+  );
+  if (!opened.channel?.id?.startsWith("D")) throw new Error("Slack did not return a private direct message");
+  return opened.channel.id;
+}
+
+export interface SlackThreadMessage { ts: string; user?: string; text: string; thread_ts?: string }
+export async function readSlackMentionThread(channel: string, rootTs: string, mentionTs: string) {
+  if (!/^[CG][A-Z0-9]+$/.test(channel) || !/^\d+\.\d+$/.test(rootTs) || !/^\d+\.\d+$/.test(mentionTs)) throw new Error("Invalid Slack thread reference");
+  const messages: SlackThreadMessage[] = [];
+  let cursor = "";
+  for (let page = 0; page < 3; page++) {
+    const data = await slackFetch<SlackApiResponse & { messages?: SlackThreadMessage[]; has_more?: boolean; response_metadata?: { next_cursor?: string } }>(
+      "conversations.replies", { channel, ts: rootTs, latest: mentionTs, inclusive: "true", limit: "50", ...(cursor ? { cursor } : {}) }, BOT_TOKEN,
+    );
+    for (const message of data.messages ?? []) {
+      if (typeof message.ts !== "string" || typeof message.text !== "string" || !/^\d+\.\d+$/.test(message.ts)) throw new Error("Slack returned incomplete thread content");
+      if (Number(message.ts) <= Number(mentionTs) && !messages.some((old) => old.ts === message.ts)) messages.push(message);
+    }
+    if (messages.length > 100 || messages.reduce((size, message) => size + message.text.length, 0) > 30_000) throw new Error("This thread is too long. Quote the specific message in a shorter thread and mention Leo there.");
+    cursor = data.response_metadata?.next_cursor?.trim() || "";
+    if (!cursor && !data.has_more) {
+      if (!messages.some((message) => message.ts === rootTs) || !messages.some((message) => message.ts === mentionTs)) throw new Error("Slack did not return the complete thread through your mention");
+      const link = await slackFetch<SlackApiResponse & { permalink?: string }>("chat.getPermalink", { conversation_id: channel, message_ts: mentionTs }, BOT_TOKEN);
+      const url = new URL(link.permalink || "");
+      if (url.protocol !== "https:" || !url.hostname.endsWith(".slack.com")) throw new Error("Slack did not return a valid source link");
+      return { messages: messages.sort((a, b) => Number(a.ts) - Number(b.ts)), permalink: url.toString() };
+    }
+    if (!cursor) break;
+  }
+  throw new Error("Leo could not read the full Slack thread. Quote the relevant message in a shorter thread.");
 }

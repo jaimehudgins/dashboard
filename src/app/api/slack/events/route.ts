@@ -7,6 +7,7 @@ import {
   processSlackDirectMessage,
   verifySlackSignature,
 } from "@/lib/slack-inbound";
+import { processSlackMention } from "@/lib/slack-mentions";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -24,6 +25,7 @@ interface SlackEventPayload {
     channel_type?: string;
     text?: string;
     ts?: string;
+    thread_ts?: string;
   };
 }
 
@@ -68,13 +70,23 @@ export async function POST(request: Request) {
     !!event.channel &&
     !!event.ts &&
     !!event.text?.trim();
-  if (!isAllowedDirectMessage || !body.event_id || !event) {
+  const isAllowedMention =
+    body.type === "event_callback" && !!body.event_id &&
+    event?.type === "app_mention" && !event.subtype && !event.bot_id &&
+    event.user === slackAlertUserId && !!event.text?.trim() &&
+    /^[CG][A-Z0-9]+$/.test(event.channel || "") && /^\d+\.\d+$/.test(event.ts || "") &&
+    (!event.thread_ts || (/^\d+\.\d+$/.test(event.thread_ts) && Number(event.thread_ts) <= Number(event.ts)));
+  if ((!isAllowedDirectMessage && !isAllowedMention) || !body.event_id || !event) {
     return NextResponse.json({ ok: true, ignored: true });
   }
 
   const base = new URL(request.url).origin;
   after(async () => {
     try {
+      if (isAllowedMention) {
+        await processSlackMention({ eventId: body.event_id as string, userId: event.user as string, channel: event.channel as string, messageTs: event.ts as string, threadTs: event.thread_ts, text: event.text!.trim() });
+        return;
+      }
       await processSlackDirectMessage({
         eventId: body.event_id as string,
         userId: event.user as string,

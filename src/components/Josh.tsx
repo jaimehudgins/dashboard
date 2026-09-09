@@ -26,6 +26,7 @@ export default function Josh() {
     storeConfigured: boolean;
     inboundConfigured: boolean;
     inboundStoreConfigured: boolean;
+    mentions?: { ready: boolean; error?: string; latest?: { status: string; delivery_status: string; error?: string | null } | null };
     schedule?: { morning: string; evening: string; urgentScan: string };
   } | null>(null);
   const [notificationAction, setNotificationAction] = useState<string | null>(
@@ -185,6 +186,14 @@ export default function Josh() {
                   notificationStatus.inboundStoreConfigured
                     ? "Direct messages to Leo are ready."
                     : "Inbound Slack still needs its signing secret, message.im subscription, and leo-slack-inbound.sql migration."}
+                </div>
+                <div className="space-y-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
+                  <p className="font-semibold">Tasks from @Leo mentions</p>
+                  <p>{notificationStatus.mentions?.ready ? "Mention-task storage is ready. Slack permissions and channel membership must also be configured." : notificationStatus.mentions?.error || "Mention-task setup has not been checked yet."}</p>
+                  <p>In a message thread, say: @Leo create a task for me to [action]. Only your mentions are accepted. Leo replies privately and links the task back to Slack.</p>
+                  <p>Add the app_mention event and app_mentions:read plus channels:history (and groups:history for private channels) bot scopes, reinstall the app, and invite Leo to the relevant channel. Existing DMs keep working.</p>
+                  {notificationStatus.mentions?.latest?.error && <p role="alert" className="text-amber-800">Latest mention: {notificationStatus.mentions.latest.error}</p>}
+                  <p>No broad channel monitoring or automatic work execution. If a confirmation is missing, check Work before repeating your request.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
