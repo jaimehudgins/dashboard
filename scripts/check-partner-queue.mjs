@@ -28,6 +28,7 @@ function moduleAt(path, mocks = {}, suffix = "") {
 
 const states = moduleAt("src/types/partner-response.ts");
 const responsePolicy = moduleAt("src/lib/response-needed-policy.ts");
+const responseLane = moduleAt("src/lib/partner-response-lane.ts");
 assert.equal(states.responseAfterMessage({ message_id: "10", status: "handled" }, "10", true, true), "handled", "reading or labeling must not reopen a handled item");
 assert.equal(states.responseAfterMessage({ message_id: "10", status: "handled" }, "11", true, true), "needs_response", "new partner reply reopens handled work");
 assert.equal(states.responseAfterMessage({ message_id: "10", status: "handled" }, "11", false, true), "handled", "your own additional sent message must not reopen no-follow-up work");
@@ -237,6 +238,7 @@ let metadataReads = 0;
 let changedDuringDraft = false;
 let writes = 0;
 const api = moduleAt("src/app/api/partner-responses/route.ts", {
+  "@/lib/partner-response-lane-store": { getInputLaneIndex: async () => { throw new Error("List reads are tested in check-response-lanes.mjs"); } },
   "next-auth": { getServerSession: async () => session },
   "next/server": { NextResponse: { json: (body, init) => new Response(JSON.stringify(body), init) } },
   zod: { z },
@@ -301,6 +303,7 @@ assert.equal(apiItem.response_correction.message_id, apiItem.message_id);
 assert.equal((await api.PATCH(request("PATCH", { threadId: "thread", version: apiItem.version, response_decision: "reply_needed" }))).status, 200);
 
 const ui = moduleAt("src/components/PartnerResponseQueue.tsx", {
+  "@/lib/partner-response-lane": responseLane,
   react: React, "react/jsx-runtime": jsxRuntime, "lucide-react": icons,
   "@/lib/http": {}, "@/types/partner-response": states,
   "@/lib/response-needed-policy": responsePolicy,
@@ -332,6 +335,18 @@ assert.match(markup, /Needs my judgment/);
 assert.match(markup, /https:\/\/docs.google.com\/document\/d\/example\/edit/);
 assert.doesNotMatch(markup, /href="javascript:/, "do not render unsafe source links");
 assert.doesNotMatch(markup, /<script>/, "email-derived text must be escaped");
+const actionMarkup = renderToStaticMarkup(React.createElement(ui.ResponseEditor, {
+  item: {
+    ...apiItem, status: "needs_input", notes: "", follow_up_on: null, draft: "", draft_sources: [],
+    response_correction: { message_id: apiItem.message_id, decision: "action_only", reason: "Add reviewers" },
+  }, policyReady: true, onBack() {}, onSaved() {}, onSent() {},
+}));
+assert.match(actionMarkup, /Action needed · no email reply required/);
+assert.match(actionMarkup, /href="\/work"/, "action items have a path to Work");
+assert.match(actionMarkup, /href="\/mail\?thread=thread"/, "action items retain Add task path through exact email thread");
+assert.match(actionMarkup, /value="needs_input" selected="">Action needed/, "editor label agrees with derived lane");
+assert.doesNotMatch(actionMarkup, /value="action_needed"/, "derived lane must not be sent as a database status");
+assert.match(actionMarkup, /does not create a task/);
 const emailText = moduleAt("src/components/EmailText.tsx", { "react/jsx-runtime": jsxRuntime });
 const emailContext = moduleAt("src/components/PartnerEmailContext.tsx", {
   react: React, "react/jsx-runtime": jsxRuntime, "@/lib/http": {}, "./EmailText": emailText,

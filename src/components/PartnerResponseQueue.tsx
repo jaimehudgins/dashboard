@@ -10,10 +10,11 @@ import PartnerReplySendDialog from "./PartnerReplySendDialog";
 import ResponseRulesPanel from "./ResponseRulesPanel";
 import ResponseReassessment from "./ResponseReassessment";
 import { RESPONSE_CHOICES, type ResponseNeed } from "@/lib/response-needed-policy";
+import { isActionNeeded } from "@/lib/partner-response-lane";
 
 const lanes = [
   ["all", "All open"], ["critical", "Critical now"], ["needs_response", "Needs response"],
-  ["draft_ready", "Draft ready"], ["needs_input", "Needs your input"],
+  ["draft_ready", "Draft ready"], ["action_needed", "Action needed"], ["needs_input", "Needs your input"],
   ["waiting", "Waiting / follow-up"], ["handled", "Handled recently"],
 ] as const;
 type Lane = typeof lanes[number][0];
@@ -23,6 +24,7 @@ interface QueueData {
   items: PartnerResponse[];
   sync: MailSyncState;
   counts: Record<ResponseStatus, number>;
+  laneCounts?: Partial<Record<Lane, number>>;
   hasMore: boolean;
   error?: string;
   policy?: { ready: boolean; enabled?: boolean; error?: string; last_error?: string | null };
@@ -99,22 +101,26 @@ export default function PartnerResponseQueue() {
         {data.policy?.last_error && <p role="alert" className="px-5 py-3 text-sm text-amber-800">Last response assessment: {data.policy.last_error}</p>}
         {!selected && <div className="flex flex-wrap gap-2 p-5" aria-label="Response filters">
           {lanes.map(([key, label]) => <button key={key} aria-pressed={lane === key} onClick={() => { setLane(key); setPage(0); setSelected(null); }} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${lane === key ? "border-emerald-700 bg-emerald-700 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
-            {label}{key !== "all" && key !== "critical" ? ` · ${data.counts?.[key] ?? 0}` : ""}
+            {label}{key !== "all" && key !== "critical" ? ` · ${data.laneCounts?.[key] ?? (key === "action_needed" ? 0 : data.counts?.[key]) ?? 0}` : ""}
           </button>)}
         </div>}
         {selected ? <ResponseEditor key={`${selected.thread_id}:${selected.version}`} item={selected} policyReady={data.policy?.ready} onBack={() => setSelected(null)} onSent={(notice) => { setSelected(null); setReceipt(notice); void load(); window.dispatchEvent(new Event("leo:attention-updated")); }} onSaved={(item, notice) => { setSelected(item); setReceipt(notice ?? "Changes saved."); void load(); window.dispatchEvent(new Event("leo:attention-updated")); }} /> : <>
           {loading && <p className="px-5 pb-3 text-xs text-slate-500">Loading saved responses…</p>}
+          {lane === "action_needed" && <p className="px-5 pb-4 text-sm text-slate-600">Work to do, not an email to write. Your saved Action only decisions and Leo’s high-confidence assessments appear here. Open a conversation for the task links.</p>}
+          {lane === "needs_input" && <p className="px-5 pb-4 text-sm text-slate-600">Decisions, missing information, and uncertain classifications. Confirmed action-only work appears in Action needed.</p>}
           <div className="divide-y divide-slate-100">
             {data.items?.map((item) => <button key={item.thread_id} onClick={() => setSelected(item)} className="block w-full px-5 py-4 text-left hover:bg-emerald-50/40">
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="font-semibold text-emerald-800">{item.partner_name}</span>
                 {item.urgency === "now" && item.status !== "handled" && <span className="rounded-full bg-rose-50 px-2 py-1 text-rose-700">Critical</span>}
-                <span className="text-slate-500">{lanes.find(([key]) => key === item.status)?.[1]}</span>
+                <span className="text-slate-500">{isActionNeeded(item) ? "Action needed" : lanes.find(([key]) => key === item.status)?.[1]}</span>
                 {isStaleDraft(item) && !["waiting", "handled"].includes(item.status) && <span className="font-semibold text-amber-700">Draft needs updating</span>}
                 {item.follow_up_on && <span className="text-amber-800">Follow up {item.follow_up_on}</span>}
               </div>
               <h3 className="mt-2 font-semibold text-slate-900">{item.subject || "No subject"}</h3>
-              {item.response_assessment?.message_id === item.message_id && <p className="mt-1 text-xs text-emerald-800">Leo suggests: {RESPONSE_CHOICES.find(([key]) => key === item.response_assessment?.decision)?.[1]} · {item.response_assessment.reason}</p>}
+              {item.response_correction?.message_id === item.message_id
+                ? <p className="mt-1 text-xs text-emerald-800">Your decision: {RESPONSE_CHOICES.find(([key]) => key === item.response_correction?.decision)?.[1]}{item.response_correction.reason ? ` · ${item.response_correction.reason}` : ""}</p>
+                : item.response_assessment?.message_id === item.message_id && <p className="mt-1 text-xs text-emerald-800">Leo suggests: {RESPONSE_CHOICES.find(([key]) => key === item.response_assessment?.decision)?.[1]} · {item.response_assessment.reason}</p>}
               <p className="mt-1 line-clamp-2 text-sm text-slate-500">{item.snippet}</p>
             </button>)}
           </div>
@@ -246,6 +252,12 @@ function ResponseEditor({ item, policyReady = false, onBack, onSaved, onSent }: 
     {item.preparation_reason && item.preparation_message_id === item.message_id && <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">Leo’s preparation decision: {item.preparation_reason}</p>}
     {isStaleDraft(item) && !["waiting", "handled"].includes(item.status) && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">This draft is from an earlier message. Review the latest thread and update the draft before sending.</p>}
     <a href={`/mail?thread=${encodeURIComponent(item.thread_id)}`} onClick={(event) => { if (dirty && !window.confirm("Your edits are not saved. Open Mail anyway?")) event.preventDefault(); }} className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-800">Open thread in Mail · send, tasks, and TEMU <ExternalLink size={14} /></a>
+    {isActionNeeded(item) && <div className="rounded-lg border border-sky-100 bg-sky-50/50 p-3 text-sm text-slate-700">
+      <h4 className="font-semibold">Action needed · no email reply required</h4>
+      <p className="mt-1">Check Work for an existing task first, or use Add task in Mail. This classification does not create a task, perform platform changes, or mark work complete.</p>
+      <a href="/work" onClick={(event) => { if (dirty && !window.confirm("Your edits are not saved. Open Work anyway?")) event.preventDefault(); }} className="mt-2 inline-flex items-center gap-2 font-semibold text-emerald-800">Open Work <ExternalLink size={14} /></a>
+      <p className="mt-2 text-xs">If you need to acknowledge the request or confirm completion by email, choose Reply needed and save. Mark No follow-up needed only once nothing remains outstanding.</p>
+    </div>}
     <PartnerEmailContext threadId={item.thread_id} basedOnMessageId={item.draft ? item.draft_message_id : null} queueStatus={item.status} onRefreshStatus={recheckReply} refreshDisabled={busy || dirty} />
     {policyReady && <div className="space-y-3 rounded-lg border border-emerald-100 p-4">
       <h4 className="font-semibold text-slate-800">What does this conversation need?</h4>
@@ -255,7 +267,7 @@ function ResponseEditor({ item, policyReady = false, onBack, onSaved, onSent }: 
       {dirty && <p className="text-xs text-slate-500">Save your edits before reassessing.</p>}
       <label className="block text-sm text-slate-700">Your decision<select disabled={busy} value={decision} onChange={(event) => setDecision(event.target.value as ResponseNeed | "")} className="ml-2 rounded-lg border border-slate-200 p-2"><option value="" disabled>Choose a decision</option>{RESPONSE_CHOICES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
       <label className="block text-sm text-slate-700">Why? (optional)<textarea disabled={busy || !decision} value={feedback} maxLength={800} onChange={(event) => setFeedback(event.target.value)} rows={2} className="mt-1 w-full rounded-lg border border-slate-200 p-2" placeholder="Example: These names mean I need to add staff, not send another reply." /></label>
-      <p className="text-xs text-slate-500">Use Save changes below to confirm. Corrections become examples for this partner, not automatic rules. To teach an email-type rule or partner exception, explicitly approve it below. Action only stays under Needs your input; create or review its task in Mail. No task is created automatically.</p>
+      <p className="text-xs text-slate-500">Use Save changes below to confirm. Corrections become examples for this partner, not automatic rules. To teach an email-type rule or partner exception, explicitly approve it below. Saved Action only decisions move to Action needed; uncertain assessments stay in Needs your input. No task is created automatically.</p>
     </div>}
     {policyReady && <ResponseRulesPanel item={item} disabled={busy || dirty} />}
     <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
@@ -264,7 +276,7 @@ function ResponseEditor({ item, policyReady = false, onBack, onSaved, onSent }: 
     </div>
     <label className="block text-sm font-medium text-slate-700">Notes / direction for Leo<textarea disabled={busy} value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-slate-200 p-3 font-normal" placeholder="What should Leo know before drafting?" /></label>
     <div className="flex flex-wrap gap-4">
-      <label className="text-sm text-slate-600">Status<select disabled={busy} value={status} onChange={(event) => setStatus(event.target.value as ResponseStatus)} className="ml-2 rounded-lg border border-slate-200 p-2">{lanes.filter(([key]) => key !== "all" && key !== "critical").map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+      <label className="text-sm text-slate-600">Status<select disabled={busy} value={status} onChange={(event) => setStatus(event.target.value as ResponseStatus)} className="ml-2 rounded-lg border border-slate-200 p-2">{lanes.filter(([key]) => key !== "all" && key !== "critical" && key !== "action_needed").map(([key, label]) => <option key={key} value={key}>{key === "needs_input" && isActionNeeded(item) ? "Action needed" : label}</option>)}</select></label>
       <label className="text-sm text-slate-600">Follow-up date<input disabled={busy || status === "handled"} type="date" value={status === "handled" ? "" : followUp} onChange={(event) => setFollowUp(event.target.value)} className="ml-2 rounded-lg border border-slate-200 p-2 disabled:opacity-50" /></label>
     </div>
     <label className="block text-sm font-medium text-slate-700">Reply draft<textarea disabled={busy} value={draft} onChange={(event) => setDraft(event.target.value)} rows={10} className="mt-1 w-full rounded-lg border border-slate-200 p-3 font-normal leading-relaxed" placeholder="Prepare a draft with Leo, or write one here." /></label>

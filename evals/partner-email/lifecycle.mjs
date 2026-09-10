@@ -42,6 +42,7 @@ export async function evaluateLifecycle(snapshot = null) {
   const policy = moduleAt("src/lib/response-needed-policy.ts");
   const replyStatus = moduleAt("src/lib/partner-reply-status.ts", { "./gmail-history": fakeHistory, "./partner-response-store": store });
   const api = moduleAt("src/app/api/partner-responses/route.ts", {
+    "@/lib/partner-response-lane-store": { getInputLaneIndex: async () => { throw new Error("Lifecycle does not exercise list reads; see scripts/check-response-lanes.mjs"); } },
     "next-auth": { getServerSession: async () => ({ user: { email: env.LEO_ALLOWED_EMAIL }, accessToken: "synthetic" }) },
     "next/server": { NextResponse: { json: (body, options) => new Response(JSON.stringify(body), options) } }, zod: { z }, "@/lib/auth": {},
     "@/lib/email-draft": { generateEmailDraft: async () => { if (arriveDuringDraft) arrive("mid-draft"); return { draft: "Synthetic prepared draft", sources: [] }; } },

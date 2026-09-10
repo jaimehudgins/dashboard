@@ -1,7 +1,7 @@
 # Partner response queue and scheduled preparation
 
 Attention now has a saved **Partner responses** queue: Needs response, Draft ready,
-Needs your input, Waiting / follow-up, and Handled. Open a row to save notes,
+Action needed, Needs your input, Waiting / follow-up, and Handled. Open a row to save notes,
 prepare/edit a reply, set a follow-up date, or reopen previous drafts. The Mail
 link opens the actual conversation, with a current saved draft ready for review.
 Attention also offers **Review & send**: it saves edits, verifies the current
@@ -122,8 +122,10 @@ In an Attention conversation, **Assess response needs** runs an immediate review
 
 - Reply needed: an unanswered email request or commitment needs an answer.
 - Action only: work remains, but an email response is unnecessary (such as adding
-  named ALMA reviewers). Stays in Needs your input; use Mail to create/review the
-  task. This policy does not create tasks or perform platform changes.
+  named ALMA reviewers). Saved human decisions and current high-confidence
+  assessments appear in Action needed; uncertain assessments stay in Needs your
+  input. Check Work for an existing task, or use Add task in Mail.
+  This policy does not create tasks or perform platform changes.
 - Waiting on partner: Jaime asked a specific, still-unanswered question that
   requires a partner answer and owes no outstanding reply or action. Courtesy
   closings ("Let me know if you need anything"), FYIs, completion confirmations,
@@ -134,16 +136,32 @@ In an Attention conversation, **Assess response needs** runs an immediate review
 
 Use **Your decision**, optionally explain why, then **Save changes** to correct
 or approve the recommendation. No follow-up needed moves to Handled and clears
-the follow-up date; Waiting moves to Waiting; Action only/Judgment remain under
-Needs your input. Notes and drafts are retained. Corrections are stored atomically
+the follow-up date; Waiting moves to Waiting; Action only moves to Action needed;
+Judgment remains under Needs your input. Notes and drafts are retained. Corrections are stored atomically
 with the queue update and kept as partner-specific examples, NOT new standing
 rules. Only explicit approval in the rule editor can broaden a preference into a global rule.
 Your correction takes precedence for that message; a new email requires a fresh
 assessment. Reassess manually when linked tasks change without a new email.
 
+Action needed is a derived view of the existing `needs_input` storage status,
+not a new database status. No SQL migration or bulk reassessment is needed to
+separate existing current decisions. All open and Critical now still include
+these items; bulk scope counts include them exactly once. Filtering and counts
+use all routing metadata before pagination, not just the first 50 rows. A current
+human correction overrides Leo; stale decisions never classify a newer message.
+No task is created or completed automatically. Check Work for existing tasks
+or use Add task in Mail, and change to Reply needed if an acknowledgment or completion email
+is owed. Evaluate classification quality by missed requests and incorrect routes,
+not just a smaller Needs your input count.
+
+Offline routing regression: `node scripts/check-response-lanes.mjs`. It covers
+human overrides, confidence, stale messages, pagination beyond 50, accurate lane
+counts, legacy setup, and preservation of All open/Critical visibility.
+
 After an outgoing reply, a high-confidence Waiting assessment can move the item
 to Waiting only with a question quoted from Jaime's authored text (not quoted
-email history). Other outcomes remain Needs your input for approval; Leo never
+email history). High-confidence Action only appears in Action needed. Other
+outcomes remain Needs your input for approval; Leo never
 automatically closes them. Existing saved human decisions are preserved. The
 five-minute worker assesses a bounded backlog, so this is not an immediate
 send-time guarantee. No new SQL is required; question evidence is stored in the
