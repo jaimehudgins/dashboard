@@ -6,6 +6,7 @@ import { changedThreadIds, gmailHistory, gmailProfile, initialThreadIds, isOwnRe
 import { classifyInbox } from "./mail-classify";
 import { getMailSyncState, getResponse, responseDb, storeError, updateResponse } from "./partner-response-store";
 import { responseAfterMessage } from "@/types/partner-response";
+import { calendarEmailKind } from "./calendar-email";
 
 const PUBLIC_DOMAINS = new Set(["gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "yahoo.com", "icloud.com", "aol.com", "live.com"]);
 const domain = (email: string) => email.split("@")[1]?.toLowerCase() ?? "";
@@ -124,7 +125,8 @@ export async function syncPartnerMail(token: string) {
       const previous = await getResponse(thread.id);
       const partner = matchResponsePartner(thread.participants, contacts ?? [], partners ?? []);
       const bucket = classified.buckets[thread.id];
-      if (!previous && (!thread.labelIds.includes("INBOX") || (!partner && bucket !== "current" && bucket !== "potential"))) continue;
+      const calendar = calendarEmailKind({ subject: thread.subject, sender: thread.from, snippet: thread.snippet });
+      if (!previous && (!thread.labelIds.includes("INBOX") || (!partner && bucket !== "current" && bucket !== "potential" && !calendar))) continue;
       const incoming = !isOwnReply(thread, profile.emailAddress);
       const decision = classified.decisions[thread.id];
       const sameMessage = previous?.message_id === thread.lastMessageId;
@@ -132,7 +134,7 @@ export async function syncPartnerMail(token: string) {
       const patch = {
         ...retiredDraft,
         partner_id: partner?.id ?? null,
-        partner_name: partner?.name ?? "Partner to confirm",
+        partner_name: partner?.name ?? (calendar ? "Calendar notification" : "Partner to confirm"),
         subject: thread.subject, sender: thread.from, snippet: thread.snippet,
         message_id: thread.lastMessageId, received_at: thread.date || null,
         in_inbox: thread.labelIds.includes("INBOX"),

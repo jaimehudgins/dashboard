@@ -8,6 +8,7 @@ import { contrastCases } from "./contrast-cases.mjs";
 const root = path.resolve(import.meta.dirname, "../..");
 export const INTEGRATION_FILES = ["src/lib/reply-sources.ts", "src/lib/drive.ts", "src/lib/gmail-history.ts", "src/lib/partner-mail-sync.ts", "src/lib/partner-response-store.ts", "src/lib/partner-reply-status.ts", "src/lib/response-needed-policy.ts", "src/types/partner-response.ts", "src/app/api/partner-responses/route.ts"];
 export const BASELINE_FILES = [...new Set([...PRODUCTION_FILES, ...INTEGRATION_FILES])];
+const CALENDAR_INTEGRATION_FILES = ["src/lib/calendar-email.ts"];
 export const HARNESS_FILES = ["adapters.mjs", "baseline.mjs", "catalog.mjs", "check.mjs", "contrast-cases.mjs", "dataset.mjs", "graders.mjs", "integration.mjs", "judge-runner.mjs", "lifecycle.mjs", "offline-runtime.mjs", "prompts.mjs", "report.mjs", "retrieval.mjs", "run.mjs"];
 export const sha = (value) => crypto.createHash("sha256").update(value).digest("hex");
 const digest = (object) => Object.fromEntries(Object.entries(object).map(([key, text]) => [key, sha(text)]));
@@ -17,7 +18,7 @@ function baselinePath(name) {
 }
 export function validateBaseline(bundle) {
   if (bundle.format !== 1) throw new Error("Unsupported baseline format");
-  for (const file of BASELINE_FILES) {
+  for (const file of new Set([...BASELINE_FILES, ...Object.keys(bundle.production ?? {})])) {
     if (typeof bundle.production?.[file] !== "string" || sha(bundle.production[file]) !== bundle.productionHashes?.[file]) throw new Error(`Baseline source missing or changed: ${file}`);
   }
   for (const file of HARNESS_FILES) {
@@ -31,7 +32,7 @@ export function readBaseline(name) {
 }
 export function freezeBaseline(name) {
   const output = baselinePath(name);
-  const production = Object.fromEntries(BASELINE_FILES.map((file) => [file, fs.readFileSync(path.join(root, file), "utf8")]));
+  const production = Object.fromEntries([...BASELINE_FILES, ...CALENDAR_INTEGRATION_FILES].map((file) => [file, fs.readFileSync(path.join(root, file), "utf8")]));
   const harness = Object.fromEntries(HARNESS_FILES.map((file) => [file, fs.readFileSync(path.join(import.meta.dirname, file), "utf8")]));
   const fixtures = [...cases(), ...contrastCases()];
   const bundle = { format: 1, name, createdAt: new Date().toISOString(),

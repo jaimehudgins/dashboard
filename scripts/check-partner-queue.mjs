@@ -29,6 +29,7 @@ function moduleAt(path, mocks = {}, suffix = "") {
 const states = moduleAt("src/types/partner-response.ts");
 const responsePolicy = moduleAt("src/lib/response-needed-policy.ts");
 const responseLane = moduleAt("src/lib/partner-response-lane.ts");
+const calendarEmail = moduleAt("src/lib/calendar-email.ts");
 assert.equal(states.responseAfterMessage({ message_id: "10", status: "handled" }, "10", true, true), "handled", "reading or labeling must not reopen a handled item");
 assert.equal(states.responseAfterMessage({ message_id: "10", status: "handled" }, "11", true, true), "needs_response", "new partner reply reopens handled work");
 assert.equal(states.responseAfterMessage({ message_id: "10", status: "handled" }, "11", false, true), "handled", "your own additional sent message must not reopen no-follow-up work");
@@ -106,6 +107,7 @@ function syncHarness(options = {}) {
     },
   };
   const sync = moduleAt("src/lib/partner-mail-sync.ts", {
+    "./calendar-email": calendarEmail,
     "node:crypto": { randomUUID: () => "lease" },
     "./crm-supabase": { isCrmConfigured: true, crmSupabase: { from: (table) => ({
       select() { return this; }, order() { return this; },
@@ -123,7 +125,7 @@ function syncHarness(options = {}) {
       threadMetadata: async (_token, id) => {
         reads++;
         if (options.failRead) throw new Error("Rate limited");
-        return { id, lastMessageId: "11", from: "person@school.org", date: "2026-09-08T13:00:00Z", subject: "Help", snippet: "Please help", participants: ["person@school.org"], labelIds: ["INBOX"], unread: false };
+        return { id, lastMessageId: "11", from: "person@school.org", date: "2026-09-08T13:00:00Z", subject: "Help", snippet: "Please help", participants: ["person@school.org"], labelIds: ["INBOX"], unread: false, ...options.metadata };
       },
     },
     "./mail-classify": { classifyInbox: async () => ({ buckets: {}, decisions: {}, urgentPartnerThreads: [] }) },
@@ -145,6 +147,13 @@ await steady.sync.syncPartnerMail("mock");
 assert.equal(steady.state.history_id, "200");
 assert.equal(steady.reads(), 1, "fetch only changed threads");
 assert.equal(steady.responses.get("thread").status, "needs_response", "read emails still enter the response queue");
+const calendarSync = syncHarness({ metadata: { participants: ["new@organization.example"], from: "new@organization.example", subject: "Invitation: Kickoff @ Thu Sep 10, 2026 10am" } });
+await calendarSync.sync.syncPartnerMail("mock");
+assert.equal(calendarSync.responses.get("thread").partner_id, null);
+assert.equal(calendarSync.responses.get("thread").partner_name, "Calendar notification", "calendar notifications enter even without a partner match");
+const otherSync = syncHarness({ metadata: { participants: ["new@organization.example"], subject: "Can we meet Thursday?" } });
+await otherSync.sync.syncPartnerMail("mock");
+assert.equal(otherSync.responses.size, 0, "ordinary unmatched mail is not newly admitted as calendar traffic");
 
 const idle = syncHarness({ page: { historyId: "200" } });
 await idle.sync.syncPartnerMail("mock");
@@ -238,7 +247,7 @@ let metadataReads = 0;
 let changedDuringDraft = false;
 let writes = 0;
 const api = moduleAt("src/app/api/partner-responses/route.ts", {
-  "@/lib/partner-response-lane-store": { getInputLaneIndex: async () => { throw new Error("List reads are tested in check-response-lanes.mjs"); } },
+  "@/lib/partner-response-lane-store": { getResponseLaneIndex: async () => { throw new Error("List reads are tested in check-response-lanes.mjs"); } },
   "next-auth": { getServerSession: async () => session },
   "next/server": { NextResponse: { json: (body, init) => new Response(JSON.stringify(body), init) } },
   zod: { z },
@@ -303,6 +312,7 @@ assert.equal(apiItem.response_correction.message_id, apiItem.message_id);
 assert.equal((await api.PATCH(request("PATCH", { threadId: "thread", version: apiItem.version, response_decision: "reply_needed" }))).status, 200);
 
 const ui = moduleAt("src/components/PartnerResponseQueue.tsx", {
+  "@/lib/calendar-email": calendarEmail,
   "@/lib/partner-response-lane": responseLane,
   react: React, "react/jsx-runtime": jsxRuntime, "lucide-react": icons,
   "@/lib/http": {}, "@/types/partner-response": states,
@@ -347,6 +357,15 @@ assert.match(actionMarkup, /href="\/mail\?thread=thread"/, "action items retain 
 assert.match(actionMarkup, /value="needs_input" selected="">Action needed/, "editor label agrees with derived lane");
 assert.doesNotMatch(actionMarkup, /value="action_needed"/, "derived lane must not be sent as a database status");
 assert.match(actionMarkup, /does not create a task/);
+const calendarMarkup = renderToStaticMarkup(React.createElement(ui.ResponseEditor, {
+  item: { ...apiItem, status: "needs_input", subject: "Invitation: Planning @ Thu Sep 10, 2026 10am", notes: "", draft: "", draft_sources: [], follow_up_on: null },
+  policyReady: true, onBack() {}, onSaved() {}, onSent() {},
+}));
+assert.match(calendarMarkup, /Calendar · Invitation/);
+assert.match(calendarMarkup, /Open Google Calendar/);
+assert.match(calendarMarkup, /has not verified your RSVP/);
+assert.match(calendarMarkup, /Calendar notifications remain in Calendar until handled/);
+assert.doesNotMatch(calendarMarkup, /value="calendar"/, "calendar is a view, never a saved status");
 const emailText = moduleAt("src/components/EmailText.tsx", { "react/jsx-runtime": jsxRuntime });
 const emailContext = moduleAt("src/components/PartnerEmailContext.tsx", {
   react: React, "react/jsx-runtime": jsxRuntime, "@/lib/http": {}, "./EmailText": emailText,

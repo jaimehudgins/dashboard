@@ -10,7 +10,7 @@ import { syncPartnerMail } from "@/lib/partner-mail-sync";
 import { recheckReplyStatus } from "@/lib/partner-reply-status";
 import { assessResponse, responsePolicyStatus } from "@/lib/partner-response-policy";
 import { correctedResponseStatus, effectiveResponseNeed } from "@/lib/response-needed-policy";
-import { getInputLaneIndex } from "@/lib/partner-response-lane-store";
+import { getResponseLaneIndex } from "@/lib/partner-response-lane-store";
 
 export const maxDuration = 300;
 const statuses = ["needs_response", "draft_ready", "needs_input", "waiting", "handled"] as const;
@@ -64,16 +64,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ configured: true, item, revisions });
     }
     const lane = params.get("lane") ?? "all";
-    if (!["all", "critical", "action_needed", ...statuses].includes(lane)) throw new z.ZodError([]);
+    if (!["all", "critical", "action_needed", "calendar", "calendar_action", "calendar_updates", ...statuses].includes(lane)) throw new z.ZodError([]);
     const page = z.coerce.number().int().min(0).max(10000).parse(params.get("page") ?? "0");
     const policy = await responsePolicyStatus();
     // Keep the queue available before the optional policy migration is applied.
-    const inputIndex = policy.ready ? await getInputLaneIndex() : null;
-    const indexedIds = lane === "action_needed" ? inputIndex?.action_needed ?? []
-      : lane === "needs_input" && inputIndex ? inputIndex.needs_input : null;
+    const laneIndex = await getResponseLaneIndex(policy.ready);
+    const indexedIds = lane in laneIndex ? laneIndex[lane as keyof typeof laneIndex] : null;
     const pageIds = indexedIds?.slice(page * 50, page * 50 + 50);
     let query = responseDb().from("partner_responses").select("*", { count: "exact" });
-    if (pageIds) query = query.eq("status", "needs_input").in("thread_id", pageIds);
+    if (pageIds) query = query.neq("status", "handled").in("thread_id", pageIds);
     else if (lane === "all") query = query.neq("status", "handled");
     else if (lane === "critical") query = query.eq("urgency", "now").in("status", ["needs_response", "needs_input", "draft_ready"]);
     else query = query.eq("status", lane);
@@ -92,8 +91,7 @@ export async function GET(request: Request) {
     const statusCounts = Object.fromEntries(counts);
     return NextResponse.json({ configured: true, items, sync, policy, counts: statusCounts,
       // Raw status counts remain unchanged for bulk reassessment scope totals.
-      laneCounts: { ...statusCounts, action_needed: inputIndex?.action_needed.length ?? 0,
-        needs_input: inputIndex?.needs_input.length ?? statusCounts.needs_input },
+      laneCounts: { ...statusCounts, ...Object.fromEntries(Object.entries(laneIndex).map(([key, ids]) => [key, ids.length])) },
       hasMore: (page + 1) * 50 < (indexedIds?.length ?? count ?? 0) });
   } catch (error) { return failure(error); }
 }

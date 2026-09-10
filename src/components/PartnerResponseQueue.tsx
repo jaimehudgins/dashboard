@@ -11,10 +11,11 @@ import ResponseRulesPanel from "./ResponseRulesPanel";
 import ResponseReassessment from "./ResponseReassessment";
 import { RESPONSE_CHOICES, type ResponseNeed } from "@/lib/response-needed-policy";
 import { isActionNeeded } from "@/lib/partner-response-lane";
+import { CALENDAR_EMAIL_LABELS, calendarEmailKind, calendarEmailSection } from "@/lib/calendar-email";
 
 const lanes = [
   ["all", "All open"], ["critical", "Critical now"], ["needs_response", "Needs response"],
-  ["draft_ready", "Draft ready"], ["action_needed", "Action needed"], ["needs_input", "Needs your input"],
+  ["draft_ready", "Draft ready"], ["action_needed", "Action needed"], ["needs_input", "Needs your input"], ["calendar", "Calendar"],
   ["waiting", "Waiting / follow-up"], ["handled", "Handled recently"],
 ] as const;
 type Lane = typeof lanes[number][0];
@@ -24,7 +25,7 @@ interface QueueData {
   items: PartnerResponse[];
   sync: MailSyncState;
   counts: Record<ResponseStatus, number>;
-  laneCounts?: Partial<Record<Lane, number>>;
+  laneCounts?: Partial<Record<Lane | "calendar_action" | "calendar_updates", number>>;
   hasMore: boolean;
   error?: string;
   policy?: { ready: boolean; enabled?: boolean; error?: string; last_error?: string | null };
@@ -33,6 +34,7 @@ interface QueueData {
 export default function PartnerResponseQueue() {
   const [data, setData] = useState<QueueData | null>(null);
   const [lane, setLane] = useState<Lane>("all");
+  const [calendarView, setCalendarView] = useState<"calendar_action" | "calendar_updates">("calendar_action");
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -45,14 +47,14 @@ export default function PartnerResponseQueue() {
     const id = ++requestId.current;
     setLoading(true);
     try {
-      const response = await fetch(`/api/partner-responses?lane=${lane}&page=${page}`, { cache: "no-store" });
+      const response = await fetch(`/api/partner-responses?lane=${lane === "calendar" ? calendarView : lane}&page=${page}`, { cache: "no-store" });
       const body = await readJsonResponse<QueueData>(response);
       if (!response.ok) throw new Error(body.error || "Could not load partner responses.");
       if (id === requestId.current) { setData(body as QueueData); setError(null); }
     } catch (caught) {
       if (id === requestId.current) setError(caught instanceof Error ? caught.message : "Could not load partner responses.");
     } finally { if (id === requestId.current) setLoading(false); }
-  }, [lane, page]);
+  }, [lane, calendarView, page]);
 
   useEffect(() => {
     void load();
@@ -101,19 +103,29 @@ export default function PartnerResponseQueue() {
         {data.policy?.last_error && <p role="alert" className="px-5 py-3 text-sm text-amber-800">Last response assessment: {data.policy.last_error}</p>}
         {!selected && <div className="flex flex-wrap gap-2 p-5" aria-label="Response filters">
           {lanes.map(([key, label]) => <button key={key} aria-pressed={lane === key} onClick={() => { setLane(key); setPage(0); setSelected(null); }} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${lane === key ? "border-emerald-700 bg-emerald-700 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
-            {label}{key !== "all" && key !== "critical" ? ` · ${data.laneCounts?.[key] ?? (key === "action_needed" ? 0 : data.counts?.[key]) ?? 0}` : ""}
+            {label}{key !== "all" && key !== "critical" ? ` · ${data.laneCounts?.[key] ?? (key === "action_needed" || key === "calendar" ? 0 : data.counts?.[key]) ?? 0}` : ""}
           </button>)}
         </div>}
         {selected ? <ResponseEditor key={`${selected.thread_id}:${selected.version}`} item={selected} policyReady={data.policy?.ready} onBack={() => setSelected(null)} onSent={(notice) => { setSelected(null); setReceipt(notice); void load(); window.dispatchEvent(new Event("leo:attention-updated")); }} onSaved={(item, notice) => { setSelected(item); setReceipt(notice ?? "Changes saved."); void load(); window.dispatchEvent(new Event("leo:attention-updated")); }} /> : <>
+          {lane === "calendar" && <div className="space-y-3 px-5 pb-4">
+            <p className="text-sm text-slate-600">Invitations and event notifications, separate from regular email. Urgent items remain in Critical now; All open includes both. Handled notifications stay in Handled recently.</p>
+            <div className="flex gap-2" aria-label="Calendar filters">
+              {([ ["calendar_action", "Needs action"], ["calendar_updates", "Updates only"] ] as const).map(([key, label]) => <button key={key} aria-pressed={calendarView === key} onClick={() => { setCalendarView(key); setPage(0); }} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${calendarView === key ? "border-sky-700 bg-sky-700 text-white" : "border-slate-200 text-slate-600"}`}>{label} · {data.laneCounts?.[key] ?? 0}</button>)}
+            </div>
+            <p className="text-xs text-slate-500">{calendarView === "calendar_action" ? "RSVPs, scheduling changes, questions, and notifications still awaiting assessment. This is not a live RSVP status check." : "Current high-confidence assessments indicate no response or action remains. Review and mark handled when appropriate; nothing is closed automatically."}</p>
+          </div>}
           {loading && <p className="px-5 pb-3 text-xs text-slate-500">Loading saved responses…</p>}
           {lane === "action_needed" && <p className="px-5 pb-4 text-sm text-slate-600">Work to do, not an email to write. Your saved Action only decisions and Leo’s high-confidence assessments appear here. Open a conversation for the task links.</p>}
           {lane === "needs_input" && <p className="px-5 pb-4 text-sm text-slate-600">Decisions, missing information, and uncertain classifications. Confirmed action-only work appears in Action needed.</p>}
           <div className="divide-y divide-slate-100">
-            {data.items?.map((item) => <button key={item.thread_id} onClick={() => setSelected(item)} className="block w-full px-5 py-4 text-left hover:bg-emerald-50/40">
+            {data.items?.map((item) => {
+              const calendarKind = calendarEmailKind(item);
+              return <button key={item.thread_id} onClick={() => setSelected(item)} className="block w-full px-5 py-4 text-left hover:bg-emerald-50/40">
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="font-semibold text-emerald-800">{item.partner_name}</span>
                 {item.urgency === "now" && item.status !== "handled" && <span className="rounded-full bg-rose-50 px-2 py-1 text-rose-700">Critical</span>}
-                <span className="text-slate-500">{isActionNeeded(item) ? "Action needed" : lanes.find(([key]) => key === item.status)?.[1]}</span>
+                <span className="text-slate-500">{calendarKind && item.status !== "handled" ? `Calendar · ${calendarEmailSection(item) === "calendar_updates" ? "Updates only" : "Needs action"}` : isActionNeeded(item) ? "Action needed" : lanes.find(([key]) => key === item.status)?.[1]}</span>
+                {calendarKind && <span className="rounded-full bg-sky-50 px-2 py-1 text-sky-800">{CALENDAR_EMAIL_LABELS[calendarKind]}</span>}
                 {isStaleDraft(item) && !["waiting", "handled"].includes(item.status) && <span className="font-semibold text-amber-700">Draft needs updating</span>}
                 {item.follow_up_on && <span className="text-amber-800">Follow up {item.follow_up_on}</span>}
               </div>
@@ -122,7 +134,7 @@ export default function PartnerResponseQueue() {
                 ? <p className="mt-1 text-xs text-emerald-800">Your decision: {RESPONSE_CHOICES.find(([key]) => key === item.response_correction?.decision)?.[1]}{item.response_correction.reason ? ` · ${item.response_correction.reason}` : ""}</p>
                 : item.response_assessment?.message_id === item.message_id && <p className="mt-1 text-xs text-emerald-800">Leo suggests: {RESPONSE_CHOICES.find(([key]) => key === item.response_assessment?.decision)?.[1]} · {item.response_assessment.reason}</p>}
               <p className="mt-1 line-clamp-2 text-sm text-slate-500">{item.snippet}</p>
-            </button>)}
+            </button>; })}
           </div>
           {!loading && !data.items?.length && <p className="px-5 pb-6 text-sm text-slate-500">{data.sync?.last_checked_at ? "No saved responses in this view." : "Choose Check mail to bring in up to 100 recent inbox conversations. Later checks will follow changes automatically."}</p>}
           <div className="flex justify-between p-5 text-sm">
@@ -138,6 +150,7 @@ export default function PartnerResponseQueue() {
 }
 
 function ResponseEditor({ item, policyReady = false, onBack, onSaved, onSent }: { item: PartnerResponse; policyReady?: boolean; onBack: () => void; onSaved: (item: PartnerResponse, notice?: string) => void; onSent: (notice: string) => void }) {
+  const calendarKind = calendarEmailKind(item);
   const [draft, setDraft] = useState(item.draft);
   const [notes, setNotes] = useState(item.notes);
   const [followUp, setFollowUp] = useState(item.follow_up_on ?? "");
@@ -252,7 +265,12 @@ function ResponseEditor({ item, policyReady = false, onBack, onSaved, onSent }: 
     {item.preparation_reason && item.preparation_message_id === item.message_id && <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">Leo’s preparation decision: {item.preparation_reason}</p>}
     {isStaleDraft(item) && !["waiting", "handled"].includes(item.status) && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">This draft is from an earlier message. Review the latest thread and update the draft before sending.</p>}
     <a href={`/mail?thread=${encodeURIComponent(item.thread_id)}`} onClick={(event) => { if (dirty && !window.confirm("Your edits are not saved. Open Mail anyway?")) event.preventDefault(); }} className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-800">Open thread in Mail · send, tasks, and TEMU <ExternalLink size={14} /></a>
-    {isActionNeeded(item) && <div className="rounded-lg border border-sky-100 bg-sky-50/50 p-3 text-sm text-slate-700">
+    {calendarKind && <div className="rounded-lg border border-sky-100 bg-sky-50/50 p-3 text-sm text-slate-700">
+      <h4 className="font-semibold">Calendar · {CALENDAR_EMAIL_LABELS[calendarKind]}</h4>
+      <p className="mt-1">Review the notification below, including any added questions. Open the event in Google Calendar to check its current details and your RSVP. Leo has not verified your RSVP, accepted, declined, or changed the event.</p>
+      <a href="https://calendar.google.com/calendar/u/0/r" target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-2 font-semibold text-sky-800">Open Google Calendar <ExternalLink size={14} /></a>
+    </div>}
+    {!calendarKind && isActionNeeded(item) && <div className="rounded-lg border border-sky-100 bg-sky-50/50 p-3 text-sm text-slate-700">
       <h4 className="font-semibold">Action needed · no email reply required</h4>
       <p className="mt-1">Check Work for an existing task first, or use Add task in Mail. This classification does not create a task, perform platform changes, or mark work complete.</p>
       <a href="/work" onClick={(event) => { if (dirty && !window.confirm("Your edits are not saved. Open Work anyway?")) event.preventDefault(); }} className="mt-2 inline-flex items-center gap-2 font-semibold text-emerald-800">Open Work <ExternalLink size={14} /></a>
@@ -267,7 +285,7 @@ function ResponseEditor({ item, policyReady = false, onBack, onSaved, onSent }: 
       {dirty && <p className="text-xs text-slate-500">Save your edits before reassessing.</p>}
       <label className="block text-sm text-slate-700">Your decision<select disabled={busy} value={decision} onChange={(event) => setDecision(event.target.value as ResponseNeed | "")} className="ml-2 rounded-lg border border-slate-200 p-2"><option value="" disabled>Choose a decision</option>{RESPONSE_CHOICES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
       <label className="block text-sm text-slate-700">Why? (optional)<textarea disabled={busy || !decision} value={feedback} maxLength={800} onChange={(event) => setFeedback(event.target.value)} rows={2} className="mt-1 w-full rounded-lg border border-slate-200 p-2" placeholder="Example: These names mean I need to add staff, not send another reply." /></label>
-      <p className="text-xs text-slate-500">Use Save changes below to confirm. Corrections become examples for this partner, not automatic rules. To teach an email-type rule or partner exception, explicitly approve it below. Saved Action only decisions move to Action needed; uncertain assessments stay in Needs your input. No task is created automatically.</p>
+      <p className="text-xs text-slate-500">Use Save changes below to confirm. Corrections become examples for this partner, not automatic rules. To teach an email-type rule or partner exception, explicitly approve it below. {calendarKind ? "Calendar notifications remain in Calendar until handled. Uncertain assessments stay in its Needs action section." : "Saved Action only decisions move to Action needed; uncertain assessments stay in Needs your input."} No task is created automatically.</p>
     </div>}
     {policyReady && <ResponseRulesPanel item={item} disabled={busy || dirty} />}
     <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
@@ -276,7 +294,7 @@ function ResponseEditor({ item, policyReady = false, onBack, onSaved, onSent }: 
     </div>
     <label className="block text-sm font-medium text-slate-700">Notes / direction for Leo<textarea disabled={busy} value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-slate-200 p-3 font-normal" placeholder="What should Leo know before drafting?" /></label>
     <div className="flex flex-wrap gap-4">
-      <label className="text-sm text-slate-600">Status<select disabled={busy} value={status} onChange={(event) => setStatus(event.target.value as ResponseStatus)} className="ml-2 rounded-lg border border-slate-200 p-2">{lanes.filter(([key]) => key !== "all" && key !== "critical" && key !== "action_needed").map(([key, label]) => <option key={key} value={key}>{key === "needs_input" && isActionNeeded(item) ? "Action needed" : label}</option>)}</select></label>
+      <label className="text-sm text-slate-600">Status<select disabled={busy} value={status} onChange={(event) => setStatus(event.target.value as ResponseStatus)} className="ml-2 rounded-lg border border-slate-200 p-2">{lanes.filter(([key]) => key !== "all" && key !== "critical" && key !== "action_needed" && key !== "calendar").map(([key, label]) => <option key={key} value={key}>{key === "needs_input" && !calendarKind && isActionNeeded(item) ? "Action needed" : label}</option>)}</select></label>
       <label className="text-sm text-slate-600">Follow-up date<input disabled={busy || status === "handled"} type="date" value={status === "handled" ? "" : followUp} onChange={(event) => setFollowUp(event.target.value)} className="ml-2 rounded-lg border border-slate-200 p-2 disabled:opacity-50" /></label>
     </div>
     <label className="block text-sm font-medium text-slate-700">Reply draft<textarea disabled={busy} value={draft} onChange={(event) => setDraft(event.target.value)} rows={10} className="mt-1 w-full rounded-lg border border-slate-200 p-3 font-normal leading-relaxed" placeholder="Prepare a draft with Leo, or write one here." /></label>
