@@ -5,6 +5,7 @@ import { z } from "zod";
 import { moduleAt } from "../evals/partner-email/offline-runtime.mjs";
 
 const lane = moduleAt("src/lib/partner-response-lane.ts");
+const calendarEmail = moduleAt("src/lib/calendar-email.ts");
 const assessment = (decision = "action_only", confidence = "high", message_id = "m") => ({ decision, confidence, message_id });
 const row = (id, extra = {}) => ({ thread_id: id, message_id: "m", status: "needs_input", received_at: "2026-09-09T12:00:00Z", ...extra });
 const action = row("action", { response_assessment: assessment() });
@@ -54,9 +55,9 @@ const store = {
       range(from, to) { start = from; end = to + 1; return this; },
       async then(resolve, reject) {
         try {
-          if (projection.includes("response_assessment")) {
+          if (projection.includes("received_at")) {
             indexReads++;
-            assert.doesNotMatch(projection, /draft|snippet|notes/, "index fetches routing metadata only");
+            assert.doesNotMatch(projection, /draft|notes/, "index fetches routing metadata only");
             // Simulate a row cap lower than the requested 500.
             end = Math.min(end, 37);
             if (failure) return resolve({ error: { message: "Synthetic index read failed" } });
@@ -70,13 +71,13 @@ const store = {
             }
             return 0;
           });
-          return resolve({ data: head ? null : selected.slice(start, end), count: selected.length, error: null });
+          return resolve({ data: head ? null : selected.slice(start, end).map((r) => projection === "*" ? r : Object.fromEntries(projection.split(",").map((key) => [key, r[key]]))), count: selected.length, error: null });
         } catch (error) { return reject(error); }
       },
     };
   } }),
 };
-const index = moduleAt("src/lib/partner-response-lane-store.ts", { "./partner-response-store": store, "./partner-response-lane": lane });
+const index = moduleAt("src/lib/partner-response-lane-store.ts", { "./partner-response-store": store, "./partner-response-lane": lane, "./calendar-email": calendarEmail });
 const api = moduleAt("src/app/api/partner-responses/route.ts", {
   "next-auth": { getServerSession: async () => session },
   "next/server": { NextResponse: { json: (body, init) => Response.json(body, init) } },
@@ -118,7 +119,7 @@ policyReady = false;
 const reads = indexReads;
 assert.equal((await get("action_needed")).items.length, 0);
 assert.equal((await get("needs_input")).laneCounts.needs_input, 140);
-assert.equal(indexReads, reads, "missing policy migration must not break saved replies");
+assert.ok(indexReads > reads, "calendar routing still reads base fields without the optional policy migration");
 policyReady = true;
 failure = true;
 assert.equal((await api.GET(new Request("https://leo.example/api/partner-responses"))).status, 500, "index errors cannot silently claim an empty queue");
@@ -129,4 +130,38 @@ session = { user: { email: "owner@willowed.org" } };
 assert.equal((await api.PATCH(new Request("https://leo.example/api/partner-responses", { method: "PATCH", body: JSON.stringify({ threadId: "test", version: 1, status: "action_needed" }) }))).status, 400, "derived lane is not a writable status");
 rows = [];
 assert.equal((await get("action_needed")).laneCounts.action_needed, 0);
+rows = [
+  ...Array.from({ length: 62 }, (_, i) => row(`calendar-${String(i).padStart(3, "0")}`, { subject: "Invitation: Planning @ Thu Sep 10, 2026 10am", status: i % 2 ? "draft_ready" : "needs_input", urgency: i === 0 ? "now" : "later" })),
+  row("acceptance", { subject: "Accepted: Planning @ Thu Sep 10, 2026 10am", response_assessment: assessment("no_reply") }),
+  row("calendar-human", { subject: "Accepted: Planning @ Thu Sep 10, 2026 10am", response_assessment: assessment("no_reply"), response_correction: assessment("action_only") }),
+  row("calendar-waiting", { subject: "Declined: Planning @ Thu Sep 10, 2026 10am", status: "waiting" }),
+  row("calendar-handled", { subject: "Accepted: Planning @ Thu Sep 10, 2026 10am", status: "handled" }),
+  row("regular", { subject: "Can we meet Tuesday?", response_correction: assessment() }),
+];
+const calFirst = await get("calendar_action");
+assert.equal(calFirst.items.length, 50);
+assert.equal(calFirst.hasMore, true);
+assert.equal(calFirst.laneCounts.calendar, 65);
+assert.equal(calFirst.laneCounts.calendar_action, 64);
+assert.equal(calFirst.laneCounts.calendar_updates, 1);
+assert.equal((await get("calendar_action", 1)).items.length, 14);
+assert.equal((await get("calendar_updates")).items[0].thread_id, "acceptance");
+assert.equal((await get("needs_input")).items.length, 0);
+assert.equal((await get("draft_ready")).items.length, 0);
+assert.equal((await get("waiting")).items.length, 0);
+assert.equal((await get("action_needed")).items[0].thread_id, "regular");
+assert.equal((await get("critical")).items[0].thread_id, "calendar-000");
+assert.equal((await get("handled")).items[0].thread_id, "calendar-handled");
+assert.equal([...(await get("all")).items, ...(await get("all", 1)).items].length, 66);
+assert.equal(calFirst.counts.needs_input, 34, "raw bulk counts preserve calendar items without duplication");
+const calendarSnapshot = JSON.stringify(rows);
+await get("calendar");
+assert.equal(JSON.stringify(rows), calendarSnapshot, "GET routing never changes a saved status or draft");
+policyReady = false;
+assert.equal((await get("calendar_action")).laneCounts.calendar, 65, "calendar routing works before policy setup");
+assert.equal((await get("calendar_updates")).items.length, 0, "no assessments means no presumed informational updates");
+policyReady = true;
+rows = rows.map((r) => r.thread_id === "acceptance" ? { ...r, subject: "Re: Planning", message_id: "new", status: "needs_response" } : r);
+assert.equal((await get("needs_response")).items[0].thread_id, "acceptance", "human follow-up returns to regular email even with old calendar history");
+assert.equal((await get("calendar_updates")).items.length, 0);
 console.log("Response lanes: policy precedence, pagination, counts, legacy setup, API safeguards passed.");

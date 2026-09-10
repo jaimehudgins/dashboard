@@ -1,5 +1,39 @@
 # Partner response queue and scheduled preparation
 
+## Calendar bucket
+
+Attention's **Calendar** filter separates recognized invitations and event
+notifications from Needs response, Draft ready, Action needed, Needs your input,
+and Waiting. **All open** remains an inclusive view, **Critical now** retains
+urgent notifications under its existing urgency/status rules, and handled items
+remain in **Handled recently**. Calendar's two independently paginated sections:
+
+- **Needs action:** invitations, declines, proposed times, changes, added questions,
+  and notifications that have not yet been confidently assessed.
+- **Updates only:** a current high-confidence full-conversation assessment says
+  no reply/action remains (for example a simple acceptance or reminder).
+  Current human decisions take precedence; new messages invalidate old assessments.
+
+Recognition uses a notification subject plus calendar-specific envelope evidence
+(dated event subject, notification sender, or calendar template snippet). Generic
+scheduling discussion, human replies/forwards, and calendar links alone do not
+qualify. These are conservative English-language format hints, not MIME/ICS
+parsing or a live event/RSVP check; unfamiliar formats stay in the regular queue.
+No event is accepted, declined, rescheduled, or automatically closed. The editor
+links to Google Calendar to verify the actual event and RSVP manually.
+
+No SQL migration is required. Existing saved notifications are routed on the next
+queue load; recognizable incoming calendar notifications can enter the queue even
+without a TEMU match. This does not backfill the entire Gmail mailbox: existing
+history-sync/import limits still apply. Original statuses, drafts, and bulk scope
+counts are preserved. Unassessed notifications stay actionable even before the
+optional response-policy migration is installed.
+
+Offline checks: `node scripts/check-calendar-email.mjs`,
+`node scripts/check-response-lanes.mjs`, and `node scripts/check-partner-queue.mjs`.
+
+## Saved responses
+
 Attention now has a saved **Partner responses** queue: Needs response, Draft ready,
 Action needed, Needs your input, Waiting / follow-up, and Handled. Open a row to save notes,
 prepare/edit a reply, set a follow-up date, or reopen previous drafts. The Mail

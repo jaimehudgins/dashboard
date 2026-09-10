@@ -4,6 +4,9 @@ import { memoryDb, moduleLoader } from "./offline-runtime.mjs";
 
 export async function evaluateLifecycle(snapshot = null) {
   const moduleAt = moduleLoader(snapshot);
+  const calendarEmail = !snapshot || snapshot["src/lib/calendar-email.ts"]
+    ? moduleAt("src/lib/calendar-email.ts")
+    : { calendarEmailKind() { throw new Error("Calendar routing is missing from the frozen source snapshot"); } };
   const env = { LEO_ALLOWED_EMAIL: "owner@willowed.org", SUPABASE_SERVICE_ROLE_KEY: "synthetic-only", NEXT_PUBLIC_SUPABASE_URL: "https://not-a-real-db.example" };
   const tables = { partner_responses: [], partner_mail_sync: [{ id: "primary", history_id: "100", page_token: null, pending_thread_ids: null, lock_id: null }], leo_notifications: [] };
   const db = memoryDb(tables);
@@ -34,6 +37,7 @@ export async function evaluateLifecycle(snapshot = null) {
   };
   const crm = memoryDb({ partners: [{ id: "cedar", name: "Cedar Ridge" }], contacts: [{ id: "maya", email: "maya@cedar.example", partner_id: "cedar" }] });
   const sync = moduleAt("src/lib/partner-mail-sync.ts", {
+    "./calendar-email": calendarEmail,
     "node:crypto": { randomUUID: () => "test-lease" }, "./crm-supabase": { isCrmConfigured: true, crmSupabase: crm },
     "./gmail": { GmailApiError }, "./gmail-history": fakeHistory,
     "./mail-classify": { classifyInbox: async (_token, threads) => ({ buckets: {}, decisions: Object.fromEntries(threads.map((t) => [t.id, { urgency, confidence: "high", reason: "Synthetic classifier verdict" }])) }) },
@@ -42,7 +46,7 @@ export async function evaluateLifecycle(snapshot = null) {
   const policy = moduleAt("src/lib/response-needed-policy.ts");
   const replyStatus = moduleAt("src/lib/partner-reply-status.ts", { "./gmail-history": fakeHistory, "./partner-response-store": store });
   const api = moduleAt("src/app/api/partner-responses/route.ts", {
-    "@/lib/partner-response-lane-store": { getInputLaneIndex: async () => { throw new Error("Lifecycle does not exercise list reads; see scripts/check-response-lanes.mjs"); } },
+    "@/lib/partner-response-lane-store": { getResponseLaneIndex: async () => { throw new Error("Lifecycle does not exercise list reads; see scripts/check-response-lanes.mjs"); } },
     "next-auth": { getServerSession: async () => ({ user: { email: env.LEO_ALLOWED_EMAIL }, accessToken: "synthetic" }) },
     "next/server": { NextResponse: { json: (body, options) => new Response(JSON.stringify(body), options) } }, zod: { z }, "@/lib/auth": {},
     "@/lib/email-draft": { generateEmailDraft: async () => { if (arriveDuringDraft) arrive("mid-draft"); return { draft: "Synthetic prepared draft", sources: [] }; } },

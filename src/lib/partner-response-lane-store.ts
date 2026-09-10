@@ -1,20 +1,23 @@
 import "server-only";
 import { responseDb, storeError } from "./partner-response-store";
 import { isActionNeeded, type ResponseLaneItem } from "./partner-response-lane";
+import { calendarEmailKind, calendarEmailSection, type CalendarEnvelope } from "./calendar-email";
 
-type LaneRow = ResponseLaneItem & { thread_id: string; received_at: string | null };
+type LaneRow = ResponseLaneItem & CalendarEnvelope & { thread_id: string; received_at: string | null };
 
 // Classify before pagination so action items beyond the first page are visible.
 // Read only routing metadata, never email bodies or drafts. Keyset pagination
 // also works when Supabase's configured row cap is smaller than our batch size.
-export async function getInputLaneIndex() {
+export async function getResponseLaneIndex(policyReady: boolean) {
   const rows: LaneRow[] = [];
   let cursor: string | null = null;
   const db = responseDb();
   for (;;) {
-    let query = db.from("partner_responses")
-      .select("thread_id,received_at,status,message_id,response_assessment,response_correction")
-      .eq("status", "needs_input").order("thread_id").limit(500);
+    const table = db.from("partner_responses");
+    const selected = policyReady
+      ? table.select("thread_id,received_at,status,message_id,subject,sender,snippet,response_assessment,response_correction")
+      : table.select("thread_id,received_at,status,message_id,subject,sender,snippet");
+    let query = selected.neq("status", "handled").order("thread_id").limit(500);
     if (cursor) query = query.gt("thread_id", cursor);
     const { data, error } = await query;
     if (error) storeError(error);
@@ -30,8 +33,16 @@ export async function getInputLaneIndex() {
       - (a.received_at ? Date.parse(a.received_at) : -Infinity);
     return dateOrder || (a.thread_id < b.thread_id ? -1 : a.thread_id > b.thread_id ? 1 : 0);
   });
-  return {
-    action_needed: rows.filter(isActionNeeded).map((row) => row.thread_id),
-    needs_input: rows.filter((row) => !isActionNeeded(row)).map((row) => row.thread_id),
+  const index: Record<"needs_response" | "draft_ready" | "needs_input" | "waiting" | "action_needed" | "calendar" | "calendar_action" | "calendar_updates", string[]> = {
+    needs_response: [], draft_ready: [], needs_input: [], waiting: [], action_needed: [],
+    calendar: [], calendar_action: [], calendar_updates: [],
   };
+  for (const row of rows) {
+    if (calendarEmailKind(row)) {
+      index.calendar.push(row.thread_id);
+      index[calendarEmailSection(row)].push(row.thread_id);
+    } else if (isActionNeeded(row)) index.action_needed.push(row.thread_id);
+    else if (row.status !== "handled") index[row.status].push(row.thread_id);
+  }
+  return index;
 }
