@@ -166,6 +166,13 @@ export interface WorkRun {
   updatedAt: string;
 }
 
+// Hide completed tasks from active work surfaces without deleting their runs.
+// Reopening a task restores its saved work automatically.
+export function openTaskWorkRuns(runs: WorkRun[], completedTaskIds: string[]): WorkRun[] {
+  const completed = new Set(completedTaskIds);
+  return runs.filter((run) => !completed.has(run.taskId));
+}
+
 export function toWorkRun(row: Record<string, unknown>): WorkRun {
   return {
     id: row.id as string,

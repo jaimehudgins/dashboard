@@ -22,7 +22,7 @@ import {
   prepareTaskWithLeo,
   WorkbenchRevisionOptions,
 } from "@/lib/workbench-client";
-import { WorkRun } from "@/lib/workbench";
+import { openTaskWorkRuns, WorkRun } from "@/lib/workbench";
 import { Task } from "@/types";
 import UnifiedTaskTable from "./UnifiedTaskTable";
 import WorkbenchPanel from "./WorkbenchPanel";
@@ -135,6 +135,10 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
         .map((task) => task.id),
     [state.tasks],
   );
+  const openWorkRuns = useMemo(
+    () => openTaskWorkRuns(workRuns, completedTaskIds),
+    [workRuns, completedTaskIds],
+  );
   const taskRefreshKey = useMemo(
     () =>
       state.tasks.reduce(
@@ -166,16 +170,16 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
       (1000 * 60 * 60 * 24);
     return days >= 0 && days <= 56;
   }).length;
-  const researchingCount = workRuns.filter(
+  const researchingCount = openWorkRuns.filter(
     (run) => run.status === "researching",
   ).length;
-  const draftReadyCount = workRuns.filter(
+  const draftReadyCount = openWorkRuns.filter(
     (run) => run.status === "draft_ready",
   ).length;
-  const needsInputCount = workRuns.filter(
+  const needsInputCount = openWorkRuns.filter(
     (run) => run.status === "needs_input",
   ).length;
-  const curriculumWorkRunCount = workRuns.filter(
+  const curriculumWorkRunCount = openWorkRuns.filter(
     (run) =>
       run.workstream === "curriculum" &&
       run.status !== "reviewed" &&
@@ -353,7 +357,7 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
           )}
 
           <WorkbenchPanel
-            runs={workRuns}
+            runs={openWorkRuns}
             loading={workbenchLoading}
             configured={workbenchConfigured}
             onRefresh={refreshWorkRuns}
@@ -401,7 +405,7 @@ export default function WorkHub({ onOpenZenMode }: WorkHubProps) {
             {WORKSTREAMS.map((workstream) => {
               const Icon = workstream.icon;
               const tasks = tasksByWorkstream[workstream.id];
-              const leoRuns = workRuns
+              const leoRuns = openWorkRuns
                 .filter(
                   (run) =>
                     run.workstream === workstream.id &&
