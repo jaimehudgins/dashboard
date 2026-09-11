@@ -1,5 +1,9 @@
 // Synthetic transports only: never archives real Gmail conversations.
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import vm from "node:vm";
+import ts from "typescript";
+import * as jsx from "react/jsx-runtime";
 import { z } from "zod";
 import { moduleAt } from "../evals/partner-email/offline-runtime.mjs";
 
@@ -78,4 +82,71 @@ const already = fixture({ alreadyArchived: true });
 assert.equal((await already.api.POST(request())).status, 200);
 assert.equal(already.archives(), 0);
 assert.equal(already.row().in_inbox, false);
+
+// Exercise the row control without a browser or real Gmail writes.
+function rowControl(options = {}) {
+  const states = [], requests = [], notices = [];
+  let cursor = 0, refreshes = 0;
+  const exports = {};
+  const mocks = {
+    react: {
+      useState(initial) { const i = cursor++; if (!(i in states)) states[i] = initial; return [states[i], (value) => { states[i] = value; }]; },
+      useRef(initial) { const i = cursor++; if (!(i in states)) states[i] = { current: initial }; return states[i]; },
+    },
+    "react/jsx-runtime": jsx,
+    "lucide-react": { Archive: () => null, Loader2: () => null },
+    "@/lib/http": { readJsonResponse: async (response) => response.json() },
+  };
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync("src/components/PartnerResponseRowArchive.tsx", "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
+  }).outputText, {
+    exports, require(id) { if (id in mocks) return mocks[id]; throw new Error(`Unmocked dependency ${id}`); },
+    window: { confirm: () => options.confirm !== false },
+    fetch: async (url, init) => {
+      requests.push({ url, ...JSON.parse(init.body) });
+      if (options.networkError) throw new Error("Network lost");
+      return Response.json(options.body ?? { ok: true, notice: "Archived; follow-up unchanged." }, { status: options.status ?? 200 });
+    },
+  });
+  const render = () => { cursor = 0; return exports.default({ item: { ...original, subject: "Planning", ...options.item }, onArchived: (notice) => notices.push(notice), onRefresh: async () => { refreshes++; } }); };
+  const buttons = (tree) => {
+    if (!tree || typeof tree !== "object") return [];
+    if (Array.isArray(tree)) return tree.flatMap(buttons);
+    return [...(tree.type === "button" ? [tree] : []), ...buttons(tree.props?.children)];
+  };
+  const text = (tree) => {
+    if (tree == null || typeof tree === "boolean") return "";
+    if (typeof tree !== "object") return String(tree);
+    return Array.isArray(tree) ? tree.map(text).join(" ") : text(tree.props?.children);
+  };
+  return { render, buttons, text, requests, notices, refreshes: () => refreshes };
+}
+const canceledRow = rowControl({ confirm: false });
+await canceledRow.buttons(canceledRow.render())[0].props.onClick();
+assert.equal(canceledRow.requests.length, 0);
+const archivedRow = rowControl({ item: { in_inbox: false } });
+assert.equal(archivedRow.buttons(archivedRow.render())[0].props.disabled, true);
+assert.match(archivedRow.text(archivedRow.render()), /Not in inbox/);
+const row = rowControl();
+const archiveButton = row.buttons(row.render())[0];
+assert.match(archiveButton.props["aria-label"], /Archive Planning in Gmail/);
+archiveButton.props.onClick(); archiveButton.props.onClick();
+assert.equal(row.requests.length, 1, "rapid double-click submits once");
+assert.equal(row.buttons(row.render())[0].props.disabled, true);
+await new Promise((resolve) => setImmediate(resolve));
+assert.equal(row.notices.length, 1);
+assert.deepEqual(row.requests[0], { url: "/api/partner-responses/archive", ...input });
+for (const options of [{ networkError: true }, { status: 409, body: { error: "New message" } }, { status: 502, body: { error: "Outcome unknown", uncertain: true } }]) {
+  const failedRow = rowControl(options);
+  failedRow.buttons(failedRow.render())[0].props.onClick();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(failedRow.requests.length, 1);
+  assert.equal(failedRow.notices.length, 0);
+  assert.match(failedRow.text(failedRow.render()), /No automatic retry/);
+  await failedRow.buttons(failedRow.render())[1].props.onClick();
+  assert.equal(failedRow.refreshes(), 1);
+  assert.equal(failedRow.requests.length, 1, "refresh never retries the archive");
+}
+const queueSource = fs.readFileSync("src/components/PartnerResponseQueue.tsx", "utf8");
+assert.match(queueSource, /<\/button>\s*<PartnerResponseRowArchive/, "archive is a sibling control, not nested inside the open-conversation button");
 console.log("Attention archive checks passed: confirmation, auth, stale-message/version guards, duplicate protection, saved-work preservation, and failure handling. No real email archived.");

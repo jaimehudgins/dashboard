@@ -9,6 +9,7 @@ import PartnerEmailContext from "./PartnerEmailContext";
 import PartnerReplySendDialog from "./PartnerReplySendDialog";
 import ResponseRulesPanel from "./ResponseRulesPanel";
 import ResponseReassessment from "./ResponseReassessment";
+import PartnerResponseRowArchive from "./PartnerResponseRowArchive";
 import { RESPONSE_CHOICES, type ResponseNeed } from "@/lib/response-needed-policy";
 import { isActionNeeded } from "@/lib/partner-response-lane";
 import { CALENDAR_EMAIL_LABELS, calendarEmailKind, calendarEmailSection } from "@/lib/calendar-email";
@@ -120,7 +121,8 @@ export default function PartnerResponseQueue() {
           <div className="divide-y divide-slate-100">
             {data.items?.map((item) => {
               const calendarKind = calendarEmailKind(item);
-              return <button key={item.thread_id} onClick={() => setSelected(item)} className="block w-full px-5 py-4 text-left hover:bg-emerald-50/40">
+              return <div key={item.thread_id} className="sm:flex sm:items-start">
+                <button type="button" onClick={() => setSelected(item)} className="block w-full min-w-0 flex-1 px-5 py-4 text-left hover:bg-emerald-50/40">
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="font-semibold text-emerald-800">{item.partner_name}</span>
                 {item.urgency === "now" && item.status !== "handled" && <span className="rounded-full bg-rose-50 px-2 py-1 text-rose-700">Critical</span>}
@@ -134,7 +136,11 @@ export default function PartnerResponseQueue() {
                 ? <p className="mt-1 text-xs text-emerald-800">Your decision: {RESPONSE_CHOICES.find(([key]) => key === item.response_correction?.decision)?.[1]}{item.response_correction.reason ? ` · ${item.response_correction.reason}` : ""}</p>
                 : item.response_assessment?.message_id === item.message_id && <p className="mt-1 text-xs text-emerald-800">Leo suggests: {RESPONSE_CHOICES.find(([key]) => key === item.response_assessment?.decision)?.[1]} · {item.response_assessment.reason}</p>}
               <p className="mt-1 line-clamp-2 text-sm text-slate-500">{item.snippet}</p>
-            </button>; })}
+                </button>
+                <PartnerResponseRowArchive item={item} onRefresh={load} onArchived={(notice) => {
+                  setReceipt(notice); void load(); window.dispatchEvent(new Event("leo:attention-updated"));
+                }} />
+              </div>; })}
           </div>
           {!loading && !data.items?.length && <p className="px-5 pb-6 text-sm text-slate-500">{data.sync?.last_checked_at ? "No saved responses in this view." : "Choose Check mail to bring in up to 100 recent inbox conversations. Later checks will follow changes automatically."}</p>}
           <div className="flex justify-between p-5 text-sm">

@@ -322,6 +322,7 @@ const ui = moduleAt("src/components/PartnerResponseQueue.tsx", {
   "./PartnerReplySendDialog": { default: () => null },
   "./ResponseRulesPanel": { default: () => null },
   "./ResponseReassessment": { default: () => null },
+  "./PartnerResponseRowArchive": { default: () => null },
 }, "\nexport { ResponseEditor };\n");
 const markup = renderToStaticMarkup(React.createElement(ui.ResponseEditor, {
   item: {
