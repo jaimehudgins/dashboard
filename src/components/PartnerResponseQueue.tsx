@@ -11,6 +11,7 @@ import ResponseRulesPanel from "./ResponseRulesPanel";
 import ResponseReassessment from "./ResponseReassessment";
 import PartnerResponseRowArchive from "./PartnerResponseRowArchive";
 import AttentionEmailTasks from "./AttentionEmailTasks";
+import { archiveConfirmation } from "@/lib/partner-archive";
 import { RESPONSE_CHOICES, type ResponseNeed } from "@/lib/response-needed-policy";
 import { isActionNeeded } from "@/lib/partner-response-lane";
 import { CALENDAR_EMAIL_LABELS, calendarEmailKind, calendarEmailSection } from "@/lib/calendar-email";
@@ -271,17 +272,18 @@ function ResponseEditor({ item: initialItem, policyReady = false, onBack, onSave
   };
 
   const archive = async () => {
-    if (actionLock.current || busy || dirty || !item.in_inbox || !window.confirm("Archive this conversation in Gmail? It will leave your Gmail inbox, but Leo's follow-up status, notes, and drafts will stay unchanged. Nothing is deleted. You can move it back to Inbox in Gmail.")) return;
+    if (actionLock.current || busy || dirty || (item.status === "handled" && !item.in_inbox)) return;
     actionLock.current = true;
     setBusy(true); setError(null);
     try {
       const current = await currentActionItem();
       if (!current) return;
-      const response = await fetch("/api/partner-responses/archive", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ threadId: current.thread_id, version: current.version, expectedMessageId: current.message_id, confirmed: true }) });
+      if (!window.confirm(archiveConfirmation(current))) return;
+      const response = await fetch("/api/partner-responses/archive", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ threadId: current.thread_id, version: current.version, expectedMessageId: current.message_id, confirmed: true, acknowledgeFollowUp: true }) });
       const result = await readJsonResponse<{ ok?: boolean; item?: PartnerResponse; notice?: string; error?: string }>(response);
       if (!response.ok || !result.ok) throw new Error(result.error || "Could not archive. Check reply status before trying again.");
-      const notice = result.notice || "Archived in Gmail. Leo follow-up status and saved work are unchanged.";
-      if (result.item) onSaved(result.item, notice);
+      const notice = result.notice || "Archived. Refresh the queue to verify its latest status.";
+      if (result.item) { onSaved(result.item, notice); if (result.item.status === "handled" && !result.item.in_inbox) onBack(); }
       else onSent(notice); // Reuse the completion callback to reload the queue.
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not archive."); }
     finally { actionLock.current = false; setBusy(false); }
@@ -323,8 +325,8 @@ function ResponseEditor({ item: initialItem, policyReady = false, onBack, onSave
     </div>}
     <div><p className="text-xs font-semibold text-emerald-800">{item.partner_name}</p><h3 className="mt-1 text-xl font-semibold">{item.subject}</h3><p className="mt-1 text-sm text-slate-500">{item.sender}</p></div>
     <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-      <button type="button" disabled={busy || dirty || !item.in_inbox} onClick={() => void archive()} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 font-semibold text-slate-700 disabled:opacity-50"><Archive size={14} />{item.in_inbox ? "Archive in Gmail" : "Not in Gmail inbox"}</button>
-      <span>{dirty ? "Save your edits before archiving." : "Removes it from Gmail’s inbox—not from Leo’s follow-up queue. Nothing is deleted."}</span>
+      <button type="button" disabled={busy || dirty || (item.status === "handled" && !item.in_inbox)} onClick={() => void archive()} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 font-semibold text-slate-700 disabled:opacity-50"><Archive size={14} />{item.status === "handled" && !item.in_inbox ? "Archived" : "Archive"}</button>
+      <span>{dirty ? "Save your edits before archiving." : "Moves to Handled recently and leaves Gmail’s inbox. Notes, drafts, and Work tasks are retained."}</span>
     </div>
     <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">{item.status === "handled" ? "No follow-up needed. This conversation stays handled unless a new incoming email arrives or you reopen it." : item.reason}</p>
     {item.status !== "handled" && <div className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">
