@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   AlertCircle,
   Calendar,
@@ -316,6 +316,14 @@ export default function UnifiedTaskTable({
     () => [...localRows, ...partnerRows],
     [localRows, partnerRows],
   );
+
+  const openedTaskLink = useRef(false);
+  useEffect(() => {
+    if (compact || openedTaskLink.current || window.location.pathname !== "/work") return;
+    const id = new URLSearchParams(window.location.search).get("task");
+    const row = id ? localRows.find((item) => item.id === id) : null;
+    if (row) { openedTaskLink.current = true; setSelectedRow(row); }
+  }, [compact, localRows]);
 
   const filteredRows = useMemo(() => {
     const today = startOfDay(new Date());

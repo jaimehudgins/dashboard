@@ -1,5 +1,25 @@
 # Partner response queue and scheduled preparation
 
+## Tasks from Attention
+
+Open a conversation and use **Linked work → Create task**. Review the suggested
+title (current assessment, otherwise the subject), edit the latest email excerpt,
+choose relevant links from the thread, and optionally set a due date. Confirming
+saves a pending Work task with its source email/message and the Partner Success
+area when available. It does not send email, change the response status, write to
+TEMU, or automatically run the Workbench. Finish or cancel task creation before
+saving the email editor. No new SQL migration is needed.
+
+Linked tasks, including completed tasks, remain visible with an **Open in Work**
+deep link. Refresh linked tasks to pick up completion elsewhere. Duplicate checks
+cover linked local Work tasks, not unlinked tasks or independent CRM tasks. A
+normalized matching title reuses the existing task without changing it; distinct
+actions need distinct titles. Deterministic IDs protect concurrent creates and
+retries. Failed checks/saves retain the form; a newer source email requires review.
+Task completion never automatically closes an Action only conversation.
+
+Offline checks: `node scripts/check-attention-tasks.mjs`.
+
 ## Calendar bucket
 
 Attention's **Calendar** filter separates recognized invitations and event
@@ -33,6 +53,18 @@ Offline checks: `node scripts/check-calendar-email.mjs`,
 `node scripts/check-response-lanes.mjs`, and `node scripts/check-partner-queue.mjs`.
 
 ## Saved responses
+
+Open editors refresh their exact saved conversation every 30 seconds while
+visible and re-read it immediately before saving. Untouched fields follow the
+latest record; local edits survive unrelated background updates. A new message
+during editing/saving or conflicting changes to the same field require explicit
+review. The comparison preserves both versions; keeping edits or using the saved
+version does not itself save, send, or close anything. A send-confirmation dialog
+keeps its reviewed snapshot frozen and retains the server's final send checks.
+Only changed fields are saved. One rejected optimistic database save may be
+reconciled and retried; unknown/network write results and external actions are
+never automatically retried. `node scripts/check-response-editor.mjs` verifies
+these behaviors offline. No SQL migration is needed.
 
 Each Attention row has an **Archive** button, so opening the conversation is not
 required. Confirming archives in Gmail only; it does not mark the conversation

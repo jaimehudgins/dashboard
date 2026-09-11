@@ -59,6 +59,7 @@ export async function GET(request: Request) {
     if (params.has("threadId")) {
       const id = idSchema.parse(params.get("threadId"));
       const item = await getResponse(id);
+      if (params.get("current") === "1") return NextResponse.json({ configured: true, item });
       const { data: revisions, error } = await responseDb().from("partner_response_revisions").select("id, draft, message_id, sources, saved_at").eq("thread_id", id).order("saved_at", { ascending: false }).limit(10);
       if (error) storeError(error);
       return NextResponse.json({ configured: true, item, revisions });

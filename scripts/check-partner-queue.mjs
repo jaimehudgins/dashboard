@@ -30,6 +30,7 @@ const states = moduleAt("src/types/partner-response.ts");
 const responsePolicy = moduleAt("src/lib/response-needed-policy.ts");
 const responseLane = moduleAt("src/lib/partner-response-lane.ts");
 const calendarEmail = moduleAt("src/lib/calendar-email.ts");
+const editorHelpers = moduleAt("src/lib/partner-response-editor.ts", { "./http": {} });
 assert.equal(states.responseAfterMessage({ message_id: "10", status: "handled" }, "10", true, true), "handled", "reading or labeling must not reopen a handled item");
 assert.equal(states.responseAfterMessage({ message_id: "10", status: "handled" }, "11", true, true), "needs_response", "new partner reply reopens handled work");
 assert.equal(states.responseAfterMessage({ message_id: "10", status: "handled" }, "11", false, true), "handled", "your own additional sent message must not reopen no-follow-up work");
@@ -312,6 +313,7 @@ assert.equal(apiItem.response_correction.message_id, apiItem.message_id);
 assert.equal((await api.PATCH(request("PATCH", { threadId: "thread", version: apiItem.version, response_decision: "reply_needed" }))).status, 200);
 
 const ui = moduleAt("src/components/PartnerResponseQueue.tsx", {
+  "@/lib/partner-response-editor": editorHelpers,
   "@/lib/calendar-email": calendarEmail,
   "@/lib/partner-response-lane": responseLane,
   react: React, "react/jsx-runtime": jsxRuntime, "lucide-react": icons,
@@ -323,6 +325,7 @@ const ui = moduleAt("src/components/PartnerResponseQueue.tsx", {
   "./ResponseRulesPanel": { default: () => null },
   "./ResponseReassessment": { default: () => null },
   "./PartnerResponseRowArchive": { default: () => null },
+  "./AttentionEmailTasks": { default: () => null },
 }, "\nexport { ResponseEditor };\n");
 const markup = renderToStaticMarkup(React.createElement(ui.ResponseEditor, {
   item: {
