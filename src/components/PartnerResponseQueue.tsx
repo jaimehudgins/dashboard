@@ -10,9 +10,11 @@ import PartnerReplySendDialog from "./PartnerReplySendDialog";
 import ResponseRulesPanel from "./ResponseRulesPanel";
 import ResponseReassessment from "./ResponseReassessment";
 import PartnerResponseRowArchive from "./PartnerResponseRowArchive";
+import AttentionEmailTasks from "./AttentionEmailTasks";
 import { RESPONSE_CHOICES, type ResponseNeed } from "@/lib/response-needed-policy";
 import { isActionNeeded } from "@/lib/partner-response-lane";
 import { CALENDAR_EMAIL_LABELS, calendarEmailKind, calendarEmailSection } from "@/lib/calendar-email";
+import { keepResponseEdits, readCurrentResponse, reconcileResponse, responseEditorState, responseForm, responseFormDirty, saveResponseEdits, type ResponseEditorState, type ResponseForm } from "@/lib/partner-response-editor";
 
 const lanes = [
   ["all", "All open"], ["critical", "Critical now"], ["needs_response", "Needs response"],
@@ -155,22 +157,54 @@ export default function PartnerResponseQueue() {
   );
 }
 
-function ResponseEditor({ item, policyReady = false, onBack, onSaved, onSent }: { item: PartnerResponse; policyReady?: boolean; onBack: () => void; onSaved: (item: PartnerResponse, notice?: string) => void; onSent: (notice: string) => void }) {
+function ResponseEditor({ item: initialItem, policyReady = false, onBack, onSaved: notifySaved, onSent }: { item: PartnerResponse; policyReady?: boolean; onBack: () => void; onSaved: (item: PartnerResponse, notice?: string) => void; onSent: (notice: string) => void }) {
+  const [editor, setEditor] = useState(() => responseEditorState(initialItem));
+  const editorRef = useRef(editor);
+  const actionLock = useRef(false);
+  const reviewingSend = useRef(false);
+  const refreshSequence = useRef(0);
+  const invalidateRefresh = useCallback(() => { refreshSequence.current++; }, []);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const replaceEditor = useCallback((next: ResponseEditorState) => { editorRef.current = next; setEditor(next); }, []);
+  const item = editor.base;
+  const { draft, notes, followUp, status, decision, feedback } = editor.form;
+  const setField = <K extends keyof ResponseForm>(key: K, value: ResponseForm[K]) => {
+    replaceEditor({ ...editorRef.current, form: { ...editorRef.current.form, [key]: value } });
+  };
+  const setDraft = (value: string) => setField("draft", value);
+  const setNotes = (value: string) => setField("notes", value);
+  const setFollowUp = (value: string) => setField("followUp", value);
+  const setStatus = (value: ResponseStatus) => setField("status", value);
+  const setDecision = (value: ResponseNeed | "") => setField("decision", value);
+  const setFeedback = (value: string) => setField("feedback", value);
+  const onSaved = (latest: PartnerResponse, notice?: string) => { replaceEditor(responseEditorState(latest)); notifySaved(latest, notice); };
   const calendarKind = calendarEmailKind(item);
-  const [draft, setDraft] = useState(item.draft);
-  const [notes, setNotes] = useState(item.notes);
-  const [followUp, setFollowUp] = useState(item.follow_up_on ?? "");
-  const [status, setStatus] = useState(item.status);
   const correction = item.response_correction?.message_id === item.message_id ? item.response_correction : null;
   const assessment = item.response_assessment?.message_id === item.message_id ? item.response_assessment : null;
-  const [decision, setDecision] = useState<ResponseNeed | "">(correction?.decision ?? "");
-  const [feedback, setFeedback] = useState(correction?.reason ?? "");
-  const correctionDirty = decision !== (correction?.decision ?? "") || feedback !== (correction?.reason ?? "");
-  const [busy, setBusy] = useState(false);
+  const [working, setBusy] = useState(false);
+  const [taskEditing, setTaskEditing] = useState(false);
+  const busy = working || Boolean(editor.pending) || taskEditing;
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<{ id: number; draft: string; saved_at: string }[] | null>(null);
   const [sendItem, setSendItem] = useState<PartnerResponse | null>(null);
-  const dirty = draft !== item.draft || notes !== item.notes || followUp !== (item.follow_up_on ?? "") || status !== item.status || correctionDirty;
+  const dirty = responseFormDirty(editor);
+  const refreshEditor = useCallback(async () => {
+    if (actionLock.current || reviewingSend.current) return;
+    const sequence = ++refreshSequence.current;
+    try {
+      const latest = await readCurrentResponse(initialItem.thread_id);
+      if (sequence === refreshSequence.current && !actionLock.current && !reviewingSend.current) { replaceEditor(reconcileResponse(editorRef.current, latest)); setRefreshError(null); }
+    } catch (caught) { if (sequence === refreshSequence.current) setRefreshError(caught instanceof Error ? caught.message : "Could not refresh. Your edits are retained."); }
+  }, [initialItem.thread_id, replaceEditor]);
+  useEffect(() => {
+    let alive = true;
+    const refresh = async () => { if (alive && document.visibilityState === "visible") await refreshEditor(); };
+    void refresh();
+    const interval = window.setInterval(() => void refresh(), 30_000);
+    const updated = () => { void refresh(); };
+    window.addEventListener("leo:attention-updated", updated);
+    return () => { alive = false; invalidateRefresh(); window.clearInterval(interval); window.removeEventListener("leo:attention-updated", updated); };
+  }, [refreshEditor, invalidateRefresh]);
   useEffect(() => {
     if (!dirty) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
@@ -179,36 +213,31 @@ function ResponseEditor({ item, policyReady = false, onBack, onSaved, onSent }: 
   }, [dirty]);
 
   const save = async (makeDraft = false, noFollowUp = false, reviewSend = false) => {
+    if (actionLock.current || editorRef.current.pending) return;
+    actionLock.current = true;
     setBusy(true); setError(null);
     try {
-      // Save notes first so research instructions survive a failed draft request.
-      const savedStatus = noFollowUp ? "handled" : draft !== item.draft && status === item.status && !["waiting", "handled"].includes(status)
-        ? draft.trim() ? "draft_ready" : "needs_response"
-        : status;
-      const response = await fetch("/api/partner-responses", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-        threadId: item.thread_id, version: item.version, notes, follow_up_on: savedStatus === "handled" ? null : followUp || null, status: savedStatus,
-        ...(draft !== item.draft ? { draft } : {}),
-        ...(policyReady && (noFollowUp || correctionDirty) ? { response_decision: noFollowUp ? "no_reply" : decision || undefined, response_feedback: feedback } : {}),
-      }) });
-      const saved = await readJsonResponse<{ error: string; item: PartnerResponse }>(response);
-      if (!response.ok || !saved.item) throw new Error(saved.error || "Could not save response.");
-      if (reviewSend) { setSendItem(saved.item); return; }
+      const savedItem = await saveResponseEdits(editorRef.current, policyReady, noFollowUp, replaceEditor);
+      if (!savedItem) return;
+      // A confirmed save is the new baseline even if subsequent generation fails.
+      replaceEditor(responseEditorState(savedItem));
+      if (reviewSend) { reviewingSend.current = true; setSendItem(savedItem); return; }
       if (noFollowUp) {
-        onSaved(saved.item, "No follow-up needed. Saved in Handled recently; a new incoming email will reopen it after the next mail check. Notes and drafts are retained.");
+        onSaved(savedItem, "No follow-up needed. Saved in Handled recently; a new incoming email will reopen it after the next mail check. Notes and drafts are retained.");
         onBack();
         return;
       }
-      if (!makeDraft) { onSaved(saved.item); return; }
-      const generated = await fetch("/api/partner-responses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "draft", threadId: item.thread_id, version: saved.item.version, notes }) });
+      if (!makeDraft) { onSaved(savedItem); return; }
+      const generated = await fetch("/api/partner-responses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "draft", threadId: item.thread_id, version: savedItem.version, notes: savedItem.notes }) });
       const result = await readJsonResponse<{ error: string; item: PartnerResponse }>(generated);
       if (!generated.ok || !result.item) {
         // Keep the new version usable after an unsuccessful generation.
-        onSaved(saved.item, `Notes saved, but Leo could not prepare a draft. ${result.error || "Try again."}`);
+        onSaved(savedItem, `Notes saved, but Leo could not prepare a draft. ${result.error || "Try again."}`);
         return;
       }
       onSaved(result.item);
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not save response."); }
-    finally { setBusy(false); }
+    finally { actionLock.current = false; setBusy(false); }
   };
 
   const loadHistory = async () => {
@@ -220,44 +249,78 @@ function ResponseEditor({ item, policyReady = false, onBack, onSaved, onSent }: 
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not load history."); }
   };
 
+  const currentActionItem = async () => {
+    const next = reconcileResponse(editorRef.current, await readCurrentResponse(item.thread_id), true);
+    replaceEditor(next);
+    return next.pending ? null : next.base;
+  };
+
   const recheckReply = async () => {
+    if (actionLock.current || busy || dirty) return;
+    actionLock.current = true;
     setBusy(true); setError(null);
     try {
-      const response = await fetch("/api/partner-responses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "recheck_reply", threadId: item.thread_id, version: item.version }) });
+      const current = await currentActionItem();
+      if (!current) return;
+      const response = await fetch("/api/partner-responses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "recheck_reply", threadId: current.thread_id, version: current.version }) });
       const data = await readJsonResponse<{ item: PartnerResponse; notice: string; error: string }>(response);
       if (!response.ok || !data.item) throw new Error(data.error || "Could not check reply status.");
       onSaved(data.item, data.notice);
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not check reply status."); }
-    finally { setBusy(false); }
+    finally { actionLock.current = false; setBusy(false); }
   };
 
   const archive = async () => {
-    if (busy || dirty || !item.in_inbox || !window.confirm("Archive this conversation in Gmail? It will leave your Gmail inbox, but Leo's follow-up status, notes, and drafts will stay unchanged. Nothing is deleted. You can move it back to Inbox in Gmail.")) return;
+    if (actionLock.current || busy || dirty || !item.in_inbox || !window.confirm("Archive this conversation in Gmail? It will leave your Gmail inbox, but Leo's follow-up status, notes, and drafts will stay unchanged. Nothing is deleted. You can move it back to Inbox in Gmail.")) return;
+    actionLock.current = true;
     setBusy(true); setError(null);
     try {
-      const response = await fetch("/api/partner-responses/archive", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ threadId: item.thread_id, version: item.version, expectedMessageId: item.message_id, confirmed: true }) });
+      const current = await currentActionItem();
+      if (!current) return;
+      const response = await fetch("/api/partner-responses/archive", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ threadId: current.thread_id, version: current.version, expectedMessageId: current.message_id, confirmed: true }) });
       const result = await readJsonResponse<{ ok?: boolean; item?: PartnerResponse; notice?: string; error?: string }>(response);
       if (!response.ok || !result.ok) throw new Error(result.error || "Could not archive. Check reply status before trying again.");
       const notice = result.notice || "Archived in Gmail. Leo follow-up status and saved work are unchanged.";
       if (result.item) onSaved(result.item, notice);
       else onSent(notice); // Reuse the completion callback to reload the queue.
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not archive."); }
-    finally { setBusy(false); }
+    finally { actionLock.current = false; setBusy(false); }
   };
 
   const assess = async () => {
+    if (actionLock.current || busy || dirty) return;
+    actionLock.current = true;
     setBusy(true); setError(null);
     try {
-      const response = await fetch("/api/partner-responses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "assess", threadId: item.thread_id, version: item.version }) });
+      const current = await currentActionItem();
+      if (!current) return;
+      const response = await fetch("/api/partner-responses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "assess", threadId: current.thread_id, version: current.version }) });
       const data = await readJsonResponse<{ item: PartnerResponse; error: string }>(response);
       if (!response.ok || !data.item) throw new Error(data.error || "Could not assess response needs.");
       onSaved(data.item, "Response assessment saved. No email was sent and no conversation was automatically closed.");
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not assess response needs."); }
-    finally { setBusy(false); }
+    finally { actionLock.current = false; setBusy(false); }
   };
 
   return <div className="space-y-4 border-t border-slate-100 p-5">
-    <button disabled={busy} onClick={() => { if (!dirty || window.confirm("Leave without saving your changes?")) onBack(); }} className="inline-flex items-center gap-2 text-sm text-slate-500"><ArrowLeft size={14} /> Back to queue</button>
+    <button disabled={working || taskEditing} onClick={() => { if (!dirty || window.confirm("Leave without saving your changes?")) onBack(); }} className="inline-flex items-center gap-2 text-sm text-slate-500"><ArrowLeft size={14} /> Back to queue</button>
+    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+      <span>Background updates preserve your unsaved edits.</span>
+      <button type="button" disabled={working || Boolean(sendItem)} onClick={() => void refreshEditor()} className="font-semibold text-emerald-800 underline">Refresh conversation</button>
+    </div>
+    {refreshError && <p role="alert" className="text-sm text-amber-800">{refreshError}</p>}
+    {editor.pending && <div role="alert" className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+      <p className="font-semibold">Review changed information: {editor.conflicts.join(", ")}. Your unsaved edits are still here.</p>
+      <p>Review the latest email below before continuing. Nothing is sent or saved by choosing a version.</p>
+      <details><summary className="cursor-pointer underline">Compare your edits with the saved version</summary>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <div><p className="font-semibold">Your editor</p><pre className="max-h-64 overflow-auto whitespace-pre-wrap text-xs">{JSON.stringify(editor.form, null, 2)}</pre></div>
+          <div><p className="font-semibold">Latest saved version</p><pre className="max-h-64 overflow-auto whitespace-pre-wrap text-xs">{JSON.stringify(responseForm(editor.pending), null, 2)}</pre></div>
+        </div>
+      </details>
+      <button type="button" disabled={working} onClick={() => { replaceEditor(keepResponseEdits(editorRef.current)); setError(null); }} className="mr-3 rounded border border-amber-300 bg-white px-3 py-2 font-semibold">Reviewed latest; keep my edits</button>
+      <button type="button" disabled={working} onClick={() => { if (editorRef.current.pending && (!dirty || window.confirm("Discard your unsaved edits and use the latest saved version?"))) { replaceEditor(responseEditorState(editorRef.current.pending)); setError(null); } }} className="underline">Use saved version</button>
+    </div>}
     <div><p className="text-xs font-semibold text-emerald-800">{item.partner_name}</p><h3 className="mt-1 text-xl font-semibold">{item.subject}</h3><p className="mt-1 text-sm text-slate-500">{item.sender}</p></div>
     <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
       <button type="button" disabled={busy || dirty || !item.in_inbox} onClick={() => void archive()} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 font-semibold text-slate-700 disabled:opacity-50"><Archive size={14} />{item.in_inbox ? "Archive in Gmail" : "Not in Gmail inbox"}</button>
@@ -270,7 +333,7 @@ function ResponseEditor({ item, policyReady = false, onBack, onSaved, onSent }: 
     </div>}
     {item.preparation_reason && item.preparation_message_id === item.message_id && <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">Leo’s preparation decision: {item.preparation_reason}</p>}
     {isStaleDraft(item) && !["waiting", "handled"].includes(item.status) && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">This draft is from an earlier message. Review the latest thread and update the draft before sending.</p>}
-    <a href={`/mail?thread=${encodeURIComponent(item.thread_id)}`} onClick={(event) => { if (dirty && !window.confirm("Your edits are not saved. Open Mail anyway?")) event.preventDefault(); }} className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-800">Open thread in Mail · send, tasks, and TEMU <ExternalLink size={14} /></a>
+    <a href={`/mail?thread=${encodeURIComponent(item.thread_id)}`} onClick={(event) => { if ((dirty || taskEditing) && !window.confirm("Your email or task edits are not saved. Open Mail anyway?")) event.preventDefault(); }} className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-800">Open thread in Mail · send, tasks, and TEMU <ExternalLink size={14} /></a>
     {calendarKind && <div className="rounded-lg border border-sky-100 bg-sky-50/50 p-3 text-sm text-slate-700">
       <h4 className="font-semibold">Calendar · {CALENDAR_EMAIL_LABELS[calendarKind]}</h4>
       <p className="mt-1">Review the notification below, including any added questions. Open the event in Google Calendar to check its current details and your RSVP. Leo has not verified your RSVP, accepted, declined, or changed the event.</p>
@@ -278,11 +341,13 @@ function ResponseEditor({ item, policyReady = false, onBack, onSaved, onSent }: 
     </div>}
     {!calendarKind && isActionNeeded(item) && <div className="rounded-lg border border-sky-100 bg-sky-50/50 p-3 text-sm text-slate-700">
       <h4 className="font-semibold">Action needed · no email reply required</h4>
-      <p className="mt-1">Check Work for an existing task first, or use Add task in Mail. This classification does not create a task, perform platform changes, or mark work complete.</p>
+      <p className="mt-1">Review Linked work below, or create a task here. This classification does not create a task, perform platform changes, or mark work complete.</p>
       <a href="/work" onClick={(event) => { if (dirty && !window.confirm("Your edits are not saved. Open Work anyway?")) event.preventDefault(); }} className="mt-2 inline-flex items-center gap-2 font-semibold text-emerald-800">Open Work <ExternalLink size={14} /></a>
       <p className="mt-2 text-xs">If you need to acknowledge the request or confirm completion by email, choose Reply needed and save. Mark No follow-up needed only once nothing remains outstanding.</p>
     </div>}
-    <PartnerEmailContext threadId={item.thread_id} basedOnMessageId={item.draft ? item.draft_message_id : null} queueStatus={item.status} onRefreshStatus={recheckReply} refreshDisabled={busy || dirty} />
+    <PartnerEmailContext key={`${item.thread_id}:${editor.pending?.message_id ?? item.message_id}`} threadId={item.thread_id} basedOnMessageId={item.draft ? item.draft_message_id : null} queueStatus={item.status} onRefreshStatus={recheckReply} refreshDisabled={busy || dirty} />
+    <AttentionEmailTasks key={item.thread_id} threadId={item.thread_id} disabled={working || Boolean(editor.pending) || Boolean(sendItem)} onEditingChange={setTaskEditing} />
+    {taskEditing && <p className="text-xs text-slate-500">Create or cancel the task before saving or closing this email.</p>}
     {policyReady && <div className="space-y-3 rounded-lg border border-emerald-100 p-4">
       <h4 className="font-semibold text-slate-800">What does this conversation need?</h4>
       {assessment ? <p className="text-sm text-slate-600">Leo suggests <strong>{RESPONSE_CHOICES.find(([key]) => key === assessment.decision)?.[1]}</strong> ({assessment.confidence} confidence): {assessment.reason}</p> : <p className="text-sm text-slate-500">Not yet assessed for the latest email.</p>}
@@ -309,13 +374,13 @@ function ResponseEditor({ item, policyReady = false, onBack, onSaved, onSent }: 
     {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
     <div className="flex flex-wrap items-center gap-3">
       <button disabled={busy || !draft.trim() || isStaleDraft(item) || ["waiting", "handled"].includes(status)} onClick={() => void save(false, false, true)} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Review &amp; send</button>
-      <button disabled={busy} onClick={() => void save()} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Working…" : "Save changes"}</button>
+      <button disabled={busy} onClick={() => void save()} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{working ? "Working…" : "Save changes"}</button>
       <button disabled={busy} onClick={() => void save(true)} className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-800 disabled:opacity-50">{busy ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} {item.draft ? "Prepare a fresh draft" : "Draft with Leo"}</button>
       <button onClick={() => void loadHistory()} className="text-xs text-slate-500 underline">Previous drafts</button>
       <span className="text-xs text-slate-400">Saved {new Date(item.updated_at).toLocaleString()}</span>
     </div>
     <p className="text-xs text-slate-500">Review &amp; send saves your edits first, then asks you to confirm the recipient and reply. For an older draft, review the latest email and save your updated draft first.</p>
-    {sendItem && <PartnerReplySendDialog item={sendItem} onClose={(attempted) => { onSaved(sendItem); if (attempted) onBack(); }} onSent={onSent} />}
+    {sendItem && <PartnerReplySendDialog item={sendItem} onClose={(attempted) => { reviewingSend.current = false; setSendItem(null); onSaved(sendItem); if (attempted) onBack(); }} onSent={onSent} />}
     {history && <div className="space-y-3">{history.length ? history.map((revision) => <details key={revision.id} className="rounded-lg border border-slate-200 p-3 text-sm"><summary>Draft saved {new Date(revision.saved_at).toLocaleString()}</summary><p className="mt-3 whitespace-pre-wrap">{revision.draft}</p></details>) : <p className="text-xs text-slate-500">No previous draft versions yet.</p>}</div>}
   </div>;
 }
