@@ -34,6 +34,22 @@ Offline checks: `node scripts/check-calendar-email.mjs`,
 
 ## Saved responses
 
+Each Attention row has an **Archive** button, so opening the conversation is not
+required. Confirming archives in Gmail only; it does not mark the conversation
+handled, change a follow-up date, or delete saved work. Already-archived rows show
+**Not in inbox**. Stale-message/version checks and no automatic retries are shared
+with the existing archive endpoint. On an uncertain result, check Gmail and use
+Refresh list before retrying. Use **No follow-up needed** separately to close work.
+
+Classification corrections take effect for the current message when saved. Future
+assessments receive the five most recent corrections for the same matched partner,
+not a continuously trained model or a universal rule. Explicitly approved email-type
+rules can apply across partners. Already-assessed messages are not automatically
+reprocessed after feedback/rule changes; use Assess response needs or bulk reassessment.
+The scheduled worker processes at most two eligible conversations per five-minute
+check, subject to backlog and failures. No-reply suggestions still require human
+closure, so better classification alone does not empty Needs your input.
+
 Attention now has a saved **Partner responses** queue: Needs response, Draft ready,
 Action needed, Needs your input, Waiting / follow-up, and Handled. Open a row to save notes,
 prepare/edit a reply, set a follow-up date, or reopen previous drafts. The Mail
