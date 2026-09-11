@@ -9,18 +9,21 @@ import { moduleAt } from "../evals/partner-email/offline-runtime.mjs";
 
 const email = "owner@example.org";
 const original = { thread_id: "thread", message_id: "incoming", version: 3, in_inbox: true, status: "needs_input", notes: "Preserve notes", draft: "Unsent edit", follow_up_on: "2026-09-12" };
-const input = { threadId: "thread", expectedMessageId: "incoming", version: 3, confirmed: true };
+const input = { threadId: "thread", expectedMessageId: "incoming", version: 3, confirmed: true, acknowledgeFollowUp: true };
+const archivePolicy = moduleAt("src/lib/partner-archive.ts");
+const responseStates = moduleAt("src/types/partner-response.ts");
 const request = (patch = {}) => new Request("https://leo.example/api/partner-responses/archive", { method: "POST", body: JSON.stringify({ ...input, ...patch }) });
 function fixture(options = {}) {
-  let row = { ...original }, archives = 0, updates = 0, reads = 0;
+  let row = { ...original, ...options.item }, archives = 0, updates = 0, reads = 0;
   const api = moduleAt("src/app/api/partner-responses/archive/route.ts", {
     "next/server": { NextResponse: Response },
     "next-auth": { getServerSession: async () => options.session === undefined ? { user: { email }, accessToken: "synthetic" } : options.session },
     zod: { z }, "@/lib/auth": {},
+    "@/lib/partner-archive": archivePolicy,
     "@/lib/gmail": { archiveThread: async (_token, id) => { assert.equal(id, "thread"); archives++; if (options.archiveFails) throw new Error("Lost receipt"); } },
     "@/lib/gmail-history": {
       gmailProfile: async () => ({ emailAddress: options.wrongAccount ? "other@example.org" : email }),
-      threadMetadata: async () => { reads++; return options.missingMail ? null : { lastMessageId: options.newMessage || (reads > 1 && options.arriveAfter) ? "new" : "incoming", labelIds: reads > 1 || options.alreadyArchived ? [] : ["INBOX"] }; },
+      threadMetadata: async () => { reads++; return options.missingMail ? null : { lastMessageId: options.newMessage || (reads > 1 && options.arriveAfter) ? "new" : "incoming", labelIds: options.stillInInbox ? ["INBOX"] : reads > 1 || options.alreadyArchived ? [] : ["INBOX"] }; },
     },
     "@/lib/partner-response-store": {
       getResponse: async () => options.missing ? null : { ...row },
@@ -41,6 +44,7 @@ for (const [options, patch, status] of [
   [{}, { threadId: "../unsafe" }, 400],
   [{}, { version: 2 }, 409],
   [{}, { expectedMessageId: "old" }, 409],
+  [{}, { acknowledgeFollowUp: false }, 409],
   [{ missing: true }, {}, 404],
   [{ wrongAccount: true }, {}, 403],
   [{ conflict: true }, {}, 409],
@@ -56,8 +60,15 @@ const response = await (await f.api.POST(request())).json();
 assert.equal(response.ok, true);
 assert.equal(f.archives(), 1);
 assert.equal(f.row().in_inbox, false);
-for (const key of ["draft", "status", "notes", "follow_up_on", "message_id"]) assert.equal(f.row()[key], original[key], `${key} unchanged`);
+for (const key of ["draft", "notes", "follow_up_on", "message_id"]) assert.equal(f.row()[key], original[key], `${key} unchanged`);
+assert.equal(f.row().status, "handled", "successful archive removes it from active Attention");
+assert.equal(f.row().response_correction, undefined, "archive is not a learned no_reply correction");
 assert.match(response.notice, /not deleted/);
+assert.match(response.notice, /Handled recently/);
+assert.equal(responseStates.responseAfterMessage(f.row(), "incoming", true, true), "handled", "label/read sync must not reopen archived Attention");
+assert.equal(responseStates.responseAfterMessage(f.row(), "new-incoming", true, true), "needs_response", "new partner mail reopens archived Attention");
+assert.equal(responseStates.responseAfterMessage(f.row(), "new-incoming", true, false), "needs_input", "unmatched incoming mail still reopens");
+assert.equal(responseStates.responseAfterMessage(f.row(), "new-outgoing", false, true), "handled", "own additional replies do not reopen");
 assert.equal((await f.api.POST(request())).status, 409);
 assert.equal(f.archives(), 1, "duplicate reviewed version cannot archive twice");
 const concurrent = fixture();
@@ -72,16 +83,26 @@ for (const options of [{ bookkeepingFails: true }, { arriveAfter: true }]) {
   assert.match(response.notice, /newer activity or a queue update/);
   assert.equal(f.archives(), 1);
   assert.equal(f.row().draft, original.draft);
+  assert.equal(f.row().status, original.status, "races and partial failures must not hide the conversation");
 }
 const uncertain = fixture({ archiveFails: true });
 assert.equal((await uncertain.api.POST(request())).status, 502);
 assert.equal(uncertain.archives(), 1);
 assert.equal(uncertain.row().in_inbox, true);
+assert.equal(uncertain.row().status, original.status);
 assert.equal((await uncertain.api.POST(request())).status, 409);
 const already = fixture({ alreadyArchived: true });
 assert.equal((await already.api.POST(request())).status, 200);
 assert.equal(already.archives(), 0);
 assert.equal(already.row().in_inbox, false);
+assert.equal(already.row().status, "handled", "Gmail-only archived conversations can be removed from Attention too");
+const stillInInbox = fixture({ stillInInbox: true });
+assert.equal((await stillInInbox.api.POST(request())).status, 200);
+assert.equal(stillInInbox.row().status, original.status, "do not hide a thread still in the inbox");
+assert.match(archivePolicy.archiveConfirmation(original), /follow-up is scheduled/);
+assert.match(archivePolicy.archiveConfirmation({ ...original, status: "waiting" }), /waiting for a partner answer/);
+assert.match(archivePolicy.archiveConfirmation({ ...original, status: "draft_ready" }), /does not send the draft/);
+assert.match(archivePolicy.archiveConfirmation({ ...original, response_correction: { message_id: "incoming", decision: "action_only" } }), /unfinished work/);
 
 // Exercise the row control without a browser or real Gmail writes.
 function rowControl(options = {}) {
@@ -96,6 +117,7 @@ function rowControl(options = {}) {
     "react/jsx-runtime": jsx,
     "lucide-react": { Archive: () => null, Loader2: () => null },
     "@/lib/http": { readJsonResponse: async (response) => response.json() },
+    "@/lib/partner-archive": archivePolicy,
   };
   vm.runInNewContext(ts.transpileModule(fs.readFileSync("src/components/PartnerResponseRowArchive.tsx", "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
@@ -125,11 +147,13 @@ const canceledRow = rowControl({ confirm: false });
 await canceledRow.buttons(canceledRow.render())[0].props.onClick();
 assert.equal(canceledRow.requests.length, 0);
 const archivedRow = rowControl({ item: { in_inbox: false } });
-assert.equal(archivedRow.buttons(archivedRow.render())[0].props.disabled, true);
-assert.match(archivedRow.text(archivedRow.render()), /Not in inbox/);
+assert.equal(archivedRow.buttons(archivedRow.render())[0].props.disabled, false, "Gmail-only archives can still be dismissed from Attention");
+const handledRow = rowControl({ item: { in_inbox: false, status: "handled" } });
+assert.equal(handledRow.buttons(handledRow.render())[0].props.disabled, true);
+assert.match(handledRow.text(handledRow.render()), /Archived/);
 const row = rowControl();
 const archiveButton = row.buttons(row.render())[0];
-assert.match(archiveButton.props["aria-label"], /Archive Planning in Gmail/);
+assert.match(archiveButton.props["aria-label"], /Archive Planning from Gmail and Attention/);
 archiveButton.props.onClick(); archiveButton.props.onClick();
 assert.equal(row.requests.length, 1, "rapid double-click submits once");
 assert.equal(row.buttons(row.render())[0].props.disabled, true);

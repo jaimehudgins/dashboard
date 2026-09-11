@@ -67,11 +67,14 @@ never automatically retried. `node scripts/check-response-editor.mjs` verifies
 these behaviors offline. No SQL migration is needed.
 
 Each Attention row has an **Archive** button, so opening the conversation is not
-required. Confirming archives in Gmail only; it does not mark the conversation
-handled, change a follow-up date, or delete saved work. Already-archived rows show
-**Not in inbox**. Stale-message/version checks and no automatic retries are shared
-with the existing archive endpoint. On an uncertain result, check Gmail and use
-Refresh list before retrying. Use **No follow-up needed** separately to close work.
+required. Confirming removes the conversation from Gmail's inbox and active
+Attention, placing it in **Handled recently**. The confirmation warns about
+outstanding replies, actions, decisions, and scheduled follow-ups. Work tasks,
+notes, drafts, and stored follow-up dates remain intact; archived dates are not
+active reminders. Conversations already outside Gmail's inbox can still be
+archived from Attention. Stale-message/version checks and no automatic retries
+are shared with the existing archive endpoint. On an uncertain result, check
+Gmail and use Refresh list before retrying.
 
 Classification corrections take effect for the current message when saved. Future
 assessments receive the five most recent corrections for the same matched partner,
@@ -163,19 +166,29 @@ within 5 minutes); you can also reopen it manually using Status and Save changes
 
 ## Archive from Attention
 
-**Archive in Gmail** is available near the top of an Attention conversation.
-Save any unsaved edits first, then confirm the archive. It removes the thread
-from the Gmail inbox without deleting it or changing Leo's follow-up status,
-notes, draft, or follow-up date. Restore it using **Move to Inbox** in Gmail.
-Use **No follow-up needed** separately when you also want to close Leo's work.
-Archived conversations can therefore remain in Attention; they show **Not in
-Gmail inbox**. New incoming mail is handled by normal mail sync.
+**Archive** is available near the top of an Attention conversation and on each
+queue row. Save unsaved edits first, then confirm the archive and any warnings.
+Only after Gmail confirms the thread is outside its inbox and the latest message
+is unchanged does Leo set the queue status to `handled`. This hides it from active
+views, counters, and scheduled reply preparation; **Handled recently** retains
+access to its notes, draft, source, stored follow-up date, and linked tasks.
+No task is marked complete and no classification correction or rule is learned.
+**No follow-up needed** remains a separate decision that does not archive Gmail.
+
+The existing handled lifecycle keeps read/label changes and additional outgoing
+mail from reopening the item. A new incoming partner email reopens Attention on
+the next mail check. Moving the old thread back to Gmail's inbox alone does not
+reopen Attention; use its status control in Handled recently for that. Previously
+Gmail-only archived items are not bulk-closed: their Archive button remains enabled
+so the user can review and explicitly remove them from active Attention.
 
 The archive route checks the authenticated Google account, reviewed queue
 version, and latest Gmail message before archiving. It consumes that version
 to prevent duplicate submissions and never automatically retries a Gmail write.
 Gmail cannot atomically combine thread archive with the latest-message check;
-if new activity arrives during the operation, the UI asks you to check Gmail.
+if new activity arrives during the operation, the UI asks you to check Gmail and
+does not hide the conversation. The API requires explicit acknowledgment of
+outstanding follow-ups as well as archive confirmation.
 If delivery of the archive request is uncertain, check reply status before
 trying again. No migration or new OAuth scope is required.
 Run `node scripts/check-partner-archive.mjs` for offline regressions.

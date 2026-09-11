@@ -32,6 +32,7 @@ function harness() {
     react, "react/jsx-runtime": jsx, "lucide-react": {}, "@/lib/http": moduleAt("src/lib/http.ts"),
     "@/types/partner-response": moduleAt("src/types/partner-response.ts"),
     "@/lib/partner-response-editor": helpers,
+    "@/lib/partner-archive": moduleAt("src/lib/partner-archive.ts"),
     "@/lib/response-needed-policy": moduleAt("src/lib/response-needed-policy.ts"),
     "@/lib/partner-response-lane": moduleAt("src/lib/partner-response-lane.ts"),
     "@/lib/calendar-email": moduleAt("src/lib/calendar-email.ts"),

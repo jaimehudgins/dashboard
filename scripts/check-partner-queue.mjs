@@ -31,6 +31,7 @@ const responsePolicy = moduleAt("src/lib/response-needed-policy.ts");
 const responseLane = moduleAt("src/lib/partner-response-lane.ts");
 const calendarEmail = moduleAt("src/lib/calendar-email.ts");
 const editorHelpers = moduleAt("src/lib/partner-response-editor.ts", { "./http": {} });
+const archivePolicy = moduleAt("src/lib/partner-archive.ts");
 assert.equal(states.responseAfterMessage({ message_id: "10", status: "handled" }, "10", true, true), "handled", "reading or labeling must not reopen a handled item");
 assert.equal(states.responseAfterMessage({ message_id: "10", status: "handled" }, "11", true, true), "needs_response", "new partner reply reopens handled work");
 assert.equal(states.responseAfterMessage({ message_id: "10", status: "handled" }, "11", false, true), "handled", "your own additional sent message must not reopen no-follow-up work");
@@ -326,6 +327,7 @@ const ui = moduleAt("src/components/PartnerResponseQueue.tsx", {
   "./ResponseReassessment": { default: () => null },
   "./PartnerResponseRowArchive": { default: () => null },
   "./AttentionEmailTasks": { default: () => null },
+  "@/lib/partner-archive": archivePolicy,
 }, "\nexport { ResponseEditor };\n");
 const markup = renderToStaticMarkup(React.createElement(ui.ResponseEditor, {
   item: {
@@ -338,8 +340,8 @@ const markup = renderToStaticMarkup(React.createElement(ui.ResponseEditor, {
 assert.match(markup, /href="\/mail\?thread=thread"/, "open the exact conversation from the queue");
 assert.match(markup, /This draft is from an earlier message/);
 assert.match(markup, /Previous drafts/);
-assert.match(markup, /Removes it from Gmail’s inbox/);
-assert.match(markup, /Archive in Gmail|Not in Gmail inbox/);
+assert.match(markup, /Moves to Handled recently and leaves Gmail’s inbox/);
+assert.match(markup, /Archive<\/button>/);
 assert.match(markup, /Review &amp; send/);
 assert.match(markup, />No follow-up needed<\/button>/, "a direct close action is visible without editing the status dropdown");
 assert.match(markup, /Nothing is sent or archived in Gmail/);
