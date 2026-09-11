@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import PartnerResponseQueue from "./PartnerResponseQueue";
+import DriveCommentQueue from "./DriveCommentQueue";
 import {
   AlertTriangle,
   ArrowRight,
@@ -365,6 +366,8 @@ export default function AttentionHub() {
       </header>
 
       <PartnerResponseQueue />
+
+      <DriveCommentQueue />
 
       <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
