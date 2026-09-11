@@ -6,6 +6,7 @@ async function refreshAccessToken(token: {
   refreshToken?: string;
   expiresAt?: number;
   error?: string;
+  googleScope?: string;
 }) {
   try {
     const response = await fetch("https://oauth2.googleapis.com/token", {
@@ -56,6 +57,8 @@ const SCOPES = [
   "https://www.googleapis.com/auth/gmail.send",
   "https://www.googleapis.com/auth/gmail.compose",
   "https://www.googleapis.com/auth/drive.readonly",
+  ...(process.env.GOOGLE_DRIVE_COMMENTS_ENABLED === "true"
+    ? ["https://www.googleapis.com/auth/drive.file"] : []),
 ].join(" ");
 
 export const authOptions: NextAuthOptions = {
@@ -93,6 +96,7 @@ export const authOptions: NextAuthOptions = {
           accessToken: account.access_token,
           refreshToken: account.refresh_token,
           expiresAt: account.expires_at,
+          googleScope: account.scope,
         };
       }
 
@@ -109,6 +113,7 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       session.accessToken = token.accessToken as string;
+      session.googleScope = token.googleScope;
       // Surface refresh errors so the client can prompt re-authentication
       if (token.error) {
         session.error = token.error as string;

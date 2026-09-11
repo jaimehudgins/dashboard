@@ -4,6 +4,7 @@ declare module "next-auth" {
   interface Session {
     accessToken?: string;
     error?: string;
+    googleScope?: string;
   }
 }
 
@@ -13,5 +14,6 @@ declare module "next-auth/jwt" {
     refreshToken?: string;
     expiresAt?: number;
     error?: string;
+    googleScope?: string;
   }
 }
